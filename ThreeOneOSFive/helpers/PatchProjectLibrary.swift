@@ -199,7 +199,11 @@ enum PatchProjectLibrary {
     }
 
 static func seedDefaultPackages(fileManager: FileManager = .default) {
-    guard let root = try? packageRootURL(fileManager: fileManager) else { return }
+    guard let root = try? packageRootURL(fileManager: fileManager) else {
+        log("patch: seedDefaultPackages - no se pudo obtener packageRootURL")
+        return
+    }
+    log("patch: seedDefaultPackages - root: \(root.path)")
 
     let defaultResources: [(name: String, ext: String, password: String)] = [
         ("AIMBOT PECHO  FFTH", "3105", "H3jirR5@2vpq!xW2NXpJb6"),
@@ -212,35 +216,45 @@ static func seedDefaultPackages(fileManager: FileManager = .default) {
     for resource in defaultResources {
         let filename = "\(resource.name).\(resource.ext)"
         let destination = root.appendingPathComponent(filename)
+        log("patch: procesando \(filename)")
+        
         guard let bundledURL = Bundle.main.url(
             forResource: resource.name,
             withExtension: resource.ext
-        ) else { continue }
+        ) else {
+            log("patch: no se encontró \(filename) en el bundle")
+            continue
+        }
+        log("patch: bundledURL: \(bundledURL.path)")
 
         do {
-            // Copiar o actualizar el archivo
             let bundledData = try Data(contentsOf: bundledURL)
+            log("patch: bundledData size: \(bundledData.count) bytes")
+            
             if let existingData = try? Data(contentsOf: destination),
                existingData == bundledData {
-                // El archivo ya existe y es idéntico, solo asegurar que esté desbloqueado
-                let data = try PatchProjectLibrary.readPackage(at: destination)
-                let summary = try PatchPackageCodec.inspect(data)
-                let decoded = try PatchPackageCodec.decode(data, password: resource.password)
-                try PatchKeyStore.store(decoded.contentKey, for: summary)
-                continue
+                log("patch: \(filename) ya existe y es idéntico")
+            } else {
+                if fileManager.fileExists(atPath: destination.path) {
+                    try fileManager.removeItem(at: destination)
+                }
+                try fileManager.copyItem(at: bundledURL, to: destination)
+                log("patch: \(filename) copiado")
             }
-            if fileManager.fileExists(atPath: destination.path) {
-                try fileManager.removeItem(at: destination)
-            }
-            try fileManager.copyItem(at: bundledURL, to: destination)
 
-            // Desbloquear automáticamente guardando la clave en Keychain
             let data = try PatchProjectLibrary.readPackage(at: destination)
+            log("patch: \(filename) leído, size: \(data.count) bytes")
+            
             let summary = try PatchPackageCodec.inspect(data)
+            log("patch: \(filename) inspeccionado, packageID: \(summary.packageID)")
+            
             let decoded = try PatchPackageCodec.decode(data, password: resource.password)
+            log("patch: \(filename) decodificado con contraseña")
+            
             try PatchKeyStore.store(decoded.contentKey, for: summary)
+            log("patch: \(filename) desbloqueado y guardado en Keychain")
         } catch {
-            log("patch: failed to seed default package \(filename): \(error)")
+            log("patch: ERROR con \(filename): \(error)")
         }
     }
 }
