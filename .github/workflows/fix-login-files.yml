@@ -1,0 +1,77 @@
+name: Fix Login Files
+
+on:
+  workflow_dispatch:
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Add Login files to project.pbxproj
+        run: |
+          # Crear script Python
+          cat > fix_project.py << 'EOF'
+          import re
+
+          with open('ThreeOneOSFive.xcodeproj/project.pbxproj', 'r') as f:
+              content = f.read()
+
+          # IDs únicos para los nuevos archivos
+          LOGIN_MGR_REF = '3105L201'
+          LOGIN_MGR_BUILD = '3105L200'
+          LOGIN_VIEW_REF = '3105L203'
+          LOGIN_VIEW_BUILD = '3105L202'
+
+          # 1. Agregar PBXBuildFile (después de /* Begin PBXBuildFile section */)
+          buildfile_section = f'''\t\t{LOGIN_MGR_BUILD} /* LoginManager.swift in Sources */ = {{isa = PBXBuildFile; fileRef = {LOGIN_MGR_REF}; }};
+\t\t{LOGIN_VIEW_BUILD} /* LoginView.swift in Sources */ = {{isa = PBXBuildFile; fileRef = {LOGIN_VIEW_REF}; }};
+'''
+          content = content.replace(
+              '/* Begin PBXBuildFile section */',
+              f'/* Begin PBXBuildFile section */\\n{buildfile_section}'
+          )
+
+          # 2. Agregar PBXFileReference (después de /* Begin PBXFileReference section */)
+          fileref_section = f'''\t\t{LOGIN_MGR_REF} /* LoginManager.swift */ = {{isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginManager.swift; sourceTree = "<group>"; }};
+\t\t{LOGIN_VIEW_REF} /* LoginView.swift */ = {{isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; }};
+'''
+          content = content.replace(
+              '/* Begin PBXFileReference section */',
+              f'/* Begin PBXFileReference section */\\n{fileref_section}'
+          )
+
+          # 3. Agregar a helpers group (despues de MG.swift)
+          content = content.replace(
+              '3105A027 /* MG.swift */,\n\t\t\t);',
+              f'3105A027 /* MG.swift */,\n\t\t\t\t{LOGIN_MGR_REF} /* LoginManager.swift */,\n\t\t\t);'
+          )
+
+          # 4. Agregar a views group (después de OnboardingView.swift)
+          content = content.replace(
+              '3105F108 /* OnboardingView.swift */,\n\t\t\t);\n\t\t\tpath = views;',
+              f'3105F108 /* OnboardingView.swift */,\n\t\t\t\t{LOGIN_VIEW_REF} /* LoginView.swift */,\n\t\t\t);\n\t\t\tpath = views;'
+          )
+
+          # 5. Agregar a PBXSourcesBuildPhase (después de 3105I201)
+          content = content.replace(
+              '3105I201,\n\t\t\t);\n\t\t\trunOnlyForDeploymentPostprocessing = 0;\n\t\t};\n/* End PBXSourcesBuildPhase section */',
+              f'3105I201,\n\t\t\t\t{LOGIN_MGR_BUILD},\n\t\t\t\t{LOGIN_VIEW_BUILD},\n\t\t\t);\n\t\t\trunOnlyForDeploymentPostprocessing = 0;\n\t\t}};\n/* End PBXSourcesBuildPhase section */'
+          )
+
+          with open('ThreeOneOSFive.xcodeproj/project.pbxproj', 'w') as f:
+              f.write(content)
+
+          print("✅ Archivos agregados correctamente")
+          EOF
+
+          python3 fix_project.py
+
+      - name: Commit changes
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add ThreeOneOSFive.xcodeproj/project.pbxproj
+          git diff --cached --quiet || git commit -m "Add LoginManager.swift and LoginView.swift to Xcode project"
+          git push

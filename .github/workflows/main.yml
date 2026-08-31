@@ -1,1 +1,111 @@
-gh
+name: Build VINI
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: |
+          sudo xcode-select -s /Applications/Xcode.app
+          xcodebuild -version
+
+      # CACHE: Acelera builds futuros
+      - name: Cache DerivedData
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Developer/Xcode/DerivedData
+          key: ${{ runner.os }}-derived-data-${{ hashFiles('**/*.swift', '**/Podfile.lock', '**/Package.resolved') }}
+          restore-keys: |
+            ${{ runner.os }}-derived-data-
+
+      # Verificar que los nuevos archivos están en el proyecto
+      - name: Verify Swift files
+        run: |
+          echo "Archivos Swift en el proyecto:"
+          find . -name "*.swift" -type f | head -20
+          
+          # Verificar específicamente LoginManager y LoginView
+          if [ -f "LoginManager.swift" ]; then
+            echo "✓ LoginManager.swift encontrado"
+          else
+            echo "⚠ LoginManager.swift no encontrado en raíz"
+          fi
+          
+          if [ -f "LoginView.swift" ]; then
+            echo "✓ LoginView.swift encontrado"
+          else
+            echo "⚠ LoginView.swift no encontrado en raíz"
+          fi
+
+      - name: Show schemes
+        run: |
+          xcodebuild \
+            -project ThreeOneOSFive.xcodeproj \
+            -list
+
+      # BUILD
+      - name: Build
+        run: |
+          xcodebuild \
+            -project ThreeOneOSFive.xcodeproj \
+            -scheme 3105 \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build \
+            PRODUCT_NAME=VINI \
+            INFOPLIST_KEY_CFBundleDisplayName=VINI \
+            INFOPLIST_KEY_CFBundleName=VINI \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            build
+
+      # Opcional: Ejecutar tests unitarios
+      # - name: Run Tests
+      #   run: |
+      #     xcodebuild \
+      #       -project ThreeOneOSFive.xcodeproj \
+      #       -scheme 3105 \
+      #       -sdk iphonesimulator \
+      #       -destination 'platform=iOS Simulator,name=iPhone 15' \
+      #       test
+
+      - name: Package app
+        run: |
+          mkdir -p output
+
+          APP_PATH=$(find build/Build/Products/Release-iphoneos \
+            -maxdepth 1 \
+            -name "*.app" \
+            -type d | head -n 1)
+
+          echo "APP_PATH=$APP_PATH"
+
+          if [ -z "$APP_PATH" ]; then
+            echo "No se encontró el .app"
+            exit 1
+          fi
+
+          cp -R "$APP_PATH" output/
+          
+          # Crear lista de archivos para verificar
+          echo "Contenido del .app:"
+          ls -la "$APP_PATH"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: VINI-iOS
+          path: output/
+          retention-days: 7
