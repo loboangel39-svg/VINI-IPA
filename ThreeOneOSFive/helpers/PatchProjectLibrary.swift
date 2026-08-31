@@ -199,39 +199,51 @@ enum PatchProjectLibrary {
     }
 
 static func seedDefaultPackages(fileManager: FileManager = .default) {
-        guard let root = try? packageRootURL(fileManager: fileManager) else { return }
+    guard let root = try? packageRootURL(fileManager: fileManager) else { return }
 
-let defaultResources: [(name: String, ext: String, password: String)] = [
-    ("AIMBOT PECHO  FFTH", "3105", "H3jirR5@2vpq!xW2NXpJb6"),
-    ("AIMBOT CUELLO  FFTH", "3105", "Go2Yb&J6z6j9!tY3Gi3Lhz"),
-    ("AIMBOT PECHO  MAX", "3105", "GBrzpp^5k5nBAouFDX2QTj"),
-    ("HOLOGRAMA FFTH", "3105", "2$2#PkAbb5kV6z@25Tw$a9"),
-    ("HOLOGRAMA MAX", "3105", "brKJFA%e97XLS8SR&P@xK$"),
-]
+    let defaultResources: [(name: String, ext: String, password: String)] = [
+        ("AIMBOT PECHO  FFTH", "3105", "H3jirR5@2vpq!xW2NXpJb6"),
+        ("AIMBOT CUELLO  FFTH", "3105", "Go2Yb&J6z6j9!tY3Gi3Lhz"),
+        ("AIMBOT PECHO  MAX", "3105", "GBrzpp^5k5nBAouFDX2QTj"),
+        ("HOLOGRAMA FFTH", "3105", "2$2#PkAbb5kV6z@25Tw$a9"),
+        ("HOLOGRAMA MAX", "3105", "brKJFA%e97XLS8SR&P@xK$"),
+    ]
 
-        for resource in defaultResources {
-            let filename = "\(resource.name).\(resource.ext)"
-            let destination = root.appendingPathComponent(filename)
-            guard let bundledURL = Bundle.main.url(
-                forResource: resource.name,
-                withExtension: resource.ext
-            ) else { continue }
+    for resource in defaultResources {
+        let filename = "\(resource.name).\(resource.ext)"
+        let destination = root.appendingPathComponent(filename)
+        guard let bundledURL = Bundle.main.url(
+            forResource: resource.name,
+            withExtension: resource.ext
+        ) else { continue }
 
-            do {
-                let bundledData = try Data(contentsOf: bundledURL)
-                if let existingData = try? Data(contentsOf: destination),
-                   existingData == bundledData {
-                    continue
-                }
-                if fileManager.fileExists(atPath: destination.path) {
-                    try fileManager.removeItem(at: destination)
-                }
-                try fileManager.copyItem(at: bundledURL, to: destination)
-            } catch {
-                log("patch: failed to seed default package \(filename): \(error)")
+        do {
+            // Copiar o actualizar el archivo
+            let bundledData = try Data(contentsOf: bundledURL)
+            if let existingData = try? Data(contentsOf: destination),
+               existingData == bundledData {
+                // El archivo ya existe y es idéntico, solo asegurar que esté desbloqueado
+                let data = try PatchProjectLibrary.readPackage(at: destination)
+                let summary = try PatchPackageCodec.inspect(data)
+                let decoded = try PatchPackageCodec.decode(data, password: resource.password)
+                try PatchKeyStore.store(decoded.contentKey, for: summary)
+                continue
             }
+            if fileManager.fileExists(atPath: destination.path) {
+                try fileManager.removeItem(at: destination)
+            }
+            try fileManager.copyItem(at: bundledURL, to: destination)
+
+            // Desbloquear automáticamente guardando la clave en Keychain
+            let data = try PatchProjectLibrary.readPackage(at: destination)
+            let summary = try PatchPackageCodec.inspect(data)
+            let decoded = try PatchPackageCodec.decode(data, password: resource.password)
+            try PatchKeyStore.store(decoded.contentKey, for: summary)
+        } catch {
+            log("patch: failed to seed default package \(filename): \(error)")
         }
     }
+}
     
     private static func sanitizedFilename(_ rawName: String) -> String {
         let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-_ "))
