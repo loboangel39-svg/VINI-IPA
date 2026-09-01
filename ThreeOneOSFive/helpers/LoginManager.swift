@@ -18,7 +18,7 @@ final class LoginManager {
         let hwid = UIDevice.current.identifierForVendor?.uuidString ?? "unknown"
         
         // Primero, buscar la licencia por clave
-        let queryURL = "\(baseURL)/licenses:runQuery?key=\(apiKey)"
+        let queryURL = "\(baseURL):runQuery?key=\(apiKey)"
         
         guard let url = URL(string: queryURL) else {
             completion(false, "Error de configuración", nil)
@@ -134,7 +134,7 @@ final class LoginManager {
     static func verifyLicense(licenseKey: String, completion: @escaping (Bool) -> Void) {
         let hwid = UIDevice.current.identifierForVendor?.uuidString ?? "unknown"
         
-        let queryURL = "\(baseURL)/licenses:runQuery?key=\(apiKey)"
+        let queryURL = "\(baseURL):runQuery?key=\(apiKey)"
         
         guard let url = URL(string: queryURL) else {
             completion(false)
