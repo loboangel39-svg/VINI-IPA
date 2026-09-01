@@ -1,21 +1,26 @@
 import Foundation
 import UIKit
 
-struct LoginResponse: Codable {
+struct LoginResponse {
     let success: Bool
     let message: String
-    let expires_at: String?
+    let expiresAt: Date?
 }
 
 final class LoginManager {
-
-    private static let supabaseURL = "https://nahytmsteytjbhpexrpo.supabase.co"
-    private static let supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5haHl0bXN0ZXl0amJocGV4cnBvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgwOTgzNjgsImV4cCI6MjEwMzY3NDM2OH0.1cs_3ye8q1xhmGiuED4DjpO5nhftb3f5--dB_v3uoDU"
-
+    
+    private static let projectId = "vini-ios-7f93a"
+    private static let apiKey = "AIzaSyD0OAaWFuEjkihtnLyzYsQC9kB9J_K8YgM"
+    private static let baseURL = "https://firestore.googleapis.com/v1/projects/\(projectId)/databases/(default)/documents"
+    
+    /// Inicia sesión validando la licencia y registrando HWID si es la primera vez
     static func login(licenseKey: String, completion: @escaping (Bool, String, Date?) -> Void) {
-        let endpoint = "\(supabaseURL)/rest/v1/rpc/validate_license"
+        let hwid = UIDevice.current.identifierForVendor?.uuidString ?? "unknown"
         
-        guard let url = URL(string: endpoint) else {
+        // Primero, buscar la licencia por clave
+        let queryURL = "\(baseURL)/licenses:runQuery?key=\(apiKey)"
+        
+        guard let url = URL(string: queryURL) else {
             completion(false, "Error de configuración", nil)
             return
         }
@@ -23,19 +28,25 @@ final class LoginManager {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("Bearer \(supabaseKey)", forHTTPHeaderField: "Authorization")
-        request.setValue(supabaseKey, forHTTPHeaderField: "apikey")
         
-        // Obtener HWID del dispositivo
-        let hwid = UIDevice.current.identifierForVendor?.uuidString ?? "unknown"
-        
-        let body: [String: Any] = [
-            "p_license_key": licenseKey,
-            "p_hwid": hwid
+        let query: [String: Any] = [
+            "structuredQuery": [
+                "from": [
+                    ["collectionId": "licenses"]
+                ],
+                "where": [
+                    "fieldFilter": [
+                        "field": ["fieldPath": "key"],
+                        "op": "EQUAL",
+                        "value": ["stringValue": licenseKey]
+                    ]
+                ],
+                "limit": 1
+            ]
         ]
         
         do {
-            request.httpBody = try JSONSerialization.data(withJSONObject: body)
+            request.httpBody = try JSONSerialization.data(withJSONObject: query)
         } catch {
             completion(false, "Error al procesar la solicitud", nil)
             return
@@ -53,27 +64,79 @@ final class LoginManager {
             }
             
             do {
-                let decoder = JSONDecoder()
-                let loginResponse = try decoder.decode(LoginResponse.self, from: data)
-                
-                var expiresAt: Date? = nil
-                if let expiresAtString = loginResponse.expires_at {
-                    let formatter = ISO8601DateFormatter()
-                    expiresAt = formatter.date(from: expiresAtString)
+                if let jsonArray = try JSONSerialization.jsonObject(with: data) as? [[String: Any]],
+                   let firstResult = jsonArray.first,
+                   let document = firstResult["document"] as? [String: Any],
+                   let fields = document["fields"] as? [String: Any] {
+                    
+                    let documentName = document["name"] as? String ?? ""
+                    
+                    // Verificar si la licencia está activa
+                    if let activeField = fields["active"] as? [String: Any],
+                       let isActive = activeField["booleanValue"] as? Bool,
+                       !isActive {
+                        completion(false, "Licencia desactivada", nil)
+                        return
+                    }
+                    
+                    // Verificar expiración
+                    var expirationDate: Date? = nil
+                    if let expiresAtField = fields["expiresAt"] as? [String: Any],
+                       let timestampString = expiresAtField["timestampValue"] as? String {
+                        
+                        let formatter = ISO8601DateFormatter()
+                        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+                        
+                        if let expDate = formatter.date(from: timestampString) {
+                            expirationDate = expDate
+                            if Date() > expDate {
+                                completion(false, "Licencia expirada", nil)
+                                return
+                            }
+                        }
+                    }
+                    
+                    // Verificar HWID
+                    if let hwidField = fields["hwid"] as? [String: Any],
+                       let registeredHwid = hwidField["stringValue"] as? String,
+                       !registeredHwid.isEmpty {
+                        
+                        // La licencia ya tiene HWID registrado
+                        if registeredHwid == hwid {
+                            // HWID coincide - Login exitoso
+                            updateLastLogin(documentName: documentName)
+                            completion(true, "Inicio de sesión exitoso", expirationDate)
+                        } else {
+                            // HWID no coincide
+                            completion(false, "Esta licencia ya está vinculada a otro dispositivo", nil)
+                        }
+                    } else {
+                        // La licencia NO tiene HWID registrado - Registrar el HWID actual
+                        registerHwid(documentName: documentName, hwid: hwid) { success in
+                            if success {
+                                updateLastLogin(documentName: documentName)
+                                completion(true, "Licencia activada para este dispositivo", expirationDate)
+                            } else {
+                                completion(false, "Error al registrar el dispositivo", nil)
+                            }
+                        }
+                    }
+                } else {
+                    completion(false, "Licencia inválida", nil)
                 }
-                
-                completion(loginResponse.success, loginResponse.message, expiresAt)
             } catch {
                 completion(false, "Error al procesar la respuesta", nil)
             }
         }.resume()
     }
-
-    /// Verifica si una licencia sigue activa en Supabase
+    
+    /// Verifica si una licencia sigue activa en Firestore
     static func verifyLicense(licenseKey: String, completion: @escaping (Bool) -> Void) {
-        let endpoint = "\(supabaseURL)/rest/v1/rpc/validate_license"
+        let hwid = UIDevice.current.identifierForVendor?.uuidString ?? "unknown"
         
-        guard let url = URL(string: endpoint) else {
+        let queryURL = "\(baseURL)/licenses:runQuery?key=\(apiKey)"
+        
+        guard let url = URL(string: queryURL) else {
             completion(false)
             return
         }
@@ -81,20 +144,47 @@ final class LoginManager {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("Bearer \(supabaseKey)", forHTTPHeaderField: "Authorization")
-        request.setValue(supabaseKey, forHTTPHeaderField: "apikey")
         request.timeoutInterval = 10
         
-        // Obtener HWID del dispositivo
-        let hwid = UIDevice.current.identifierForVendor?.uuidString ?? "unknown"
-        
-        let body: [String: Any] = [
-            "p_license_key": licenseKey,
-            "p_hwid": hwid
+        let query: [String: Any] = [
+            "structuredQuery": [
+                "from": [
+                    ["collectionId": "licenses"]
+                ],
+                "where": [
+                    "compositeFilter": [
+                        "op": "AND",
+                        "filters": [
+                            [
+                                "fieldFilter": [
+                                    "field": ["fieldPath": "key"],
+                                    "op": "EQUAL",
+                                    "value": ["stringValue": licenseKey]
+                                ]
+                            ],
+                            [
+                                "fieldFilter": [
+                                    "field": ["fieldPath": "hwid"],
+                                    "op": "EQUAL",
+                                    "value": ["stringValue": hwid]
+                                ]
+                            ],
+                            [
+                                "fieldFilter": [
+                                    "field": ["fieldPath": "active"],
+                                    "op": "EQUAL",
+                                    "value": ["booleanValue": true]
+                                ]
+                            ]
+                        ]
+                    ]
+                ],
+                "limit": 1
+            ]
         ]
         
         do {
-            request.httpBody = try JSONSerialization.data(withJSONObject: body)
+            request.httpBody = try JSONSerialization.data(withJSONObject: query)
         } catch {
             completion(false)
             return
@@ -107,11 +197,122 @@ final class LoginManager {
             }
             
             do {
-                let decoded = try JSONDecoder().decode(LoginResponse.self, from: data)
-                DispatchQueue.main.async { completion(decoded.success) }
+                if let jsonArray = try JSONSerialization.jsonObject(with: data) as? [[String: Any]],
+                   let firstResult = jsonArray.first,
+                   let document = firstResult["document"] as? [String: Any],
+                   let fields = document["fields"] as? [String: Any] {
+                    
+                    // Verificar expiración
+                    if let expiresAtField = fields["expiresAt"] as? [String: Any],
+                       let timestampString = expiresAtField["timestampValue"] as? String {
+                        
+                        let formatter = ISO8601DateFormatter()
+                        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+                        
+                        if let expirationDate = formatter.date(from: timestampString) {
+                            DispatchQueue.main.async { completion(Date() <= expirationDate) }
+                        } else {
+                            DispatchQueue.main.async { completion(false) }
+                        }
+                    } else {
+                        DispatchQueue.main.async { completion(true) }
+                    }
+                } else {
+                    DispatchQueue.main.async { completion(false) }
+                }
             } catch {
                 DispatchQueue.main.async { completion(false) }
             }
+        }.resume()
+    }
+    
+    /// Registra el HWID en la licencia (primera vez que se usa)
+    private static func registerHwid(documentName: String, hwid: String, completion: @escaping (Bool) -> Void) {
+        guard !documentName.isEmpty else {
+            completion(false)
+            return
+        }
+        
+        let updateURL = "\(documentName)?key=\(apiKey)"
+        
+        guard let url = URL(string: updateURL) else {
+            completion(false)
+            return
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "PATCH"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        let updateData: [String: Any] = [
+            "fields": [
+                "hwid": [
+                    "stringValue": hwid
+                ]
+            ],
+            "updateMask": [
+                "fieldPaths": ["hwid"]
+            ]
+        ]
+        
+        do {
+            request.httpBody = try JSONSerialization.data(withJSONObject: updateData)
+        } catch {
+            completion(false)
+            return
+        }
+        
+        URLSession.shared.dataTask(with: request) { data, response, error in
+            if let error = error {
+                print("Error registrando HWID: \(error.localizedDescription)")
+                completion(false)
+                return
+            }
+            
+            if let httpResponse = response as? HTTPURLResponse,
+               httpResponse.statusCode == 200 {
+                completion(true)
+            } else {
+                completion(false)
+            }
+        }.resume()
+    }
+    
+    /// Actualiza el último login del usuario
+    private static func updateLastLogin(documentName: String) {
+        guard !documentName.isEmpty else { return }
+        
+        let updateURL = "\(documentName)?key=\(apiKey)"
+        
+        guard let url = URL(string: updateURL) else { return }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "PATCH"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let nowString = formatter.string(from: Date())
+        
+        let updateData: [String: Any] = [
+            "fields": [
+                "lastLogin": [
+                    "timestampValue": nowString
+                ]
+            ],
+            "updateMask": [
+                "fieldPaths": ["lastLogin"]
+            ]
+        ]
+        
+        do {
+            request.httpBody = try JSONSerialization.data(withJSONObject: updateData)
+        } catch {
+            return
+        }
+        
+        URLSession.shared.dataTask(with: request) { _, _, _ in
+            // No necesitamos hacer nada con la respuesta
         }.resume()
     }
 }
