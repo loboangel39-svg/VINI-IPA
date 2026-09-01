@@ -233,7 +233,10 @@ final class LoginManager {
             return
         }
         
-        let updateURL = "\(documentName)?key=\(apiKey)"
+        // Codificar "(default)" en la URL del documento
+        let encodedPath = documentName.replacingOccurrences(of: "/databases/(default)/",
+                                                             with: "/databases/%28default%29/")
+        let updateURL = "https://firestore.googleapis.com/v1/\(encodedPath)?updateMask.fieldPaths=hwid&key=\(apiKey)"
         
         guard let url = URL(string: updateURL) else {
             completion(false)
@@ -249,9 +252,6 @@ final class LoginManager {
                 "hwid": [
                     "stringValue": hwid
                 ]
-            ],
-            "updateMask": [
-                "fieldPaths": ["hwid"]
             ]
         ]
         
@@ -282,7 +282,10 @@ final class LoginManager {
     private static func updateLastLogin(documentName: String) {
         guard !documentName.isEmpty else { return }
         
-        let updateURL = "\(documentName)?key=\(apiKey)"
+        // Codificar "(default)" en la URL del documento
+        let encodedPath = documentName.replacingOccurrences(of: "/databases/(default)/",
+                                                             with: "/databases/%28default%29/")
+        let updateURL = "https://firestore.googleapis.com/v1/\(encodedPath)?updateMask.fieldPaths=lastLogin&key=\(apiKey)"
         
         guard let url = URL(string: updateURL) else { return }
         
@@ -299,9 +302,6 @@ final class LoginManager {
                 "lastLogin": [
                     "timestampValue": nowString
                 ]
-            ],
-            "updateMask": [
-                "fieldPaths": ["lastLogin"]
             ]
         ]
         
