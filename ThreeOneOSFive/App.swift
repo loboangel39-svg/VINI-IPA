@@ -50,6 +50,7 @@ struct ThreeOneOSFiveApp: App {
         isLoggedIn = false
         sessionExpiresAt = 0
         currentLicenseKey = ""
+        RemotePatchService.shared.clearAuth()
         log("app: user logged out")
     }
     
@@ -77,6 +78,10 @@ struct ThreeOneOSFiveApp: App {
                             sessionExpiresAt = expiresAt.timeIntervalSince1970
                         } else {
                             sessionExpiresAt = 0
+                        }
+                        // Sincronizar patches remotos después del login
+                        Task {
+                            await syncManager.syncPatches()
                         }
                     })
                 }
