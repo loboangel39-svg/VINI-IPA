@@ -199,64 +199,10 @@ enum PatchProjectLibrary {
     }
 
 static func seedDefaultPackages(fileManager: FileManager = .default) {
-    guard let root = try? packageRootURL(fileManager: fileManager) else {
-        log("patch: seedDefaultPackages - no se pudo obtener packageRootURL")
-        return
-    }
-    log("patch: seedDefaultPackages - root: \(root.path)")
-
-    let defaultResources: [(name: String, ext: String, password: String)] = [
-        ("AIMBOT PECHO  FFTH", "3105", "H3jirR5@2vpq!xW2NXpJb6"),
-        ("AIMBOT CUELLO  FFTH", "3105", "Go2Yb&J6z6j9!tY3Gi3Lhz"),
-        ("AIMBOT PECHO  MAX", "3105", "GBrzpp^5k5nBAouFDX2QTj"),
-        ("HOLOGRAMA FFTH", "3105", "2$2#PkAbb5kV6z@25Tw$a9"),
-        ("HOLOGRAMA MAX", "3105", "brKJFA%e97XLS8SR&P@xK$"),
-    ]
-
-    for resource in defaultResources {
-        let filename = "\(resource.name).\(resource.ext)"
-        let destination = root.appendingPathComponent(filename)
-        log("patch: procesando \(filename)")
-        
-        guard let bundledURL = Bundle.main.url(
-            forResource: resource.name,
-            withExtension: resource.ext
-        ) else {
-            log("patch: no se encontró \(filename) en el bundle")
-            continue
-        }
-        log("patch: bundledURL: \(bundledURL.path)")
-
-        do {
-            let bundledData = try Data(contentsOf: bundledURL)
-            log("patch: bundledData size: \(bundledData.count) bytes")
-            
-            if let existingData = try? Data(contentsOf: destination),
-               existingData == bundledData {
-                log("patch: \(filename) ya existe y es idéntico")
-            } else {
-                if fileManager.fileExists(atPath: destination.path) {
-                    try fileManager.removeItem(at: destination)
-                }
-                try fileManager.copyItem(at: bundledURL, to: destination)
-                log("patch: \(filename) copiado")
-            }
-
-            let data = try PatchProjectLibrary.readPackage(at: destination)
-            log("patch: \(filename) leído, size: \(data.count) bytes")
-            
-            let summary = try PatchPackageCodec.inspect(data)
-            log("patch: \(filename) inspeccionado, packageID: \(summary.packageID)")
-            
-            let decoded = try PatchPackageCodec.decode(data, password: resource.password)
-            log("patch: \(filename) decodificado con contraseña")
-            
-            try PatchKeyStore.store(decoded.contentKey, for: summary)
-            log("patch: \(filename) desbloqueado y guardado en Keychain")
-        } catch {
-            log("patch: ERROR con \(filename): \(error)")
-        }
-    }
+    // DESHABILITADO: Los patches ahora se descargan remotamente desde el Worker
+    // Los archivos .3105 ya no están embebidos en el bundle de la app
+    log("patch: seedDefaultPackages deshabilitado - usando patches remotos")
+    return
 }
     
     private static func sanitizedFilename(_ rawName: String) -> String {

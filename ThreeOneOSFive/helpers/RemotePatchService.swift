@@ -1,14 +1,18 @@
 import Foundation
 
-// MARK: - Remote Patch Service (Simple)
+// MARK: - Remote Patch Service
 // Se comunica con el Worker de Cloudflare para descargar patches remotos
-// NO toca Firebase - funciona independientemente
+// Usa el token JWT del login para autenticación
 
 final class RemotePatchService {
     static let shared = RemotePatchService()
     
-    // URL de tu Worker (cámbiala si es diferente)
     private let workerURL = "https://vini-patch-worker.loboangel39.workers.dev"
+    
+    // MARK: - Obtener token JWT guardado
+    private var authToken: String? {
+        UserDefaults.standard.string(forKey: "remotePatch.authToken")
+    }
     
     // MARK: - Descargar lista de patches disponibles
     func fetchAvailablePatches() async throws -> [RemotePatchInfo] {
@@ -16,10 +20,22 @@ final class RemotePatchService {
         var request = URLRequest(url: url)
         request.timeoutInterval = 15
         
+        // Agregar token de autenticación
+        if let token = authToken {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+        
         let (data, response) = try await URLSession.shared.data(for: request)
         
-        guard let httpResponse = response as? HTTPURLResponse,
-              (200..<300).contains(httpResponse.statusCode) else {
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw RemotePatchError.networkError
+        }
+        
+        if httpResponse.statusCode == 401 {
+            throw RemotePatchError.unauthorized
+        }
+        
+        guard (200..<300).contains(httpResponse.statusCode) else {
             throw RemotePatchError.networkError
         }
         
@@ -33,10 +49,22 @@ final class RemotePatchService {
         var request = URLRequest(url: url)
         request.timeoutInterval = 60
         
+        // Agregar token de autenticación
+        if let token = authToken {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+        
         let (data, response) = try await URLSession.shared.data(for: request)
         
-        guard let httpResponse = response as? HTTPURLResponse,
-              (200..<300).contains(httpResponse.statusCode) else {
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw RemotePatchError.downloadFailed
+        }
+        
+        if httpResponse.statusCode == 401 {
+            throw RemotePatchError.unauthorized
+        }
+        
+        guard (200..<300).contains(httpResponse.statusCode) else {
             throw RemotePatchError.downloadFailed
         }
         
@@ -47,6 +75,11 @@ final class RemotePatchService {
         
         return (data, filename)
     }
+    
+    // MARK: - Limpiar token al cerrar sesión
+    func clearAuth() {
+        UserDefaults.standard.removeObject(forKey: "remotePatch.authToken")
+    }
 }
 
 // MARK: - Models
@@ -56,10 +89,11 @@ struct RemotePatchInfo: Codable, Identifiable {
     let bundleId: String
     let version: String
     let description: String
+    let password: String?
     let createdAt: String
     
     enum CodingKeys: String, CodingKey {
-        case id, name, version, description
+        case id, name, version, description, password
         case bundleId = "bundle_id"
         case createdAt = "created_at"
     }
@@ -78,7 +112,7 @@ enum RemotePatchError: LocalizedError {
         switch self {
         case .networkError: return "Error de conexión"
         case .downloadFailed: return "Error al descargar el patch"
-        case .unauthorized: return "No autorizado"
+        case .unauthorized: return "No autorizado - inicia sesión primero"
         }
     }
 }

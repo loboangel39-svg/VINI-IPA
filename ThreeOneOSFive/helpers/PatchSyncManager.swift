@@ -62,7 +62,7 @@ final class PatchSyncManager: ObservableObject {
                         await MainActor.run { self.downloadProgress = "Descargando \(patch.name)..." }
                         try await downloadPatch(patch)
                     } catch {
-                        print("Error descargando \(patch.name): \(error)")
+                        log("Error descargando \(patch.name): \(error)")
                     }
                 }
             }
@@ -92,6 +92,18 @@ final class PatchSyncManager: ObservableObject {
         // Guardar en la misma ruta que usa PatchProjectLibrary
         let fileURL = patchesDirectory.appendingPathComponent(filename)
         try data.write(to: fileURL)
+        
+        // Si el patch tiene contraseña, decodificarlo y guardar el contentKey en Keychain
+        if let password = patch.password, !password.isEmpty {
+            do {
+                let summary = try PatchPackageCodec.inspect(data)
+                let decoded = try PatchPackageCodec.decode(data, password: password)
+                try PatchKeyStore.store(decoded.contentKey, for: summary)
+                log("remote: \(filename) decodificado con contraseña y contentKey guardado")
+            } catch {
+                log("remote: ERROR decodificando \(filename) con contraseña: \(error)")
+            }
+        }
         
         // Registrar como descargado
         var ids = downloadedIds
