@@ -388,7 +388,7 @@ function renderLicenses(area) {
                 <td class="px-6 py-4 text-sm">${new Date(l.expires_at).toLocaleDateString('es')}</td>
                 <td class="px-6 py-4"><span class="px-2 py-1 text-xs font-medium ${l.revoked||exp?'bg-red-100 text-red-800':'bg-green-100 text-green-800'} rounded-full">${l.revoked?'Revocada':exp?'Expirada':'Activa'}</span></td>
                 <td class="px-6 py-4 text-sm font-mono">${l.hwid?l.hwid.substring(0,12)+'...':'Sin vincular'}</td>
-                <td class="px-6 py-4 text-sm"><button onclick="copyKey('${l.key}')" class="text-blue-600 mr-2"><i class="fas fa-copy"></i></button><button onclick="unbindLicense('${l.key}')" class="text-yellow-600 mr-2"><i class="fas fa-unlink"></i></button><button onclick="revokeLicense('${l.key}')" class="text-red-600"><i class="fas fa-ban"></i></button></td>
+                <td class="px-6 py-4 text-sm"><button onclick="copyKey('${l.key}')" class="text-blue-600 mr-2"><i class="fas fa-copy"></i></button><button onclick="unbindLicense('${l.key}')" class="text-yellow-600 mr-2"><i class="fas fa-unlink"></i></button><button onclick="revokeLicense('${l.key}')" class="text-orange-600 mr-2"><i class="fas fa-ban"></i></button><button onclick="deleteLicense('${l.key}')" class="text-red-600"><i class="fas fa-trash"></i></button></td>
             </tr>`}).join('')}
         </tbody></table></div>`;
 }
@@ -397,6 +397,7 @@ function copyKey(k) { navigator.clipboard.writeText(k); toast('Copiada','success
 async function revokeLicense(k) { if(!confirm('¿Revocar?'))return; await api(`/api/licenses/${k}`,{method:'DELETE'}); toast('Revocada','success'); await loadAll(); showSection('licenses'); }
 async function unbindLicense(k) { if(!confirm('¿Desvincular dispositivo?'))return; await api(`/api/licenses/${k}/unbind`,{method:'POST'}); toast('Desvinculada','success'); await loadAll(); showSection('licenses'); }
 async function unbindAllLicenses() { if(!confirm('¿Desvincular TODAS las licencias? Esta acción no se puede deshacer.'))return; await api('/api/licenses/unbind-all',{method:'POST'}); toast('Todas las licencias desvinculadas','success'); await loadAll(); showSection('licenses'); }
+async function deleteLicense(k) { if(!confirm('¿ELIMINAR esta licencia permanentemente? Esta acción no se puede deshacer.'))return; await api(`/api/licenses/${k}/delete`,{method:'DELETE'}); toast('Licencia eliminada','success'); await loadAll(); showSection('licenses'); }
 
 // ========== MESSAGES ==========
 function renderMessages(area) {

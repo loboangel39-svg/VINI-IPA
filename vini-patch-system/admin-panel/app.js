@@ -497,7 +497,8 @@ function renderLicenses() {
             <td class="px-6 py-4 text-sm">
                 <button onclick="copyLicense('${lic.key}')" class="text-blue-600 hover:text-blue-800 mr-2"><i class="fas fa-copy"></i></button>
                 <button onclick="unbindLicense('${lic.key}')" class="text-yellow-600 hover:text-yellow-800 mr-2"><i class="fas fa-unlink"></i></button>
-                <button onclick="revokeLicense('${lic.key}')" class="text-red-600 hover:text-red-800"><i class="fas fa-ban"></i></button>
+                <button onclick="revokeLicense('${lic.key}')" class="text-orange-600 hover:text-orange-800 mr-2"><i class="fas fa-ban"></i></button>
+                <button onclick="deleteLicense('${lic.key}')" class="text-red-600 hover:text-red-800"><i class="fas fa-trash"></i></button>
             </td>
         </tr>
     `}).join('');
@@ -595,6 +596,20 @@ async function unbindAllLicenses() {
             headers: { 'Authorization': `Bearer ${authToken}` }
         });
         showToast('Todas las licencias desvinculadas', 'success');
+        loadLicenses();
+    } catch (err) {
+        showToast('Error', 'error');
+    }
+}
+
+async function deleteLicense(key) {
+    if (!confirm('¿ELIMINAR esta licencia permanentemente? Esta acción no se puede deshacer.')) return;
+    try {
+        await fetch(`${API_BASE}/api/licenses/${key}/delete`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        showToast('Licencia eliminada', 'success');
         loadLicenses();
     } catch (err) {
         showToast('Error', 'error');
