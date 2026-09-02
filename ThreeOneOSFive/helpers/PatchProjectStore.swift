@@ -37,8 +37,16 @@ final class PatchProjectStore: ObservableObject {
     private var pendingUnlock: PendingUnlock?
 
     init() {
-        PatchProjectLibrary.seedDefaultPackages()
         reload()
+        
+        // Escuchar cuando se descarguen patches remotos
+        NotificationCenter.default.addObserver(
+            forName: .patchesDidChange,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.reload()
+        }
     }
 
     func reload() {
