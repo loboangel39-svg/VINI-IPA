@@ -7,6 +7,18 @@ let currentUser = JSON.parse(localStorage.getItem('adminUser') || 'null');
 let charts = {};
 let refreshInterval = null;
 
+function generateLicenseKey(prefix = '', length = 12) {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let result = '';
+    const array = new Uint8Array(length);
+    crypto.getRandomValues(array);
+    for (let i = 0; i < length; i++) {
+        result += chars[array[i] % chars.length];
+    }
+    const formatted = result.match(/.{1,4}/g).join('-');
+    return prefix ? `${prefix}-${formatted}` : formatted;
+}
+
 // ========== INIT ==========
 if (authToken && currentUser) {
     showMainApp();
@@ -491,45 +503,52 @@ function renderLicenses() {
 }
 
 async function generateLicense() {
+    const prefix = document.getElementById('licensePrefix')?.value.trim().toUpperCase() || '';
     const days = parseInt(document.getElementById('licenseDays').value);
+    const key = generateLicenseKey(prefix);
+    
     try {
         const res = await fetch(`${API_BASE}/api/licenses`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
-            body: JSON.stringify({ validDays: days })
+            body: JSON.stringify({ validDays: days, customKey: key })
         });
         if (res.ok) {
-            const data = await res.json();
-            showToast(`Licencia: ${data.key}`, 'success');
+            showToast(`Licencia: ${key}`, 'success');
             closeModal('generateLicenseModal');
+            document.getElementById('newPatchForm')?.reset();
             loadLicenses();
         } else {
             showToast('Error generando licencia', 'error');
         }
     } catch (err) {
-        showToast('Error', 'error');
+        showToast('Error de conexión', 'error');
     }
 }
 
 async function generateBulkLicenses() {
+    const prefix = document.getElementById('bulkPrefix')?.value.trim().toUpperCase() || '';
     const count = parseInt(document.getElementById('bulkCount').value);
     const days = parseInt(document.getElementById('bulkDays').value);
 
     showToast(`Generando ${count} licencias...`, 'info');
+    let successCount = 0;
     
     for (let i = 0; i < count; i++) {
         try {
-            await fetch(`${API_BASE}/api/licenses`, {
+            const key = generateLicenseKey(prefix);
+            const res = await fetch(`${API_BASE}/api/licenses`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
-                body: JSON.stringify({ validDays: days })
+                body: JSON.stringify({ validDays: days, customKey: key })
             });
+            if (res.ok) successCount++;
         } catch (err) {
             console.error('Error generating license:', err);
         }
     }
 
-    showToast(`${count} licencias generadas`, 'success');
+    showToast(`${successCount}/${count} licencias generadas`, successCount === count ? 'success' : 'info');
     closeModal('bulkLicenseModal');
     loadLicenses();
 }

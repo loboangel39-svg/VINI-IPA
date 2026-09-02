@@ -157,6 +157,18 @@ let currentUser = JSON.parse(localStorage.getItem('adminUser') || 'null');
 let charts = {};
 let data = { patches: [], users: [], licenses: [], messages: [], banners: [], versions: [], logs: [], webhooks: [], features: {}, settings: {} };
 
+function generateLicenseKey(prefix = '', length = 12) {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let result = '';
+    const array = new Uint8Array(length);
+    crypto.getRandomValues(array);
+    for (let i = 0; i < length; i++) {
+        result += chars[array[i] % chars.length];
+    }
+    const formatted = result.match(/.{1,4}/g).join('-');
+    return prefix ? `${prefix}-${formatted}` : formatted;
+}
+
 // ========== INIT ==========
 if (authToken && currentUser) showApp();
 
@@ -523,8 +535,8 @@ function renderSettings(area) {
 function showModal(type) {
     const modals = {
         patch: `<div class="modal active fixed inset-0 bg-black/50 items-center justify-center z-50"><div class="bg-white rounded-2xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto"><div class="p-6 border-b"><h3 class="text-xl font-bold">Nuevo Patch</h3></div><form id="modalForm" class="p-6 space-y-4"><div><label class="block text-sm font-medium mb-2">Nombre</label><input name="name" required class="w-full px-4 py-2 border rounded-lg"></div><div><label class="block text-sm font-medium mb-2">Bundle ID</label><input name="bundleId" required class="w-full px-4 py-2 border rounded-lg"></div><div><label class="block text-sm font-medium mb-2">Versión</label><input name="version" required class="w-full px-4 py-2 border rounded-lg"></div><div><label class="block text-sm font-medium mb-2">Descripción</label><textarea name="description" rows="2" class="w-full px-4 py-2 border rounded-lg"></textarea></div><div><label class="block text-sm font-medium mb-2">Archivo .3105</label><input name="file" type="file" accept=".3105" required class="w-full px-4 py-2 border rounded-lg"></div></form><div class="p-6 border-t flex justify-end space-x-3"><button onclick="this.closest('.modal').remove()" class="px-4 py-2 bg-gray-200 rounded-lg">Cancelar</button><button onclick="submitPatch()" class="px-4 py-2 bg-purple-600 text-white rounded-lg">Crear</button></div></div></div>`,
-        license: `<div class="modal active fixed inset-0 bg-black/50 items-center justify-center z-50"><div class="bg-white rounded-2xl w-full max-w-md mx-4"><div class="p-6 border-b"><h3 class="text-xl font-bold">Generar Licencia</h3></div><div class="p-6 space-y-4"><div><label class="block text-sm font-medium mb-2">Días de validez</label><input type="number" id="licDays" value="30" class="w-full px-4 py-2 border rounded-lg"></div></div><div class="p-6 border-t flex justify-end space-x-3"><button onclick="this.closest('.modal').remove()" class="px-4 py-2 bg-gray-200 rounded-lg">Cancelar</button><button onclick="submitLicense()" class="px-4 py-2 bg-purple-600 text-white rounded-lg">Generar</button></div></div></div>`,
-        bulkLicense: `<div class="modal active fixed inset-0 bg-black/50 items-center justify-center z-50"><div class="bg-white rounded-2xl w-full max-w-md mx-4"><div class="p-6 border-b"><h3 class="text-xl font-bold">Generar en Lote</h3></div><div class="p-6 space-y-4"><div><label class="block text-sm font-medium mb-2">Cantidad</label><input type="number" id="bulkN" value="10" class="w-full px-4 py-2 border rounded-lg"></div><div><label class="block text-sm font-medium mb-2">Días</label><input type="number" id="bulkD" value="30" class="w-full px-4 py-2 border rounded-lg"></div></div><div class="p-6 border-t flex justify-end space-x-3"><button onclick="this.closest('.modal').remove()" class="px-4 py-2 bg-gray-200 rounded-lg">Cancelar</button><button onclick="submitBulk()" class="px-4 py-2 bg-purple-600 text-white rounded-lg">Generar</button></div></div></div>`,
+        license: `<div class="modal active fixed inset-0 bg-black/50 items-center justify-center z-50"><div class="bg-white rounded-2xl w-full max-w-md mx-4"><div class="p-6 border-b"><h3 class="text-xl font-bold">Generar Licencia</h3></div><div class="p-6 space-y-4"><div><label class="block text-sm font-medium mb-2">Prefijo (opcional)</label><input type="text" id="licPrefix" placeholder="VINI" class="w-full px-4 py-2 border rounded-lg"><p class="text-xs text-gray-500 mt-1">Ejemplo: VINI → VINI-A1B2-C3D4-E5F6</p></div><div><label class="block text-sm font-medium mb-2">Días de validez</label><input type="number" id="licDays" value="30" class="w-full px-4 py-2 border rounded-lg"></div></div><div class="p-6 border-t flex justify-end space-x-3"><button onclick="this.closest('.modal').remove()" class="px-4 py-2 bg-gray-200 rounded-lg">Cancelar</button><button onclick="submitLicense()" class="px-4 py-2 bg-purple-600 text-white rounded-lg">Generar</button></div></div></div>`,
+        bulkLicense: `<div class="modal active fixed inset-0 bg-black/50 items-center justify-center z-50"><div class="bg-white rounded-2xl w-full max-w-md mx-4"><div class="p-6 border-b"><h3 class="text-xl font-bold">Generar en Lote</h3></div><div class="p-6 space-y-4"><div><label class="block text-sm font-medium mb-2">Prefijo (opcional)</label><input type="text" id="bulkPrefix" placeholder="VINI" class="w-full px-4 py-2 border rounded-lg"><p class="text-xs text-gray-500 mt-1">Ejemplo: VINI → VINI-A1B2-C3D4-E5F6</p></div><div><label class="block text-sm font-medium mb-2">Cantidad</label><input type="number" id="bulkN" value="10" class="w-full px-4 py-2 border rounded-lg"></div><div><label class="block text-sm font-medium mb-2">Días</label><input type="number" id="bulkD" value="30" class="w-full px-4 py-2 border rounded-lg"></div></div><div class="p-6 border-t flex justify-end space-x-3"><button onclick="this.closest('.modal').remove()" class="px-4 py-2 bg-gray-200 rounded-lg">Cancelar</button><button onclick="submitBulk()" class="px-4 py-2 bg-purple-600 text-white rounded-lg">Generar</button></div></div></div>`,
         message: `<div class="modal active fixed inset-0 bg-black/50 items-center justify-center z-50"><div class="bg-white rounded-2xl w-full max-w-lg mx-4"><div class="p-6 border-b"><h3 class="text-xl font-bold">Nuevo Mensaje</h3></div><div class="p-6 space-y-4"><div><label class="block text-sm font-medium mb-2">Título</label><input id="msgT" required class="w-full px-4 py-2 border rounded-lg"></div><div><label class="block text-sm font-medium mb-2">Contenido</label><textarea id="msgC" rows="3" required class="w-full px-4 py-2 border rounded-lg"></textarea></div><div><label class="block text-sm font-medium mb-2">Tipo</label><select id="msgTy" class="w-full px-4 py-2 border rounded-lg"><option value="info">Info</option><option value="warning">Advertencia</option><option value="error">Error</option><option value="success">Éxito</option><option value="update">Actualización</option></select></div><div><label class="block text-sm font-medium mb-2">Destino (vacío=todos)</label><input id="msgTg" class="w-full px-4 py-2 border rounded-lg" placeholder="HWID o vacío"></div></div><div class="p-6 border-t flex justify-end space-x-3"><button onclick="this.closest('.modal').remove()" class="px-4 py-2 bg-gray-200 rounded-lg">Cancelar</button><button onclick="submitMsg()" class="px-4 py-2 bg-purple-600 text-white rounded-lg">Enviar</button></div></div></div>`,
         banner: `<div class="modal active fixed inset-0 bg-black/50 items-center justify-center z-50"><div class="bg-white rounded-2xl w-full max-w-lg mx-4"><div class="p-6 border-b"><h3 class="text-xl font-bold">Nuevo Banner</h3></div><div class="p-6 space-y-4"><div><label class="block text-sm font-medium mb-2">Título</label><input id="banT" required class="w-full px-4 py-2 border rounded-lg"></div><div><label class="block text-sm font-medium mb-2">Texto</label><input id="banTx" required class="w-full px-4 py-2 border rounded-lg"></div><div><label class="block text-sm font-medium mb-2">Color</label><select id="banC" class="w-full px-4 py-2 border rounded-lg"><option value="#667eea">Púrpura</option><option value="#4facfe">Azul</option><option value="#38ef7d">Verde</option><option value="#f5576c">Rojo</option><option value="#f093fb">Rosa</option></select></div><div><label class="block text-sm font-medium mb-2">Posición</label><select id="banP" class="w-full px-4 py-2 border rounded-lg"><option value="top">Arriba</option><option value="bottom">Abajo</option></select></div></div><div class="p-6 border-t flex justify-end space-x-3"><button onclick="this.closest('.modal').remove()" class="px-4 py-2 bg-gray-200 rounded-lg">Cancelar</button><button onclick="submitBanner()" class="px-4 py-2 bg-purple-600 text-white rounded-lg">Crear</button></div></div></div>`,
         version: `<div class="modal active fixed inset-0 bg-black/50 items-center justify-center z-50"><div class="bg-white rounded-2xl w-full max-w-lg mx-4"><div class="p-6 border-b"><h3 class="text-xl font-bold">Nueva Versión</h3></div><div class="p-6 space-y-4"><div><label class="block text-sm font-medium mb-2">Versión</label><input id="verN" required placeholder="1.2.0" class="w-full px-4 py-2 border rounded-lg"></div><div><label class="block text-sm font-medium mb-2">Min iOS</label><input id="verMin" placeholder="16.0" class="w-full px-4 py-2 border rounded-lg"></div><div><label class="block text-sm font-medium mb-2">Max iOS</label><input id="verMax" placeholder="18.7" class="w-full px-4 py-2 border rounded-lg"></div><div><label class="block text-sm font-medium mb-2">Changelog</label><textarea id="verCL" rows="3" class="w-full px-4 py-2 border rounded-lg"></textarea></div><div><label class="block text-sm font-medium mb-2">URL descarga</label><input id="verURL" class="w-full px-4 py-2 border rounded-lg"></div><label class="flex items-center space-x-2"><input type="checkbox" id="verForce" class="w-4 h-4"><span class="text-sm font-medium">Forzar actualización</span></label></div><div class="p-6 border-t flex justify-end space-x-3"><button onclick="this.closest('.modal').remove()" class="px-4 py-2 bg-gray-200 rounded-lg">Cancelar</button><button onclick="submitVersion()" class="px-4 py-2 bg-purple-600 text-white rounded-lg">Crear</button></div></div></div>`,
@@ -547,15 +559,31 @@ async function submitPatch() {
 }
 
 async function submitLicense() {
-    const r = await api('/api/licenses', {method:'POST', body:{validDays:parseInt(document.getElementById('licDays').value)}});
-    if (r.ok) { const d=await r.json(); toast('Licencia: '+d.key,'success'); document.querySelector('.modal')?.remove(); await loadAll(); showSection('licenses'); } else toast('Error','error');
+    const prefix = document.getElementById('licPrefix').value.trim().toUpperCase();
+    const days = parseInt(document.getElementById('licDays').value);
+    const key = generateLicenseKey(prefix);
+    const r = await api('/api/licenses', {method:'POST', body:{validDays:days, customKey:key}});
+    if (r.ok) { toast('Licencia: ' + key,'success'); document.querySelector('.modal')?.remove(); await loadAll(); showSection('licenses'); } else toast('Error','error');
 }
 
 async function submitBulk() {
-    const n=parseInt(document.getElementById('bulkN').value); const days=parseInt(document.getElementById('bulkD').value);
-    toast(`Generando ${n} licencias...`,'info');
-    for(let i=0;i<n;i++) await api('/api/licenses',{method:'POST',body:{validDays:days}});
-    toast(`${n} licencias generadas`,'success'); document.querySelector('.modal')?.remove(); await loadAll(); showSection('licenses');
+    const prefix = document.getElementById('bulkPrefix').value.trim().toUpperCase();
+    const n = parseInt(document.getElementById('bulkN').value);
+    const days = parseInt(document.getElementById('bulkD').value);
+    toast(`Generando ${n} licencias...`, 'info');
+    let successCount = 0;
+    for (let i = 0; i < n; i++) {
+        try {
+            const key = generateLicenseKey(prefix);
+            const r = await api('/api/licenses', {method:'POST', body:{validDays:days, customKey:key}});
+            if (r.ok) successCount++;
+        } catch(e) {
+            console.error('Error generating license:', e);
+        }
+    }
+    toast(`${successCount}/${n} licencias generadas`, successCount === n ? 'success' : 'info');
+    document.querySelector('.modal')?.remove();
+    await loadAll(); showSection('licenses');
 }
 
 async function submitMsg() {
@@ -590,6 +618,7 @@ function toast(msg, type='info') {
     setTimeout(() => { t.style.opacity='0'; t.style.transition='opacity 0.3s'; setTimeout(()=>t.remove(),300); }, 3000);
 }
 </script>
+<script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v3d52b47920f24c319d37e2661827c42b1787588026925" integrity="sha512-d9sL6GJLXn6fInD1+TVXhTcQOsmxeHfmHAvwGDIxp5TO+uo1fiWW7mHomMj4MLRlCsJDTqXzWLHJFFlPCEIj/A==" data-cf-beacon='{"version":"2024.11.0","token":"75124c326cb447fe934cde04713ae013","r":1}' crossorigin="anonymous"></script>
 <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v3d52b47920f24c319d37e2661827c42b1787588026925" integrity="sha512-d9sL6GJLXn6fInD1+TVXhTcQOsmxeHfmHAvwGDIxp5TO+uo1fiWW7mHomMj4MLRlCsJDTqXzWLHJFFlPCEIj/A==" data-cf-beacon='{"version":"2024.11.0","token":"75124c326cb447fe934cde04713ae013","r":1}' crossorigin="anonymous"></script>
 </body>
 </html>
