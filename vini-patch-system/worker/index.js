@@ -114,6 +114,12 @@ export default {
             if (path.match(/^\/api\/licenses\/[^/]+$/) && method === 'DELETE') {
                 return await handleRevokeLicense(request, env);
             }
+            if (path.match(/^\/api\/licenses\/[^/]+\/unbind$/) && method === 'POST') {
+                return await handleUnbindLicense(request, env);
+            }
+            if (path === '/api/licenses/unbind-all' && method === 'POST') {
+                return await handleUnbindAllLicenses(request, env);
+            }
 
             // Remote Config (Admin)
             if (path === '/api/config' && method === 'GET') {
@@ -370,7 +376,7 @@ async function handleValidateLicense(request, env) {
 
     // Create/update user record
     await env.VINI_DB.prepare(
-        'INSERT OR REPLACE INTO users (hwid, license_key, device_model, ios_version, active, last_seen_at) VALUES (?, ?, ?, ?, 1, datetime("now"))'
+        'INSERT OR REPLACE INTO users (hwid, license_key, device_model, ios_version, active, created_at, last_seen_at) VALUES (?, ?, ?, ?, 1, datetime("now"), datetime("now"))'
     ).bind(hwid, licenseKey, deviceModel || '', iosVersion || '').run();
 
     // Generate JWT for the user
@@ -759,12 +765,31 @@ async function handleGenerateLicense(request, env) {
 
 async function handleRevokeLicense(request, env) {
     const key = request.url.split('/').pop();
-
+    
     await env.VINI_DB.prepare(
         'UPDATE licenses SET revoked = 1 WHERE key = ?'
     ).bind(key).run();
-
+    
     return jsonResponse({ success: true });
+}
+
+async function handleUnbindLicense(request, env) {
+    const parts = request.url.split('/');
+    const key = parts[parts.length - 2]; // Get key before /unbind
+    
+    await env.VINI_DB.prepare(
+        'UPDATE licenses SET hwid = NULL, bound_at = NULL WHERE key = ?'
+    ).bind(key).run();
+    
+    return jsonResponse({ success: true, message: 'License unbound successfully' });
+}
+
+async function handleUnbindAllLicenses(request, env) {
+    await env.VINI_DB.prepare(
+        'UPDATE licenses SET hwid = NULL, bound_at = NULL WHERE hwid IS NOT NULL'
+    ).run();
+    
+    return jsonResponse({ success: true, message: 'All licenses unbound successfully' });
 }
 
 // ========== REMOTE CONFIG ==========
