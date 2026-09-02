@@ -6,6 +6,7 @@ struct ThreeOneOSFiveApp: App {
     @StateObject private var appState = AppState()
     @StateObject private var patchDraftCoordinator = PatchDraftCoordinator()
     @StateObject private var fileOperationCoordinator = FileOperationCoordinator()
+    @StateObject private var syncManager = PatchSyncManager.shared
     @AppStorage(AppLanguage.storageKey) private var languageCode = AppLanguage.english.rawValue
     @State private var showOnboarding = OnboardingStore.shouldShow()
     @State private var showAttribution = false
@@ -78,6 +79,12 @@ struct ThreeOneOSFiveApp: App {
                             sessionExpiresAt = 0
                         }
                     })
+                }
+            }
+            .task {
+                // Sincronizar patches remotos al abrir la app
+                if isLoggedIn {
+                    await syncManager.syncPatches()
                 }
             }
         }
