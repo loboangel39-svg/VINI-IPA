@@ -484,7 +484,7 @@ async function handleAppListPatches(request, env) {
 
     const placeholders = patchIds.map(() => '?').join(',');
     const { results: patches } = await env.VINI_DB.prepare(
-        `SELECT id, name, bundle_id, version, description, created_at FROM patches WHERE id IN (${placeholders})`
+        `SELECT id, name, bundle_id, version, description, password, created_at FROM patches WHERE id IN (${placeholders})`
     ).bind(...patchIds).all();
 
     return jsonResponse({ patches });
@@ -614,6 +614,7 @@ async function handleCreatePatch(request, env) {
     const bundleId = formData.get('bundleId');
     const version = formData.get('version');
     const description = formData.get('description');
+    const password = formData.get('password') || '';
 
     if (!file || !name || !bundleId || !version) {
         return jsonResponse({ error: 'Missing required fields' }, 400);
@@ -626,8 +627,8 @@ async function handleCreatePatch(request, env) {
     });
 
     await env.VINI_DB.prepare(
-        'INSERT INTO patches (id, name, bundle_id, version, description, created_at, downloads) VALUES (?, ?, ?, ?, ?, datetime("now"), 0)'
-    ).bind(id, name, bundleId, version, description || '').run();
+        'INSERT INTO patches (id, name, bundle_id, version, description, password, created_at, downloads) VALUES (?, ?, ?, ?, ?, ?, datetime("now"), 0)'
+    ).bind(id, name, bundleId, version, description || '', password).run();
 
     return jsonResponse({ id, name, version }, 201);
 }

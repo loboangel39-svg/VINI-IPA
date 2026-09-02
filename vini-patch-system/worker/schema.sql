@@ -1,6 +1,3 @@
--- VINI Patch Manager - Database Schema v2
--- Run with: wrangler d1 execute vini-patch-db --file=schema.sql
-
 -- Patches catalog
 CREATE TABLE IF NOT EXISTS patches (
     id TEXT PRIMARY KEY,
@@ -8,7 +5,7 @@ CREATE TABLE IF NOT EXISTS patches (
     bundle_id TEXT NOT NULL,
     version TEXT NOT NULL,
     description TEXT DEFAULT '',
-    password_hash TEXT DEFAULT NULL,
+    password TEXT DEFAULT '',
     created_at TEXT NOT NULL,
     updated_at TEXT DEFAULT NULL,
     downloads INTEGER DEFAULT 0
