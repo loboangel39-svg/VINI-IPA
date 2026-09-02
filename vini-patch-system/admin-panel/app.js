@@ -1,8 +1,7 @@
 // VINI Super Admin Panel - Complete JavaScript
 // All features: Dashboard, Patches, Users, Licenses, Messages, Features, Banners, Versions, Analytics, Logs, Security, Webhooks, Maintenance
 
-const API_BASE = localStorage.getItem('workerUrl') || 'https://vini-worker.your-subdomain.workers.dev';
-
+const API_BASE = 'https://vini-patch-worker.loboangel39.workers.dev';
 let authToken = localStorage.getItem('adminToken');
 let currentUser = JSON.parse(localStorage.getItem('adminUser') || 'null');
 let charts = {};
