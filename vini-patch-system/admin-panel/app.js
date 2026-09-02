@@ -496,6 +496,7 @@ function renderLicenses() {
             <td class="px-6 py-4 text-sm text-gray-500">${lic.last_login ? new Date(lic.last_login).toLocaleString('es') : 'Nunca'}</td>
             <td class="px-6 py-4 text-sm">
                 <button onclick="copyLicense('${lic.key}')" class="text-blue-600 hover:text-blue-800 mr-2"><i class="fas fa-copy"></i></button>
+                <button onclick="unbindLicense('${lic.key}')" class="text-yellow-600 hover:text-yellow-800 mr-2"><i class="fas fa-unlink"></i></button>
                 <button onclick="revokeLicense('${lic.key}')" class="text-red-600 hover:text-red-800"><i class="fas fa-ban"></i></button>
             </td>
         </tr>
@@ -566,6 +567,34 @@ async function revokeLicense(key) {
             headers: { 'Authorization': `Bearer ${authToken}` }
         });
         showToast('Licencia revocada', 'success');
+        loadLicenses();
+    } catch (err) {
+        showToast('Error', 'error');
+    }
+}
+
+async function unbindLicense(key) {
+    if (!confirm('¿Desvincular dispositivo de esta licencia?')) return;
+    try {
+        await fetch(`${API_BASE}/api/licenses/${key}/unbind`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        showToast('Dispositivo desvinculado', 'success');
+        loadLicenses();
+    } catch (err) {
+        showToast('Error', 'error');
+    }
+}
+
+async function unbindAllLicenses() {
+    if (!confirm('¿Desvincular TODAS las licencias? Esta acción no se puede deshacer.')) return;
+    try {
+        await fetch(`${API_BASE}/api/licenses/unbind-all`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        showToast('Todas las licencias desvinculadas', 'success');
         loadLicenses();
     } catch (err) {
         showToast('Error', 'error');
