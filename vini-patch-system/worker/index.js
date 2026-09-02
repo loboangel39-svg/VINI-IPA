@@ -111,14 +111,17 @@ export default {
             if (path === '/api/licenses' && method === 'POST') {
                 return await handleGenerateLicense(request, env);
             }
-            if (path.match(/^\/api\/licenses\/[^/]+$/) && method === 'DELETE') {
-                return await handleRevokeLicense(request, env);
+            if (path === '/api/licenses/unbind-all' && method === 'POST') {
+                return await handleUnbindAllLicenses(request, env);
             }
             if (path.match(/^\/api\/licenses\/[^/]+\/unbind$/) && method === 'POST') {
                 return await handleUnbindLicense(request, env);
             }
-            if (path === '/api/licenses/unbind-all' && method === 'POST') {
-                return await handleUnbindAllLicenses(request, env);
+            if (path.match(/^\/api\/licenses\/[^/]+\/delete$/) && method === 'DELETE') {
+                return await handleDeleteLicense(request, env);
+            }
+            if (path.match(/^\/api\/licenses\/[^/]+$/) && method === 'DELETE') {
+                return await handleRevokeLicense(request, env);
             }
 
             // Remote Config (Admin)
@@ -790,6 +793,17 @@ async function handleUnbindAllLicenses(request, env) {
     ).run();
     
     return jsonResponse({ success: true, message: 'All licenses unbound successfully' });
+}
+
+async function handleDeleteLicense(request, env) {
+    const parts = request.url.split('/');
+    const key = parts[parts.length - 2]; // Get key before /delete
+    
+    await env.VINI_DB.prepare(
+        'DELETE FROM licenses WHERE key = ?'
+    ).bind(key).run();
+    
+    return jsonResponse({ success: true, message: 'License deleted successfully' });
 }
 
 // ========== REMOTE CONFIG ==========
