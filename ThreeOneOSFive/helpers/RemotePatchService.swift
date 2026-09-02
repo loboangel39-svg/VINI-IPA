@@ -59,6 +59,11 @@ final class RemotePatchService {
         
         return (data, filename)
     }
+    
+    // MARK: - Limpiar token de autenticación
+    func clearAuth() {
+        UserDefaults.standard.removeObject(forKey: "remotePatch.authToken")
+    }
 }
 
 // MARK: - Models
@@ -68,10 +73,11 @@ struct RemotePatchInfo: Codable, Identifiable {
     let bundleId: String
     let version: String
     let description: String
+    let password: String?
     let createdAt: String
     
     enum CodingKeys: String, CodingKey {
-        case id, name, version, description
+        case id, name, version, description, password
         case bundleId = "bundle_id"
         case createdAt = "created_at"
     }
