@@ -13,9 +13,91 @@ final class LoginManager {
     private static let apiKey = "AIzaSyD0OAaWFuEjkihtnLyzYsQC9kB9J_K8YgM"
     private static let baseURL = "https://firestore.googleapis.com/v1/projects/\(projectId)/databases/(default)/documents"
     
-    /// Inicia sesión validando la licencia y registrando HWID si es la primera vez
+    // URL del Worker API para validación de licencias remotas
+    private static let workerURL = "https://vini-patch-worker.loboangel39.workers.dev"
+    
+    /// Inicia sesión validando la licencia
+    /// Primero intenta con el Worker API (Cloudflare), si falla usa Firebase
     static func login(licenseKey: String, completion: @escaping (Bool, String, Date?) -> Void) {
         let hwid = UIDevice.current.identifierForVendor?.uuidString ?? "unknown"
+        
+        // Primero intentar con el Worker API
+        validateWithWorker(licenseKey: licenseKey, hwid: hwid) { success, message, expiresAt in
+            if success {
+                completion(success, message, expiresAt)
+            } else {
+                // Si falla, intentar con Firebase (fallback)
+                validateWithFirebase(licenseKey: licenseKey, hwid: hwid, completion: completion)
+            }
+        }
+    }
+    
+    /// Valida licencia contra el Worker API de Cloudflare
+    private static func validateWithWorker(licenseKey: String, hwid: String, completion: @escaping (Bool, String, Date?) -> Void) {
+        guard let url = URL(string: "\(workerURL)/api/app/validate-license") else {
+            completion(false, "Error de configuración", nil)
+            return
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.timeoutInterval = 15
+        
+        let body: [String: String] = [
+            "licenseKey": licenseKey,
+            "hwid": hwid
+        ]
+        
+        do {
+            request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        } catch {
+            completion(false, "Error al procesar la solicitud", nil)
+            return
+        }
+        
+        URLSession.shared.dataTask(with: request) { data, response, error in
+            if let error = error {
+                log("Worker validation error: \(error.localizedDescription)")
+                completion(false, "Error de conexión", nil)
+                return
+            }
+            
+            guard let data = data,
+                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                completion(false, "Respuesta inválida", nil)
+                return
+            }
+            
+            let valid = json["valid"] as? Bool ?? false
+            let errorMessage = json["error"] as? String
+            
+            if valid {
+                // Guardar token si viene
+                if let token = json["token"] as? String {
+                    UserDefaults.standard.set(token, forKey: "remotePatch.authToken")
+                }
+                
+                // Parsear fecha de expiración
+                var expiresAt: Date? = nil
+                if let expiresStr = json["expiresAt"] as? String {
+                    let formatter = ISO8601DateFormatter()
+                    formatter.formatOptions = [.withInternetDateTime]
+                    expiresAt = formatter.date(from: expiresStr)
+                }
+                
+                log("Worker: license validated successfully")
+                completion(true, "Inicio de sesión exitoso", expiresAt)
+            } else {
+                log("Worker: license invalid - \(errorMessage ?? "unknown")")
+                completion(false, errorMessage ?? "Licencia inválida", nil)
+            }
+        }.resume()
+    }
+    
+    /// Valida licencia contra Firebase (fallback)
+    private static func validateWithFirebase(licenseKey: String, hwid: String, completion: @escaping (Bool, String, Date?) -> Void) {
+        log("Falling back to Firebase validation")
         
         // Primero, buscar la licencia por clave
         let queryURL = "\(baseURL):runQuery?key=\(apiKey)"
