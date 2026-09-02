@@ -745,9 +745,8 @@ async function handleListLicenses(request, env) {
 }
 
 async function handleGenerateLicense(request, env) {
-    const { validDays } = await request.json();
-    const key = generateKey();
-
+    const { validDays, customKey } = await request.json();
+    const key = customKey || generateKey();
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + (validDays || 30));
 
