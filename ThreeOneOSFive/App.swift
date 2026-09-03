@@ -78,17 +78,19 @@ struct ThreeOneOSFiveApp: App {
                         } else {
                             sessionExpiresAt = 0
                         }
+                        // PRIMERO descargar patches, LUEGO cargar IDs
                         Task {
-                            await patchStore.loadAssignedPatches()
                             await syncManager.syncPatches()
+                            await patchStore.loadAssignedPatches()
                         }
                     })
                 }
             }
             .task {
                 if isLoggedIn {
-                    await patchStore.loadAssignedPatches()
+                    // PRIMERO descargar patches, LUEGO cargar IDs
                     await syncManager.syncPatches()
+                    await patchStore.loadAssignedPatches()
                 }
             }
         }
