@@ -124,6 +124,20 @@ export default {
                 return await handleRevokeLicense(request, env);
             }
 
+            // Patch Access Management (Premium)
+            if (path === '/api/access' && method === 'GET') {
+                return await handleListAccess(request, env);
+            }
+            if (path === '/api/access' && method === 'POST') {
+                return await handleGrantAccess(request, env);
+            }
+            if (path.match(/^\/api\/access\/[^/]+\/[^/]+$/) && method === 'DELETE') {
+                return await handleRevokeAccess(request, env);
+            }
+            if (path.match(/^\/api\/access\/[^/]+$/) && method === 'GET') {
+                return await handleGetUserAccess(request, env);
+            }
+
             // Remote Config (Admin)
             if (path === '/api/config' && method === 'GET') {
                 return await handleGetConfig(request, env);
@@ -410,18 +424,20 @@ async function handleValidateLicense(request, env) {
             last_seen_at = datetime("now")`
     ).bind(hwid, licenseKey, deviceModel || '', iosVersion || '').run();
 
-    // Generate JWT for the user
-    const token = await createJWT({ hwid, role: 'user', license: licenseKey }, env.JWT_SECRET);
+    // Generate JWT for the user (include tier in token)
+    const userTier = license.tier || 'normal';
+    const token = await createJWT({ hwid, role: 'user', license: licenseKey, tier: userTier }, env.JWT_SECRET);
 
     // Log session start
     await env.VINI_DB.prepare(
         'INSERT INTO telemetry (hwid, event_type, event_data, created_at) VALUES (?, "session_start", ?, datetime("now"))'
-    ).bind(hwid, JSON.stringify({ deviceModel, iosVersion })).run();
+    ).bind(hwid, JSON.stringify({ deviceModel, iosVersion, tier: userTier })).run();
 
     return jsonResponse({
         valid: true,
         token,
         expiresAt: license.expires_at,
+        tier: userTier,
     });
 }
 
@@ -496,26 +512,36 @@ async function handleAppListPatches(request, env) {
     if (!auth) return jsonResponse({ error: 'Unauthorized' }, 401);
 
     const hwid = auth.type === 'jwt' ? auth.data.hwid : auth.data.hwid;
+    const userTier = auth.type === 'jwt' ? (auth.data.tier || 'normal') : 'normal';
 
-    const { results: users } = await env.VINI_DB.prepare(
-        'SELECT patches FROM users WHERE hwid = ? AND active = 1'
-    ).bind(hwid).all();
+    // Obtener todos los patches normales (accesibles para todos)
+    const { results: normalPatches } = await env.VINI_DB.prepare(
+        `SELECT id, name, bundle_id, version, description, password, tier, created_at 
+         FROM patches WHERE (tier = 'normal' OR tier IS NULL)`
+    ).all();
 
-    if (users.length === 0) {
-        return jsonResponse({ patches: [] });
+    let allPatches = [...normalPatches];
+
+    // Si es premium, agregar patches premium a los que tiene acceso
+    if (userTier === 'premium') {
+        const { results: accessRecords } = await env.VINI_DB.prepare(
+            'SELECT patch_id FROM user_patch_access WHERE hwid = ?'
+        ).bind(hwid).all();
+
+        if (accessRecords.length > 0) {
+            const premiumPatchIds = accessRecords.map(r => r.patch_id);
+            const placeholders = premiumPatchIds.map(() => '?').join(',');
+            
+            const { results: premiumPatches } = await env.VINI_DB.prepare(
+                `SELECT id, name, bundle_id, version, description, password, tier, created_at 
+                 FROM patches WHERE id IN (${placeholders}) AND tier = 'premium'`
+            ).bind(...premiumPatchIds).all();
+            
+            allPatches = [...allPatches, ...premiumPatches];
+        }
     }
 
-    const patchIds = JSON.parse(users[0].patches || '[]');
-    if (patchIds.length === 0) {
-        return jsonResponse({ patches: [] });
-    }
-
-    const placeholders = patchIds.map(() => '?').join(',');
-    const { results: patches } = await env.VINI_DB.prepare(
-        `SELECT id, name, bundle_id, version, description, password, created_at FROM patches WHERE id IN (${placeholders})`
-    ).bind(...patchIds).all();
-
-    return jsonResponse({ patches });
+    return jsonResponse({ patches: allPatches, tier: userTier });
 }
 
 async function handleAppDownloadPatch(request, env) {
@@ -524,21 +550,9 @@ async function handleAppDownloadPatch(request, env) {
 
     const patchId = request.url.split('/').pop();
     const hwid = auth.type === 'jwt' ? auth.data.hwid : auth.data.hwid;
+    const userTier = auth.type === 'jwt' ? (auth.data.tier || 'normal') : 'normal';
 
-    // Verify access
-    const { results: users } = await env.VINI_DB.prepare(
-        'SELECT patches FROM users WHERE hwid = ? AND active = 1'
-    ).bind(hwid).all();
-
-    if (users.length === 0) {
-        return jsonResponse({ error: 'No access', patchId }, 403);
-    }
-
-    const patchIds = JSON.parse(users[0].patches || '[]');
-    if (!patchIds.includes(patchId)) {
-        return jsonResponse({ error: 'No access to this patch', patchId }, 403);
-    }
-
+    // Obtener el patch
     const { results } = await env.VINI_DB.prepare(
         'SELECT * FROM patches WHERE id = ?'
     ).bind(patchId).all();
@@ -548,6 +562,25 @@ async function handleAppDownloadPatch(request, env) {
     }
 
     const patch = results[0];
+    const patchTier = patch.tier || 'normal';
+
+    // Verificar permisos según tier del patch
+    if (patchTier === 'premium') {
+        // Usuario debe ser premium
+        if (userTier !== 'premium') {
+            return jsonResponse({ error: 'Licencia normal no puede acceder a patches premium', patchId }, 403);
+        }
+
+        // Verificar que tenga acceso específico a este patch
+        const { results: accessCheck } = await env.VINI_DB.prepare(
+            'SELECT patch_id FROM user_patch_access WHERE hwid = ? AND patch_id = ?'
+        ).bind(hwid, patchId).all();
+
+        if (accessCheck.length === 0) {
+            return jsonResponse({ error: 'No tienes permiso para este patch premium', patchId }, 403);
+        }
+    }
+    // Si es normal, cualquier usuario autenticado puede descargarlo
 
     const r2Key = `patches/${patchId}.3105`;
     const object = await env.VINI_PATCHES.get(r2Key);
@@ -574,7 +607,7 @@ async function handleAppDownloadPatch(request, env) {
     // Log download
     await env.VINI_DB.prepare(
         'INSERT INTO telemetry (hwid, event_type, event_data, created_at) VALUES (?, "patch_download", ?, datetime("now"))'
-    ).bind(hwid, JSON.stringify({ patchId, patchName: patch.name })).run();
+    ).bind(hwid, JSON.stringify({ patchId, patchName: patch.name, tier: patchTier })).run();
 
     return new Response(object.body, {
         headers: {
@@ -655,6 +688,7 @@ async function handleCreatePatch(request, env) {
     const version = formData.get('version');
     const description = formData.get('description');
     const password = formData.get('password') || '';
+    const tier = formData.get('tier') || 'normal';
 
     if (!file || !name || !bundleId || !version) {
         return jsonResponse({ error: 'Missing required fields' }, 400);
@@ -667,10 +701,10 @@ async function handleCreatePatch(request, env) {
     });
 
     await env.VINI_DB.prepare(
-        'INSERT INTO patches (id, name, bundle_id, version, description, password, created_at, downloads) VALUES (?, ?, ?, ?, ?, ?, datetime("now"), 0)'
-    ).bind(id, name, bundleId, version, description || '', password).run();
+        'INSERT INTO patches (id, name, bundle_id, version, description, password, tier, created_at, downloads) VALUES (?, ?, ?, ?, ?, ?, ?, datetime("now"), 0)'
+    ).bind(id, name, bundleId, version, description || '', password, tier).run();
 
-    return jsonResponse({ id, name, version }, 201);
+    return jsonResponse({ id, name, version, tier }, 201);
 }
 
 async function handleDeletePatch(request, env) {
@@ -679,17 +713,8 @@ async function handleDeletePatch(request, env) {
     await env.VINI_PATCHES.delete(`patches/${patchId}.3105`);
     await env.VINI_DB.prepare('DELETE FROM patches WHERE id = ?').bind(patchId).run();
 
-    // Remove from all users
-    const { results: users } = await env.VINI_DB.prepare('SELECT hwid, patches FROM users').all();
-    for (const user of users) {
-        const patchIds = JSON.parse(user.patches || '[]');
-        if (patchIds.includes(patchId)) {
-            const updated = patchIds.filter(id => id !== patchId);
-            await env.VINI_DB.prepare(
-                'UPDATE users SET patches = ? WHERE hwid = ?'
-            ).bind(JSON.stringify(updated), user.hwid).run();
-        }
-    }
+    // Remove from user_patch_access
+    await env.VINI_DB.prepare('DELETE FROM user_patch_access WHERE patch_id = ?').bind(patchId).run();
 
     return jsonResponse({ success: true });
 }
@@ -795,16 +820,17 @@ async function handleListLicenses(request, env) {
 }
 
 async function handleGenerateLicense(request, env) {
-    const { validDays, customKey } = await request.json();
+    const { validDays, customKey, tier } = await request.json();
     const key = customKey || generateKey();
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + (validDays || 30));
+    const licenseTier = tier || 'normal';
 
     await env.VINI_DB.prepare(
-        'INSERT INTO licenses (key, expires_at, created_at, revoked) VALUES (?, ?, datetime("now"), 0)'
-    ).bind(key, expiresAt.toISOString()).run();
+        'INSERT INTO licenses (key, expires_at, created_at, revoked, tier) VALUES (?, ?, datetime("now"), 0, ?)'
+    ).bind(key, expiresAt.toISOString(), licenseTier).run();
 
-    return jsonResponse({ key, expiresAt: expiresAt.toISOString() }, 201);
+    return jsonResponse({ key, expiresAt: expiresAt.toISOString(), tier: licenseTier }, 201);
 }
 
 async function handleRevokeLicense(request, env) {
@@ -845,6 +871,82 @@ async function handleDeleteLicense(request, env) {
     ).bind(key).run();
     
     return jsonResponse({ success: true, message: 'License deleted successfully' });
+}
+
+// ========== PATCH ACCESS MANAGEMENT ==========
+
+async function handleListAccess(request, env) {
+    const { results } = await env.VINI_DB.prepare(
+        `SELECT a.hwid, a.patch_id, a.granted_at, a.granted_by, 
+                u.device_model, u.ios_version, p.name as patch_name
+         FROM user_patch_access a
+         LEFT JOIN users u ON a.hwid = u.hwid
+         LEFT JOIN patches p ON a.patch_id = p.id
+         ORDER BY a.granted_at DESC`
+    ).all();
+    return jsonResponse(results);
+}
+
+async function handleGrantAccess(request, env) {
+    const { hwid, patchId } = await request.json();
+
+    if (!hwid || !patchId) {
+        return jsonResponse({ error: 'hwid and patchId required' }, 400);
+    }
+
+    // Verify patch exists and is premium
+    const { results: patchCheck } = await env.VINI_DB.prepare(
+        'SELECT tier FROM patches WHERE id = ?'
+    ).bind(patchId).all();
+
+    if (patchCheck.length === 0) {
+        return jsonResponse({ error: 'Patch not found' }, 404);
+    }
+
+    if (patchCheck[0].tier !== 'premium') {
+        return jsonResponse({ error: 'Solo se puede dar acceso a patches premium' }, 400);
+    }
+
+    // Verify user exists
+    const { results: userCheck } = await env.VINI_DB.prepare(
+        'SELECT hwid FROM users WHERE hwid = ?'
+    ).bind(hwid).all();
+
+    if (userCheck.length === 0) {
+        return jsonResponse({ error: 'User not found' }, 404);
+    }
+
+    await env.VINI_DB.prepare(
+        'INSERT OR IGNORE INTO user_patch_access (hwid, patch_id, granted_at, granted_by) VALUES (?, ?, datetime("now"), "admin")'
+    ).bind(hwid, patchId).run();
+
+    return jsonResponse({ success: true, message: 'Access granted' });
+}
+
+async function handleRevokeAccess(request, env) {
+    const parts = request.url.split('/');
+    const hwid = parts[parts.length - 2];
+    const patchId = parts[parts.length - 1];
+
+    await env.VINI_DB.prepare(
+        'DELETE FROM user_patch_access WHERE hwid = ? AND patch_id = ?'
+    ).bind(hwid, patchId).run();
+
+    return jsonResponse({ success: true, message: 'Access revoked' });
+}
+
+async function handleGetUserAccess(request, env) {
+    const hwid = request.url.split('/').pop();
+
+    const { results } = await env.VINI_DB.prepare(
+        `SELECT a.patch_id, a.granted_at, p.name as patch_name, p.bundle_id
+         FROM user_patch_access a
+         LEFT JOIN patches p ON a.patch_id = p.id
+         WHERE a.hwid = ?
+         ORDER BY a.granted_at DESC`
+    ).bind(hwid).all();
+
+    return jsonResponse(results);
 }
 
 // ========== REMOTE CONFIG ==========
