@@ -72,7 +72,7 @@ function loadAllData() {
     loadPatches();
     loadUsers();
     loadLicenses();
-    loadMessages();
+    // loadMessages(); // QUITADO: Se carga bajo demanda para no bloquear patches
     loadFeatures();
     loadBanners();
     loadVersions();
@@ -81,6 +81,7 @@ function loadAllData() {
     loadWebhooks();
     loadMaintenance();
     loadSettings();
+    loadGlobalPauseStatus(); // NUEVO: Cargar estado de pausa global
 }
 
 // ========== NAVIGATION ==========
@@ -99,6 +100,11 @@ function showSection(section) {
         maintenance: 'Mantenimiento', settings: 'Configuración'
     };
     document.getElementById('sectionTitle').textContent = titles[section] || section;
+    
+    // Cargar mensajes bajo demanda (solo cuando se muestra la sección)
+    if (section === 'messages') {
+        loadMessages(true);
+    }
 }
 
 function toggleSidebar() {
@@ -674,7 +680,7 @@ async function createMessage() {
         if (res.ok) {
             showToast('Mensaje enviado', 'success');
             closeModal('newMessageModal');
-            loadMessages();
+            loadMessages(true); // Forzar refresh del caché
         } else {
             showToast('Error enviando mensaje', 'error');
         }
@@ -691,7 +697,7 @@ async function deleteMessage(id) {
             headers: { 'Authorization': `Bearer ${authToken}` }
         });
         showToast('Mensaje eliminado', 'success');
-        loadMessages();
+        loadMessages(true); // Forzar refresh del caché
     } catch (err) {
         showToast('Error', 'error');
     }
@@ -1283,4 +1289,134 @@ function showToast(message, type = 'info') {
 // ========== NOTIFICATIONS ==========
 function toggleNotifications() {
     showToast('Notificaciones - próximamente', 'info');
+}
+
+// ========== LICENSE PAUSE FUNCTIONS ==========
+
+async function loadGlobalPauseStatus() {
+    try {
+        const res = await fetch(`${API_BASE}/api/licenses/pause-status`, { 
+            headers: { 'Authorization': `Bearer ${authToken}` } 
+        });
+        
+        if (!res.ok) return;
+        
+        const data = await res.json();
+        
+        const toggle = document.getElementById('globalPauseToggle');
+        const reasonInput = document.getElementById('globalPauseReason');
+        const statusBadge = document.getElementById('globalPauseStatusBadge');
+        
+        if (toggle) toggle.checked = data.paused || false;
+        if (reasonInput && data.reason) reasonInput.value = data.reason;
+        
+        if (statusBadge) {
+            if (data.paused) {
+                let html = '<span class="px-3 py-1 bg-red-100 text-red-700 rounded-full text-sm"><i class="fas fa-pause-circle mr-1"></i>PAUSADO</span>';
+                if (data.startedAt) {
+                    html += `<span class="text-xs text-gray-500 ml-2">Desde: ${new Date(data.startedAt).toLocaleString('es')}</span>`;
+                }
+                statusBadge.innerHTML = html;
+            } else {
+                statusBadge.innerHTML = '<span class="px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm"><i class="fas fa-check-circle mr-1"></i>ACTIVO</span>';
+            }
+        }
+    } catch (err) {
+        console.error('Error loading global pause status:', err);
+    }
+}
+
+async function toggleGlobalPause() {
+    const toggle = document.getElementById('globalPauseToggle');
+    const reasonInput = document.getElementById('globalPauseReason');
+    
+    if (!toggle) return;
+    
+    const isPaused = toggle.checked;
+    const reason = reasonInput ? reasonInput.value : '';
+    
+    try {
+        if (isPaused) {
+            // Pausar todas
+            if (!reason) {
+                showToast('Ingresa un motivo para la pausa', 'error');
+                toggle.checked = false;
+                return;
+            }
+            
+            const res = await fetch(`${API_BASE}/api/licenses/pause-all`, {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${authToken}` 
+                },
+                body: JSON.stringify({ reason })
+            });
+            
+            if (res.ok) {
+                showToast('Todas las licencias pausadas', 'success');
+            } else {
+                showToast('Error pausando licencias', 'error');
+                toggle.checked = false;
+            }
+        } else {
+            // Despausar todas
+            const res = await fetch(`${API_BASE}/api/licenses/unpause-all`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${authToken}` }
+            });
+            
+            if (res.ok) {
+                showToast('Licencias reactivadas', 'success');
+                if (reasonInput) reasonInput.value = '';
+            } else {
+                showToast('Error reactivando licencias', 'error');
+                toggle.checked = true;
+            }
+        }
+        
+        loadGlobalPauseStatus();
+        loadLicenses();
+    } catch (err) {
+        showToast('Error de conexión', 'error');
+        toggle.checked = !isPaused;
+    }
+}
+
+async function pauseLicense(key) {
+    if (!confirm('¿Pausar esta licencia? El usuario no podrá usar la app hasta que la reactives.')) return;
+    
+    try {
+        const res = await fetch(`${API_BASE}/api/licenses/${key}/pause`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        
+        if (res.ok) {
+            showToast('Licencia pausada', 'success');
+            loadLicenses();
+        } else {
+            showToast('Error pausando licencia', 'error');
+        }
+    } catch (err) {
+        showToast('Error de conexión', 'error');
+    }
+}
+
+async function unpauseLicense(key) {
+    try {
+        const res = await fetch(`${API_BASE}/api/licenses/${key}/unpause`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        
+        if (res.ok) {
+            showToast('Licencia reactivada', 'success');
+            loadLicenses();
+        } else {
+            showToast('Error reactivando licencia', 'error');
+        }
+    } catch (err) {
+        showToast('Error de conexión', 'error');
+    }
 }
