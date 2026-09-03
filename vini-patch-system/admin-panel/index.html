@@ -184,12 +184,15 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
     } catch (err) { document.getElementById('loginError').textContent = 'Error de conexión: ' + err.message; document.getElementById('loginError').classList.remove('hidden'); }
 });
 
+let currentSection = 'dashboard';
+
 function showApp() {
     document.getElementById('loginScreen').classList.add('hidden');
     document.getElementById('mainApp').classList.remove('hidden');
     setupNav();
     loadAll();
-    setInterval(loadAll, 30000);
+    // Solo recargar stats cada 30s, no todo
+    setInterval(loadStatsOnly, 30000);
 }
 
 function logout() { authToken = null; currentUser = null; localStorage.clear(); location.reload(); }
@@ -214,6 +217,7 @@ function toggleSidebar() {
 const sectionTitles = { dashboard:'Dashboard', patches:'Patches', users:'Usuarios', licenses:'Licencias', messages:'Mensajes', features:'Feature Flags', banners:'Banners', versions:'Versiones', analytics:'Analíticas', logs:'Logs', security:'Seguridad', webhooks:'Webhooks', maintenance:'Mantenimiento', settings:'Configuración' };
 
 function showSection(name) {
+    currentSection = name;
     document.getElementById('sectionTitle').textContent = sectionTitles[name] || name;
     const area = document.getElementById('contentArea');
     const renderers = { dashboard: renderDashboard, patches: renderPatches, users: renderUsers, licenses: renderLicenses, messages: renderMessages, features: renderFeatures, banners: renderBanners, versions: renderVersions, analytics: renderAnalytics, logs: renderLogs, security: renderSecurity, webhooks: renderWebhooks, maintenance: renderMaintenance, settings: renderSettings };
@@ -245,6 +249,18 @@ async function loadAll() {
         try { data.versions = await api('/api/versions').then(r => r.json()); } catch(e) { data.versions = []; }
         try { data.webhooks = await api('/api/webhooks').then(r => r.json()); } catch(e) { data.webhooks = []; }
     } catch(e) { console.error('Load error:', e); }
+}
+
+// Solo cargar stats (ligero) para auto-refresh
+async function loadStatsOnly() {
+    try {
+        const s = await api('/api/stats').then(r => r.json()).catch(() => ({}));
+        data.stats = s;
+        // Solo actualizar si estamos en dashboard
+        if (currentSection === 'dashboard') {
+            showSection('dashboard');
+        }
+    } catch(e) { console.error('Stats load error:', e); }
 }
 
 // ========== DASHBOARD ==========
