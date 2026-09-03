@@ -60,16 +60,18 @@ final class RemotePatchService {
             throw RemotePatchError.unauthorized
         }
         
-        guard (200..<300).contains(httpResponse.statusCode) else {
-            throw RemotePatchError.downloadFailed
+        // Éxito: extraer nombre del archivo del header
+        if (200..<300).contains(httpResponse.statusCode) {
+            let filename = httpResponse.value(forHTTPHeaderField: "Content-Disposition")?
+                .components(separatedBy: "filename=").last?.trimmingCharacters(in: CharacterSet(charactersIn: "\""))
+                ?? "patch_\(patchId).3105"
+            
+            return (data, filename)
         }
         
-        // Extraer nombre del archivo del header
-        let filename = httpResponse.value(forHTTPHeaderField: "Content-Disposition")?
-            .components(separatedBy: "filename=").last?.trimmingCharacters(in: CharacterSet(charactersIn: "\""))
-            ?? "patch_\(patchId).3105"
-        
-        return (data, filename)
+        // Error: incluir status code y body para diagnóstico
+        let errorBody = String(data: data, encoding: .utf8) ?? "(sin body)"
+        throw RemotePatchError.downloadFailed(statusCode: httpResponse.statusCode, body: errorBody)
     }
     
     // MARK: - Limpiar token de autenticación
@@ -101,13 +103,14 @@ struct PatchesResponse: Codable {
 
 enum RemotePatchError: LocalizedError {
     case networkError
-    case downloadFailed
+    case downloadFailed(statusCode: Int, body: String)
     case unauthorized
     
     var errorDescription: String? {
         switch self {
         case .networkError: return "Error de conexión"
-        case .downloadFailed: return "Error al descargar el patch"
+        case .downloadFailed(let code, let body):
+            return "Error al descargar el patch (HTTP \(code)): \(body)"
         case .unauthorized: return "No autorizado"
         }
     }

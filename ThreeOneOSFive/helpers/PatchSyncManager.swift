@@ -55,13 +55,25 @@ final class PatchSyncManager: ObservableObject {
                 self.lastSyncDate = Date()
             }
             
-            // 2. Descargar patches nuevos automáticamente
+            // 2. Descargar patches nuevos automáticamente (con reintento)
             for patch in patches {
                 if !downloadedIds.contains(patch.id) {
-                    do {
-                        await MainActor.run { self.downloadProgress = "Descargando \(patch.name)..." }
-                        try await downloadPatch(patch)
-                    } catch {
+                    var lastError: Error?
+                    for attempt in 1...3 {
+                        do {
+                            await MainActor.run { self.downloadProgress = "Descargando \(patch.name)..." }
+                            try await downloadPatch(patch)
+                            lastError = nil
+                            break
+                        } catch {
+                            lastError = error
+                            if attempt < 3 {
+                                log("Intento \(attempt) fallido para \(patch.name), reintentando...")
+                                try? await Task.sleep(nanoseconds: UInt64(attempt) * 2_000_000_000)
+                            }
+                        }
+                    }
+                    if let error = lastError {
                         log("Error descargando \(patch.name): \(error)")
                     }
                 }
