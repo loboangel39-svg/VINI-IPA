@@ -377,9 +377,16 @@ async function handleValidateLicense(request, env) {
         'UPDATE licenses SET last_login = datetime("now") WHERE key = ?'
     ).bind(licenseKey).run();
 
-    // Create/update user record
+    // Create/update user record (preserve patches if user already exists)
     await env.VINI_DB.prepare(
-        'INSERT OR REPLACE INTO users (hwid, license_key, device_model, ios_version, active, created_at, last_seen_at) VALUES (?, ?, ?, ?, 1, datetime("now"), datetime("now"))'
+        `INSERT INTO users (hwid, license_key, device_model, ios_version, active, created_at, last_seen_at) 
+         VALUES (?, ?, ?, ?, 1, datetime("now"), datetime("now"))
+         ON CONFLICT(hwid) DO UPDATE SET 
+            license_key = excluded.license_key,
+            device_model = excluded.device_model,
+            ios_version = excluded.ios_version,
+            active = 1,
+            last_seen_at = datetime("now")`
     ).bind(hwid, licenseKey, deviceModel || '', iosVersion || '').run();
 
     // Generate JWT for the user
