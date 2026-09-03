@@ -7,7 +7,7 @@ struct ThreeOneOSFiveApp: App {
     @StateObject private var patchDraftCoordinator = PatchDraftCoordinator()
     @StateObject private var fileOperationCoordinator = FileOperationCoordinator()
     @StateObject private var syncManager = PatchSyncManager.shared
-    @StateObject private var patchStore = PatchProjectStore()  // ⭐ AGREGAR ESTA LINEA
+    @StateObject private var patchStore = PatchProjectStore()
     @AppStorage(AppLanguage.storageKey) private var languageCode = AppLanguage.english.rawValue
     @State private var showOnboarding = OnboardingStore.shouldShow()
     @State private var showAttribution = false
@@ -19,13 +19,13 @@ struct ThreeOneOSFiveApp: App {
 
     init() {
         setupLogCapture()
-        log("app: 3105 launching — iOS \(AppInfo.osVersion) (\(AppInfo.osBuild)) \(AppInfo.machineName)")
+        log("app: 3105 launching - iOS \(AppInfo.osVersion) (\(AppInfo.osBuild)) \(AppInfo.machineName)")
         checkSessionValidity()
     }
-    
+
     private func checkSessionValidity() {
         guard isLoggedIn else { return }
-        
+
         if sessionExpiresAt > 0 {
             let expirationDate = Date(timeIntervalSince1970: sessionExpiresAt)
             if Date() > expirationDate {
@@ -34,7 +34,7 @@ struct ThreeOneOSFiveApp: App {
                 return
             }
         }
-        
+
         if !currentLicenseKey.isEmpty {
             LoginManager.verifyLicense(licenseKey: currentLicenseKey) { isValid in
                 if !isValid {
@@ -44,7 +44,7 @@ struct ThreeOneOSFiveApp: App {
             }
         }
     }
-    
+
     private func logout() {
         isLoggedIn = false
         sessionExpiresAt = 0
@@ -52,7 +52,7 @@ struct ThreeOneOSFiveApp: App {
         RemotePatchService.shared.clearAuth()
         log("app: user logged out")
     }
-    
+
     private var language: AppLanguage {
         AppLanguage(rawValue: languageCode) ?? .english
     }
@@ -78,8 +78,6 @@ struct ThreeOneOSFiveApp: App {
                         } else {
                             sessionExpiresAt = 0
                         }
-                        
-                        // ⭐ AGREGAR ESTAS 2 LINEAS:
                         Task {
                             await patchStore.loadAssignedPatches()
                             await syncManager.syncPatches()
@@ -89,7 +87,7 @@ struct ThreeOneOSFiveApp: App {
             }
             .task {
                 if isLoggedIn {
-                    await patchStore.loadAssignedPatches()  // ⭐ AGREGAR
+                    await patchStore.loadAssignedPatches()
                     await syncManager.syncPatches()
                 }
             }
@@ -103,7 +101,7 @@ struct ThreeOneOSFiveApp: App {
                 .environmentObject(appState)
                 .environmentObject(patchDraftCoordinator)
                 .environmentObject(fileOperationCoordinator)
-                .environmentObject(patchStore)  // ⭐ AGREGAR ESTA LINEA
+                .environmentObject(patchStore)
                 .environment(\.appLanguage, language)
                 .environment(\.locale, language.locale)
                 .opacity(showOnboarding ? 0 : 1)
@@ -112,26 +110,152 @@ struct ThreeOneOSFiveApp: App {
             if showOnboarding {
                 OnboardingView {
                     OnboardingStore.markCompleted()
-                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                    withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
                         showOnboarding = false
                     }
+                    appState.detectSupport()
+                    checkForUpdate()
                 }
-                .transition(.opacity)
+                .environment(\.appLanguage, language)
+                .environment(\.locale, language.locale)
+                .transition(.opacity.combined(with: .scale(scale: 0.98)))
+                .zIndex(1)
             }
         }
-        .task {
-            checkForUpdate()
-        }
+        .displayIdentityAttribution(isPresented: $showAttribution, enabled: !showOnboarding)
         .sheet(isPresented: $showAttribution) {
-            AttributionView()
+            DisplayAttributionSheet()
         }
-        .sheet(item: $updateOffer) { offer in
-            AppUpdateView(offer: offer)
+        .alert(item: $updateOffer) { offer in
+            Alert(
+                title: Text(language.text("update.title")),
+                message: Text(language.text("update.message", offer.version)),
+                primaryButton: .default(Text(language.text("update.agree"))) {
+                    UIApplication.shared.open(offer.url)
+                },
+                secondaryButton: .cancel(Text(language.text("update.dismiss"))) {
+                    AppUpdateChecker.dismiss(version: offer.version)
+                }
+            )
+        }
+        .onAppear {
+            if !showOnboarding {
+                appState.detectSupport()
+                checkForUpdate()
+            }
         }
         .onChange(of: scenePhase) { phase in
-            if phase == .active {
-                checkSessionValidity()
-                checkForUpdate()
+            guard phase == .active else { return }
+            checkSessionValidity()
+            if isLoggedIn && !showOnboarding {
+                appState.detectSupport()
+            }
+        }
+        .onOpenURL { url in
+            patchDraftCoordinator.presentImport(url)
+        }
+    }
+}
+
+class AppState: ObservableObject {
+    @Published var exploitStatus: ExploitStatus = .notStarted
+    @Published var unsupportedMessage: String?
+    @Published var kernelExploitRunning = false
+
+    private var autoRunAttempted = false
+
+    var kernelExploitApplicable: Bool {
+        KernelExploit.isApplicable(
+            major: AppInfo.versionTuple.major,
+            minor: AppInfo.versionTuple.minor,
+            patch: AppInfo.versionTuple.patch,
+            build: AppInfo.osBuild
+        )
+    }
+
+    var isSupported: Bool { unsupportedMessage == nil }
+
+    func detectSupport() {
+        let v = AppInfo.versionTuple
+        let supported = ExploitSupportPolicy.isSupported(
+            major: v.major,
+            minor: v.minor,
+            patch: v.patch,
+            build: AppInfo.osBuild
+        )
+#if targetEnvironment(simulator)
+        if ProcessInfo.processInfo.arguments.contains("--simulate-access") {
+            exploitStatus = .success(method: "Simulator preview")
+        }
+#endif
+
+        unsupportedMessage = supported ? nil : "iOS \(AppInfo.osVersion) (\(AppInfo.osBuild))"
+        if let unsupportedMessage {
+            exploitStatus = .unsupported(unsupportedMessage)
+            return
+        }
+
+        let applicable = KernelExploit.isApplicable(
+            major: v.major,
+            minor: v.minor,
+            patch: v.patch,
+            build: AppInfo.osBuild
+        )
+        guard applicable else { return }
+
+        refreshKernelExploitStatus()
+        maybeAutoRunKernelExploit()
+    }
+
+    private func maybeAutoRunKernelExploit() {
+        guard !kernelExploitRunning,
+              !exploitStatus.isSuccess,
+              !exploitStatus.isFailed,
+              !autoRunAttempted else { return }
+        autoRunAttempted = true
+        log("app: starting kernel exploit automatically")
+        runKernelExploitIfNeeded()
+    }
+
+    private func refreshKernelExploitStatus() {
+        guard !kernelExploitRunning else { return }
+
+        if KernelExploit.requiresSandboxEscape {
+            if KernelExploit.hasSandboxAccess() {
+                if !exploitStatus.isSuccess {
+                    exploitStatus = .success(method: "kexploit")
+                    log("app: existing sandbox access is still active; skipping kernel exploit")
+                }
+            } else if exploitStatus.isSuccess {
+                exploitStatus = .notStarted
+                log("app: sandbox access is no longer active")
+            }
+        }
+    }
+
+    func runKernelExploitIfNeeded() {
+        refreshKernelExploitStatus()
+        guard !kernelExploitRunning,
+              !exploitStatus.isSuccess,
+              !exploitStatus.isFailed else { return }
+        kernelExploitRunning = true
+        exploitStatus = .notStarted
+        log("app: running kernel exploit on background...")
+        DispatchQueue.global(qos: .userInitiated).async {
+            let ok = KernelExploit.run()
+            DispatchQueue.main.async {
+                self.kernelExploitRunning = false
+                if ok {
+                    self.exploitStatus = .success(method: "kexploit")
+                    if KernelExploit.requiresSandboxEscape {
+                        log("app: kernel exploit success - sandbox access verified")
+                    } else {
+                        log("app: kernel exploit success - kernel access active")
+                    }
+                } else {
+                    self.exploitStatus = .failed(method: "kexploit", code: -1)
+                    log("app: kernel exploit failed - relaunch the app before retrying")
+                }
             }
         }
     }
