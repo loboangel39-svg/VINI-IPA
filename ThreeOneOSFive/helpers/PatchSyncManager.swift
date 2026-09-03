@@ -34,6 +34,7 @@ final class PatchSyncManager: ObservableObject {
 
     init() {}
 
+    // Descarga patches y notifica cuando termina
     func syncPatches() async {
         guard !isSyncing else { return }
         isSyncing = true
@@ -49,26 +50,30 @@ final class PatchSyncManager: ObservableObject {
 
             log("remote: downloading \(patches.count) assigned patches")
 
+            // Limpiar directorio antes de descargar (para eliminar patches de sesiones anteriores)
+            try? cleanPatchesDirectory()
+
+            // Resetear IDs descargados para esta sesión
+            downloadedIds = []
+
             for patch in patches {
-                if !downloadedIds.contains(patch.id) {
-                    var lastError: Error?
-                    for attempt in 1...3 {
-                        do {
-                            await MainActor.run { self.downloadProgress = "Descargando \(patch.name)..." }
-                            try await downloadPatch(patch)
-                            lastError = nil
-                            break
-                        } catch {
-                            lastError = error
-                            if attempt < 3 {
-                                log("Intento \(attempt) fallido para \(patch.name), reintentando...")
-                                try? await Task.sleep(nanoseconds: UInt64(attempt) * 2_000_000_000)
-                            }
+                var lastError: Error?
+                for attempt in 1...3 {
+                    do {
+                        await MainActor.run { self.downloadProgress = "Descargando \(patch.name)..." }
+                        try await downloadPatch(patch)
+                        lastError = nil
+                        break
+                    } catch {
+                        lastError = error
+                        if attempt < 3 {
+                            log("Intento \(attempt) fallido para \(patch.name), reintentando...")
+                            try? await Task.sleep(nanoseconds: UInt64(attempt) * 2_000_000_000)
                         }
                     }
-                    if let error = lastError {
-                        log("Error descargando \(patch.name): \(error)")
-                    }
+                }
+                if let error = lastError {
+                    log("Error descargando \(patch.name): \(error)")
                 }
             }
 
@@ -77,13 +82,24 @@ final class PatchSyncManager: ObservableObject {
                 self.isSyncing = false
             }
 
-            // Notificar que los archivos cambiaron (para que PatchProjectStore recargue)
-            notifyPatchesChanged()
+            // Notificar que los archivos cambiaron
+            NotificationCenter.default.post(name: .patchesDidChange, object: nil)
 
             log("remote: sync complete - \(patches.count) patches downloaded")
         } catch {
             await MainActor.run { self.isSyncing = false }
             log("remote: sync failed - \(error.localizedDescription)")
+        }
+    }
+
+    // Limpiar directorio de patches
+    private func cleanPatchesDirectory() throws {
+        guard FileManager.default.fileExists(atPath: patchesDirectory.path) else { return }
+        
+        let files = try FileManager.default.contentsOfDirectory(at: patchesDirectory, includingPropertiesForKeys: nil)
+        for file in files where file.pathExtension.lowercased() == "3105" {
+            try FileManager.default.removeItem(at: file)
+            log("remote: cleaned \(file.lastPathComponent)")
         }
     }
 
@@ -115,10 +131,6 @@ final class PatchSyncManager: ObservableObject {
 
     func isDownloaded(_ patchId: String) -> Bool {
         return downloadedIds.contains(patchId)
-    }
-
-    func notifyPatchesChanged() {
-        NotificationCenter.default.post(name: .patchesDidChange, object: nil)
     }
 }
 

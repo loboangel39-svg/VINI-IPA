@@ -28,9 +28,6 @@ final class PatchProjectStore: ObservableObject {
     @Published var alert: PatchStoreAlert?
     @Published var unlockErrorKey: String?
 
-    // IDs de patches asignados por el admin
-    @Published private(set) var assignedPatchIDs: Set<UUID> = []
-
     private struct PendingUnlock {
         let data: Data
         let summary: PatchPackageSummary
@@ -40,7 +37,6 @@ final class PatchProjectStore: ObservableObject {
     private var pendingUnlock: PendingUnlock?
 
     init() {
-        // Escuchar cuando los archivos de patches cambien (después de descarga)
         NotificationCenter.default.addObserver(
             forName: .patchesDidChange,
             object: nil,
@@ -58,29 +54,21 @@ final class PatchProjectStore: ObservableObject {
     func loadAssignedPatches() async {
         do {
             let remotePatches = try await RemotePatchService.shared.fetchAvailablePatches()
-            let ids = Set(remotePatches.compactMap { patch -> UUID? in
-                UUID(uuidString: patch.id)
-            })
-
-            await MainActor.run {
-                self.assignedPatchIDs = ids
-                self.reload()
-            }
-
-            log("remote: loaded \(ids.count) assigned patch IDs from worker")
+            log("remote: worker returned \(remotePatches.count) assigned patches")
+            // Recargar la lista de patches desde el disco
+            reload()
         } catch {
             log("remote: failed to load assigned patches - \(error.localizedDescription)")
             await MainActor.run {
-                self.assignedPatchIDs = []
                 self.items = []
             }
         }
     }
 
-    // Recargar usando los assignedPatchIDs actuales
+    // Recargar todos los patches del directorio
     func reload() {
-        items = PatchProjectLibrary.load(allowedPatchIDs: assignedPatchIDs)
-        log("patch: reloaded \(items.count) items from \(assignedPatchIDs.count) assigned")
+        items = PatchProjectLibrary.load()
+        log("patch: reloaded \(items.count) items from disk")
     }
 
     func create(project: PatchProject, password: String?) {

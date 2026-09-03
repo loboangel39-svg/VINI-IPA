@@ -38,17 +38,9 @@ enum PatchProjectLibrary {
         return root
     }
 
-    // Solo carga patches que estan en allowedPatchIDs
-    static func load(
-        fileManager: FileManager = .default,
-        allowedPatchIDs: Set<UUID> = []
-    ) -> [PatchLibraryItem] {
-        // Si no hay patches asignados, no retornar nada
-        guard !allowedPatchIDs.isEmpty else {
-            log("patch: no patches assigned, returning empty list")
-            return []
-        }
-
+    // Carga todos los patches del directorio (sin filtrar)
+    // El worker ya filtra por usuario, así que solo se descargan los asignados
+    static func load(fileManager: FileManager = .default) -> [PatchLibraryItem] {
         guard let root = try? packageRootURL(fileManager: fileManager),
               let urls = try? fileManager.contentsOfDirectory(
                 at: root,
@@ -61,12 +53,6 @@ enum PatchProjectLibrary {
             do {
                 let data = try readPackage(at: url)
                 let summary = try PatchPackageCodec.inspect(data)
-
-                // SOLO cargar si el ID esta en la lista de permitidos
-                guard allowedPatchIDs.contains(summary.packageID) else {
-                    continue
-                }
-
                 let decoded: DecodedPatchPackage?
                 if let contentKey = try PatchKeyStore.load(for: summary) {
                     decoded = try PatchPackageCodec.decode(data, contentKey: contentKey)
@@ -97,7 +83,7 @@ enum PatchProjectLibrary {
         let result = byID.values.sorted {
             ($0.project?.updatedAt ?? .distantPast) > ($1.project?.updatedAt ?? .distantPast)
         }
-        log("patch: loaded \(result.count) remote patches (filtered from \(allowedPatchIDs.count) assigned)")
+        log("patch: loaded \(result.count) patches from disk")
         return result
     }
 
