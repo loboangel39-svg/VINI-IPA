@@ -47,8 +47,6 @@ final class PatchSyncManager: ObservableObject {
                 self.lastSyncDate = Date()
             }
 
-            log("remote: worker returned \(patches.count) assigned patches")
-
             for patch in patches {
                 if !downloadedIds.contains(patch.id) {
                     var lastError: Error?
@@ -102,26 +100,30 @@ final class PatchSyncManager: ObservableObject {
         let fileURL = patchesDirectory.appendingPathComponent(filename)
         try data.write(to: fileURL)
 
+        if let password = patch.password, !password.isEmpty {
+            do {
+                let summary = try PatchPackageCodec.inspect(data)
+                let decoded = try PatchPackageCodec.decode(data, password: password)
+                try PatchKeyStore.store(decoded.contentKey, for: summary)
+                log("remote: \(filename) decodificado con password y contentKey guardado")
+            } catch {
+                log("remote: ERROR decodificando \(filename) con password: \(error)")
+            }
+        }
+
         var ids = downloadedIds
         ids.insert(patch.id)
         downloadedIds = ids
 
-        log("remote: downloaded \(patch.name) to \(fileURL.lastPathComponent)")
+        log("remote: saved \(filename) to PatchProjects/")
     }
 
-    private func notifyPatchesChanged() {
+    func isDownloaded(_ patchId: String) -> Bool {
+        return downloadedIds.contains(patchId)
+    }
+
+    func notifyPatchesChanged() {
         NotificationCenter.default.post(name: .patchesDidChange, object: nil)
-    }
-
-    func clearDownloadedPatches() {
-        downloadedIds = []
-        if let dir = try? FileManager.default.contentsOfDirectory(at: patchesDirectory, includingPropertiesForKeys: nil) {
-            for file in dir where file.pathExtension.lowercased() == "3105" {
-                try? FileManager.default.removeItem(at: file)
-            }
-        }
-        notifyPatchesChanged()
-        log("remote: cleared all downloaded patches")
     }
 }
 
