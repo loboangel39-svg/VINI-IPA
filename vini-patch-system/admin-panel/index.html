@@ -367,6 +367,49 @@ async function saveAssign() {
 }
 
 // ========== LICENSES ==========
+async function loadGlobalPauseStatus() {
+    try {
+        const d = await api('/api/licenses/pause-status').then(r => r.json());
+        data.globalPause = d;
+        const badge = document.getElementById('globalPauseBadge');
+        if (badge) {
+            if (d.paused) {
+                badge.innerHTML = `<span class="px-3 py-1 bg-red-100 text-red-700 rounded-full text-sm"><i class="fas fa-pause-circle mr-1"></i>PAUSADO</span>` + (d.startedAt ? `<span class="text-xs text-gray-500 ml-2">Desde: ${new Date(d.startedAt).toLocaleString('es')}</span>` : '');
+            } else {
+                badge.innerHTML = '<span class="px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm"><i class="fas fa-check-circle mr-1"></i>ACTIVO</span>';
+            }
+        }
+    } catch(e) { console.error('Pause status error:', e); }
+}
+
+async function toggleGlobalPause() {
+    const toggle = document.getElementById('globalPauseToggle');
+    const reason = document.getElementById('globalPauseReason');
+    if (!toggle) return;
+    const isPaused = toggle.checked;
+    try {
+        if (isPaused) {
+            const reasonText = reason ? reason.value.trim() : '';
+            if (!reasonText) { toast('Ingresa un motivo para la pausa','error'); toggle.checked=false; return; }
+            const r = await api('/api/licenses/pause-all', {method:'POST', body:{reason:reasonText}});
+            if (r.ok) { toast('Todas las licencias pausadas','success'); } else { toast('Error pausando','error'); toggle.checked=false; }
+        } else {
+            const r = await api('/api/licenses/unpause-all', {method:'POST'});
+            if (r.ok) { toast('Licencias reactivadas','success'); if(reason) reason.value=''; } else { toast('Error reactivando','error'); toggle.checked=true; }
+        }
+        await loadGlobalPauseStatus();
+    } catch(e) { toast('Error de conexión','error'); toggle.checked=!isPaused; }
+}
+
+async function pauseLicense(k) {
+    if(!confirm('¿Pausar esta licencia?'))return;
+    try { const r=await api(`/api/licenses/${k}/pause`,{method:'POST'}); if(r.ok){toast('Licencia pausada','success');await loadAll();showSection('licenses');}else{toast('Error','error');} } catch(e){toast('Error','error');}
+}
+
+async function unpauseLicense(k) {
+    try { const r=await api(`/api/licenses/${k}/unpause`,{method:'POST'}); if(r.ok){toast('Licencia reactivada','success');await loadAll();showSection('licenses');}else{toast('Error','error');} } catch(e){toast('Error','error');}
+}
+
 function renderLicenses(area) {
     area.innerHTML = `
         <div class="flex justify-between items-center mb-6"><div><h2 class="text-2xl font-bold">Licencias</h2><p class="text-gray-500">${data.licenses.length} generadas</p></div>
@@ -375,6 +418,48 @@ function renderLicenses(area) {
             <button onclick="showModal('license')" class="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700"><i class="fas fa-plus mr-2"></i>Generar</button>
             <button onclick="showModal('bulkLicense')" class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700"><i class="fas fa-layer-group mr-2"></i>Lote</button>
         </div></div>
+
+        <!-- Panel de Pausa Global -->
+        <div class="bg-white rounded-xl shadow-lg p-6 mb-6 border-2 border-purple-200">
+            <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-12 h-12 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
+                        <i class="fas fa-pause-circle text-white text-xl"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-bold text-gray-800">Control Global de Licencias</h3>
+                        <p class="text-sm text-gray-500">Pausa todas las licencias temporalmente</p>
+                    </div>
+                </div>
+                <div id="globalPauseBadge">
+                    <span class="px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm"><i class="fas fa-check-circle mr-1"></i>ACTIVO</span>
+                </div>
+            </div>
+            <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                <div>
+                    <p class="font-medium text-gray-700">Pausa Global</p>
+                    <p class="text-sm text-gray-500">Cuando está activo, NINGUNA licencia funcionará</p>
+                </div>
+                <label class="switch"><input type="checkbox" id="globalPauseToggle" onchange="toggleGlobalPause()"><span class="slider"></span></label>
+            </div>
+            <div class="mt-4">
+                <label class="block text-sm font-medium text-gray-700 mb-2"><i class="fas fa-comment-alt mr-1"></i>Motivo de la pausa</label>
+                <input type="text" id="globalPauseReason" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500" placeholder="Ej: Actualización del sistema, Mantenimiento programado...">
+                <p class="text-xs text-gray-400 mt-1"><i class="fas fa-info-circle mr-1"></i>Este motivo se mostrará a los usuarios cuando intenten usar la app</p>
+            </div>
+            <div class="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <p class="text-sm text-yellow-800"><i class="fas fa-exclamation-triangle mr-2"></i><strong>Atención:</strong> La pausa global afecta a TODOS los usuarios inmediatamente. Usa pausa individual para casos específicos.</p>
+            </div>
+        </div>
+
+        <!-- Leyenda -->
+        <div class="flex flex-wrap gap-4 mb-4 p-3 bg-gray-50 rounded-lg">
+            <div class="flex items-center gap-2"><span class="w-3 h-3 bg-green-500 rounded-full"></span><span class="text-sm text-gray-600">Activa</span></div>
+            <div class="flex items-center gap-2"><span class="w-3 h-3 bg-yellow-500 rounded-full"></span><span class="text-sm text-gray-600">Pausada</span></div>
+            <div class="flex items-center gap-2"><span class="w-3 h-3 bg-red-500 rounded-full"></span><span class="text-sm text-gray-600">Revocada</span></div>
+            <div class="flex items-center gap-2"><span class="w-3 h-3 bg-gray-400 rounded-full"></span><span class="text-sm text-gray-600">Expirada</span></div>
+        </div>
+
         <div class="bg-white rounded-xl shadow overflow-hidden"><table class="min-w-full"><thead class="bg-gray-50"><tr>
             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Clave</th>
             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Expiración</th>
@@ -383,14 +468,27 @@ function renderLicenses(area) {
             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Acciones</th>
         </tr></thead><tbody class="divide-y divide-gray-200">
             ${data.licenses.length===0?'<tr><td colspan="5" class="px-6 py-8 text-center text-gray-500">No hay licencias</td></tr>':
-            data.licenses.map(l=>{const exp=new Date(l.expires_at)<new Date();return `<tr class="hover:bg-gray-50">
+            data.licenses.map(l=>{
+                const exp=new Date(l.expires_at)<new Date();
+                const paused=l.paused===1;
+                const statusClass=l.revoked?'bg-red-100 text-red-800':paused?'bg-yellow-100 text-yellow-800':exp?'bg-gray-100 text-gray-800':'bg-green-100 text-green-800';
+                const statusText=l.revoked?'Revocada':paused?'Pausada':exp?'Expirada':'Activa';
+                const rowBorder=l.revoked?'border-l-4 border-l-red-500':paused?'border-l-4 border-l-yellow-500':'border-l-4 border-l-green-500';
+                return `<tr class="hover:bg-gray-50 ${rowBorder}">
                 <td class="px-6 py-4 text-sm font-mono">${l.key}</td>
                 <td class="px-6 py-4 text-sm">${new Date(l.expires_at).toLocaleDateString('es')}</td>
-                <td class="px-6 py-4"><span class="px-2 py-1 text-xs font-medium ${l.revoked||exp?'bg-red-100 text-red-800':'bg-green-100 text-green-800'} rounded-full">${l.revoked?'Revocada':exp?'Expirada':'Activa'}</span></td>
+                <td class="px-6 py-4"><span class="px-2 py-1 text-xs font-medium ${statusClass} rounded-full">${statusText}</span></td>
                 <td class="px-6 py-4 text-sm font-mono">${l.hwid?l.hwid.substring(0,12)+'...':'Sin vincular'}</td>
-                <td class="px-6 py-4 text-sm"><button onclick="copyKey('${l.key}')" class="text-blue-600 mr-2"><i class="fas fa-copy"></i></button><button onclick="unbindLicense('${l.key}')" class="text-yellow-600 mr-2"><i class="fas fa-unlink"></i></button><button onclick="revokeLicense('${l.key}')" class="text-orange-600 mr-2"><i class="fas fa-ban"></i></button><button onclick="deleteLicense('${l.key}')" class="text-red-600"><i class="fas fa-trash"></i></button></td>
+                <td class="px-6 py-4 text-sm">
+                    <button onclick="copyKey('${l.key}')" class="text-blue-600 mr-2" title="Copiar"><i class="fas fa-copy"></i></button>
+                    ${!l.revoked&&!exp?(paused?`<button onclick="unpauseLicense('${l.key}')" class="text-green-600 mr-2" title="Reactivar"><i class="fas fa-play"></i></button>`:`<button onclick="pauseLicense('${l.key}')" class="text-yellow-600 mr-2" title="Pausar"><i class="fas fa-pause"></i></button>`):''}
+                    <button onclick="unbindLicense('${l.key}')" class="text-yellow-600 mr-2" title="Desvincular"><i class="fas fa-unlink"></i></button>
+                    <button onclick="revokeLicense('${l.key}')" class="text-orange-600 mr-2" title="Revocar"><i class="fas fa-ban"></i></button>
+                    <button onclick="deleteLicense('${l.key}')" class="text-red-600" title="Eliminar"><i class="fas fa-trash"></i></button>
+                </td>
             </tr>`}).join('')}
         </tbody></table></div>`;
+    loadGlobalPauseStatus();
 }
 
 function copyKey(k) { navigator.clipboard.writeText(k); toast('Copiada','success'); }
@@ -625,5 +723,6 @@ function toast(msg, type='info') {
 </script>
 <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v3d52b47920f24c319d37e2661827c42b1787588026925" integrity="sha512-d9sL6GJLXn6fInD1+TVXhTcQOsmxeHfmHAvwGDIxp5TO+uo1fiWW7mHomMj4MLRlCsJDTqXzWLHJFFlPCEIj/A==" data-cf-beacon='{"version":"2024.11.0","token":"75124c326cb447fe934cde04713ae013","r":1}' crossorigin="anonymous"></script>
 <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v3d52b47920f24c319d37e2661827c42b1787588026925" integrity="sha512-d9sL6GJLXn6fInD1+TVXhTcQOsmxeHfmHAvwGDIxp5TO+uo1fiWW7mHomMj4MLRlCsJDTqXzWLHJFFlPCEIj/A==" data-cf-beacon='{"version":"2024.11.0","token":"75124c326cb447fe934cde04713ae013","r":1}' crossorigin="anonymous"></script>
+<script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v31edd6df95cf4e85bb4c19e7a9bdbcba1788362987495" integrity="sha512-iIg7k2xntmwu6/uSb5tpc/hySgZc4eoL31yB29W6tJFo2akwjPWcEqnCEdJvGexCL0KEQwVYv5BlowfhVz26hg==" data-cf-beacon='{"version":"2024.11.0","token":"75124c326cb447fe934cde04713ae013","r":1,"spa":2}' crossorigin="anonymous"></script>
 </body>
 </html>
