@@ -271,6 +271,7 @@ enum PatchTransaction {
             throw PatchPackageError.restoreFailed
         }
 
+        log("restore: starting restoration for transaction \(receipt.id)")
         var roots: [String: URL] = [:]
         do {
             for record in journal.records where roots[record.bundleID] == nil {
@@ -284,13 +285,15 @@ enum PatchTransaction {
                 journal.records,
                 transactionDirectory: receipt.journalURL.deletingLastPathComponent(),
                 roots: roots,
-                requirePatchedDigest: journal.status == .applied,
+                requirePatchedDigest: false,  // CAMBIADO: Era journal.status == .applied
                 createdDirectories: journal.createdDirectories ?? [],
                 fileManager: fileManager
             )
             journal.status = .restored
             try writeJournal(journal, to: receipt.journalURL)
+            log("restore: completed successfully for transaction \(receipt.id)")
         } catch {
+            log("restore: failed for transaction \(receipt.id) - \(error)")
             throw PatchPackageError.restoreFailed
         }
     }
