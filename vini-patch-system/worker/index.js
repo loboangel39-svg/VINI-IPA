@@ -969,18 +969,20 @@ async function handleGetRealtimeStats(request, env) {
     ).all();
 
     // Patch popularity
-    const { results: patchPopularity } = await env.VINI_DB.prepare(
-        `SELECT 
-            p.name,
-            p.downloads,
-            COUNT(DISTINCT u.hwid) as user_count
-        FROM patches p
-        LEFT JOIN users u ON json_each.value = p.id
-        LEFT JOIN json_each(u.patches)
-        GROUP BY p.id
-        ORDER BY p.downloads DESC
-        LIMIT 10`
-    ).all();
+    let patchPopularity = [];
+    try {
+        const { results } = await env.VINI_DB.prepare(
+            `SELECT 
+                p.name,
+                p.downloads
+            FROM patches p
+            ORDER BY p.downloads DESC
+            LIMIT 10`
+        ).all();
+        patchPopularity = results;
+    } catch (e) {
+        console.error('Error fetching patch popularity:', e);
+    }
 
     return jsonResponse({
         hourlyActivity,
