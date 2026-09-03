@@ -143,9 +143,13 @@ final class RemotePatchService {
         request.timeoutInterval = 60
 
         let (data, response) = try await URLSession.shared.data(for: request)
-        guard let http = response as? HTTPURLResponse,
-              (200..<300).contains(http.statusCode) else {
-            throw RemotePatchError.downloadFailed
+        guard let http = response as? HTTPURLResponse else {
+            throw RemotePatchError.invalidResponse
+        }
+
+        guard (200..<300).contains(http.statusCode) else {
+            let errorBody = String(data: data, encoding: .utf8) ?? "(sin body)"
+            throw RemotePatchError.downloadFailed(statusCode: http.statusCode, body: errorBody)
         }
 
         // Extract filename from Content-Disposition header
@@ -198,14 +202,15 @@ final class RemotePatchService {
 enum RemotePatchError: LocalizedError {
     case unauthorized
     case invalidResponse
-    case downloadFailed
+    case downloadFailed(statusCode: Int, body: String)
     case networkError(String)
 
     var errorDescription: String? {
         switch self {
         case .unauthorized: return "Sesión no válida. Inicia sesión de nuevo."
         case .invalidResponse: return "Respuesta inválida del servidor."
-        case .downloadFailed: return "Error al descargar el patch."
+        case .downloadFailed(let code, let body):
+            return "Error al descargar el patch (HTTP \(code)): \(body)"
         case .networkError(let msg): return "Error de red: \(msg)"
         }
     }
