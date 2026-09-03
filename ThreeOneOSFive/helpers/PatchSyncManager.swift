@@ -47,6 +47,8 @@ final class PatchSyncManager: ObservableObject {
                 self.lastSyncDate = Date()
             }
 
+            log("remote: downloading \(patches.count) assigned patches")
+
             for patch in patches {
                 if !downloadedIds.contains(patch.id) {
                     var lastError: Error?
@@ -75,17 +77,10 @@ final class PatchSyncManager: ObservableObject {
                 self.isSyncing = false
             }
 
+            // Notificar que los archivos cambiaron (para que PatchProjectStore recargue)
             notifyPatchesChanged()
 
-            await MainActor.run {
-                NotificationCenter.default.post(
-                    name: .assignedPatchesDidChange,
-                    object: nil,
-                    userInfo: ["patchIDs": Set(patches.compactMap { UUID(uuidString: $0.id) })]
-                )
-            }
-
-            log("remote: sync complete - \(patches.count) patches available")
+            log("remote: sync complete - \(patches.count) patches downloaded")
         } catch {
             await MainActor.run { self.isSyncing = false }
             log("remote: sync failed - \(error.localizedDescription)")
@@ -129,5 +124,4 @@ final class PatchSyncManager: ObservableObject {
 
 extension Notification.Name {
     static let patchesDidChange = Notification.Name("patchesDidChange")
-    static let assignedPatchesDidChange = Notification.Name("assignedPatchesDidChange")
 }

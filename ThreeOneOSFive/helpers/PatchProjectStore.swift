@@ -28,9 +28,8 @@ final class PatchProjectStore: ObservableObject {
     @Published var alert: PatchStoreAlert?
     @Published var unlockErrorKey: String?
 
-    // IDs de patches asignados por el admin (descargados remotamente)
+    // IDs de patches asignados por el admin
     @Published private(set) var assignedPatchIDs: Set<UUID> = []
-    @Published private(set) var hasLoadedFromRemote = false
 
     private struct PendingUnlock {
         let data: Data
@@ -41,6 +40,7 @@ final class PatchProjectStore: ObservableObject {
     private var pendingUnlock: PendingUnlock?
 
     init() {
+        // Escuchar cuando los archivos de patches cambien (después de descarga)
         NotificationCenter.default.addObserver(
             forName: .patchesDidChange,
             object: nil,
@@ -48,20 +48,6 @@ final class PatchProjectStore: ObservableObject {
         ) { [weak self] _ in
             Task { @MainActor in
                 self?.reload()
-            }
-        }
-
-        NotificationCenter.default.addObserver(
-            forName: .assignedPatchesDidChange,
-            object: nil,
-            queue: .main
-        ) { [weak self] notification in
-            if let ids = notification.userInfo?["patchIDs"] as? Set<UUID> {
-                Task { @MainActor in
-                    self?.assignedPatchIDs = ids
-                    self?.hasLoadedFromRemote = true
-                    self?.reload()
-                }
             }
         }
 
@@ -78,7 +64,6 @@ final class PatchProjectStore: ObservableObject {
 
             await MainActor.run {
                 self.assignedPatchIDs = ids
-                self.hasLoadedFromRemote = true
                 self.reload()
             }
 
@@ -87,12 +72,12 @@ final class PatchProjectStore: ObservableObject {
             log("remote: failed to load assigned patches - \(error.localizedDescription)")
             await MainActor.run {
                 self.assignedPatchIDs = []
-                self.hasLoadedFromRemote = true
                 self.items = []
             }
         }
     }
 
+    // Recargar usando los assignedPatchIDs actuales
     func reload() {
         items = PatchProjectLibrary.load(allowedPatchIDs: assignedPatchIDs)
         log("patch: reloaded \(items.count) items from \(assignedPatchIDs.count) assigned")
