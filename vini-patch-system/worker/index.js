@@ -503,12 +503,12 @@ async function handleAppDownloadPatch(request, env) {
     ).bind(hwid).all();
 
     if (users.length === 0) {
-        return jsonResponse({ error: 'No access' }, 403);
+        return jsonResponse({ error: 'No access', patchId }, 403);
     }
 
     const patchIds = JSON.parse(users[0].patches || '[]');
     if (!patchIds.includes(patchId)) {
-        return jsonResponse({ error: 'No access to this patch' }, 403);
+        return jsonResponse({ error: 'No access to this patch', patchId }, 403);
     }
 
     const { results } = await env.VINI_DB.prepare(
@@ -516,14 +516,26 @@ async function handleAppDownloadPatch(request, env) {
     ).bind(patchId).all();
 
     if (results.length === 0) {
-        return jsonResponse({ error: 'Patch not found' }, 404);
+        return jsonResponse({ error: 'Patch not found', patchId }, 404);
     }
 
     const patch = results[0];
 
-    const object = await env.VINI_PATCHES.get(`patches/${patchId}.3105`);
+    const r2Key = `patches/${patchId}.3105`;
+    const object = await env.VINI_PATCHES.get(r2Key);
     if (!object) {
-        return jsonResponse({ error: 'File not found' }, 404);
+        // Log this for diagnostics
+        await env.VINI_DB.prepare(
+            'INSERT INTO telemetry (hwid, event_type, event_data, created_at) VALUES (?, "patch_missing", ?, datetime("now"))'
+        ).bind(hwid, JSON.stringify({ patchId, patchName: patch.name, r2Key })).run();
+
+        return jsonResponse({
+            error: 'File not found in storage',
+            patchId,
+            patchName: patch.name,
+            r2Key,
+            hint: 'El archivo no existe en el bucket R2. Vuelve a subir el patch desde el panel de admin.'
+        }, 404);
     }
 
     // Increment download count
