@@ -45,8 +45,13 @@ final class PatchManager: ObservableObject {
             
             // 2. Para cada patch, verificar si necesita descarga
             for patch in patches {
+                print("[PatchManager] Checking patch: \(patch.name) (id: \(patch.id))")
+                let exists = storage.patchExists(patchId: patch.id)
+                print("[PatchManager] Local exists: \(exists)")
                 let needsDownload = shouldDownload(patch)
+                print("[PatchManager] Needs download: \(needsDownload)")
                 if needsDownload {
+                    print("[PatchManager] Starting download for: \(patch.name)")
                     await downloadIfNeeded(patch)
                 }
             }

@@ -51,7 +51,10 @@ final class PatchStorage {
     
     /// Verifica si un patch existe localmente
     func patchExists(patchId: String) -> Bool {
-        return FileManager.default.fileExists(atPath: patchFileURL(patchId: patchId).path)
+        let url = patchFileURL(patchId: patchId)
+        let exists = FileManager.default.fileExists(atPath: url.path)
+        print("[PatchStorage] Checking if patch exists: \(patchId) at \(url.path) -> \(exists)")
+        return exists
     }
     
     /// Obtiene el tamaño del archivo local de un patch
