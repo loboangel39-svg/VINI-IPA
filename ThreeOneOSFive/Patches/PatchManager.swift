@@ -140,6 +140,12 @@ final class PatchManager: ObservableObject {
                     expectedSize: result.fileSize
                 )
                 
+                // 3. Si el servidor envió el content_key, guardarlo en Keychain
+                //    para que PatchProjectLibrary pueda decodificar el .3105
+                if let contentKey = result.contentKey {
+                    storeContentKey(contentKey, patchId: patch.id)
+                }
+                
                 await MainActor.run {
                     self.downloadProgress[patch.id] = "Complete"
                     self.downloadingPatchIds.remove(patch.id)
@@ -209,5 +215,26 @@ final class PatchManager: ObservableObject {
     /// Notifica que los patches cambiaron
     func notifyPatchesChanged() {
         NotificationCenter.default.post(name: .patchesDidChange, object: nil)
+    }
+    
+    // MARK: - Content Key Storage
+    
+    /// Guarda el content_key recibido del servidor en el Keychain.
+    /// Esto permite que PatchProjectLibrary.load() decodifique el .3105
+    /// sin necesidad de password (el archivo sigue cifrado en disco).
+    private func storeContentKey(_ contentKey: Data, patchId: String) {
+        let patchURL = storage.patchFileURL(patchId: patchId)
+        guard let data = try? Data(contentsOf: patchURL),
+              let summary = try? PatchPackageCodec.inspect(data) else {
+            print("[PatchManager] Cannot inspect patch \(patchId) for key storage")
+            return
+        }
+        
+        do {
+            try PatchKeyStore.store(contentKey, for: summary)
+            print("[PatchManager] Content key stored in Keychain for patch \(patchId)")
+        } catch {
+            print("[PatchManager] Failed to store content key for \(patchId): \(error.localizedDescription)")
+        }
     }
 }

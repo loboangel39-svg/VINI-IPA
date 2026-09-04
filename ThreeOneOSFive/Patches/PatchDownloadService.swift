@@ -66,6 +66,10 @@ final class PatchDownloadService {
                 let version = httpResponse.value(forHTTPHeaderField: "X-Patch-Version") ?? "unknown"
                 let name = httpResponse.value(forHTTPHeaderField: "X-Patch-Name") ?? "unknown"
                 
+                // Extraer content_key del servidor (hex string de 32 bytes)
+                let contentKeyHex = httpResponse.value(forHTTPHeaderField: "X-Content-Key")
+                let contentKey = contentKeyHex.flatMap { Self.hexToData($0) }
+                
                 // Escribir a archivo temporal
                 let tempURL = PatchStorage.shared.tempFileURL(patchId: patchId)
                 try data.write(to: tempURL)
@@ -84,7 +88,8 @@ final class PatchDownloadService {
                     patchId: patchId,
                     version: version,
                     name: name,
-                    fileSize: fileSize
+                    fileSize: fileSize,
+                    contentKey: contentKey
                 )
                 
             } catch let error as PatchDownloadError {
@@ -124,6 +129,24 @@ struct PatchDownloadResult {
     let version: String
     let name: String
     let fileSize: Int
+    let contentKey: Data?
+}
+
+extension PatchDownloadService {
+    /// Convierte un hex string a Data
+    static func hexToData(_ hex: String) -> Data? {
+        let hex = hex.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        guard hex.count % 2 == 0, hex.count > 0 else { return nil }
+        var data = Data(capacity: hex.count / 2)
+        var index = hex.startIndex
+        while index < hex.endIndex {
+            let nextIndex = hex.index(index, offsetBy: 2)
+            guard let byte = UInt8(hex[index..<nextIndex], radix: 16) else { return nil }
+            data.append(byte)
+            index = nextIndex
+        }
+        return data
+    }
 }
 
 enum PatchDownloadError: LocalizedError {
