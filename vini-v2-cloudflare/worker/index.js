@@ -2,6 +2,181 @@
 // Backend completo con D1 + R2
 // Endpoints: /api/app/* (app iOS) + /api/admin/* + /api/* (admin panel)
 
+// ============================================================
+// BINARY PLIST PARSER (minimal — solo extrae keys del envelope .3105)
+// Formato: https://opensource.apple.com/source/CF/CF-550/CFBinaryPList.c
+// ============================================================
+
+function parseBinaryPlist(buffer) {
+  const data = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
+  const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
+
+  // Trailer: últimos 32 bytes
+  const trailerOffset = data.length - 32;
+  const offsetSize = view.getUint8(trailerOffset + 6);
+  const objectRefSize = view.getUint8(trailerOffset + 7);
+  const objectCount = Number(view.getBigUint64(trailerOffset + 8));
+  const offsetTableOffset = Number(view.getBigUint64(trailerOffset + 24));
+
+  // Leer offset table
+  const offsets = [];
+  for (let i = 0; i < objectCount; i++) {
+    let off = 0;
+    for (let j = 0; j < offsetSize; j++) {
+      off = off * 256 + view.getUint8(offsetTableOffset + i * offsetSize + j);
+    }
+    offsets.push(off);
+  }
+
+  function readObject(objIndex) {
+    const offset = offsets[objIndex];
+    const marker = view.getUint8(offset);
+    const type = (marker >> 4) & 0x0F;
+    const size = marker & 0x0F;
+
+    switch (type) {
+      case 0x00: // singleton (null/false/true)
+        return size === 0 ? null : size === 8 ? false : true;
+      case 0x01: { // int
+        const byteCount = 1 << size;
+        let val = 0;
+        for (let i = 0; i < byteCount; i++) val = val * 256 + view.getUint8(offset + 1 + i);
+        return val;
+      }
+      case 0x02: { // real
+        if (size === 2) return view.getFloat32(offset + 1);
+        if (size === 3) return view.getFloat64(offset + 1);
+        return 0;
+      }
+      case 0x03: { // date
+        const secs = view.getFloat64(offset + 1);
+        return new Date((secs + 978307200) * 1000).toISOString();
+      }
+      case 0x04: { // data
+        let len = size;
+        let dataOff = offset + 1;
+        if (len === 0x0F) {
+          const extMarker = view.getUint8(dataOff);
+          len = 1 << (extMarker & 0x0F);
+          dataOff++;
+        }
+        return data.slice(dataOff, dataOff + len);
+      }
+      case 0x05: { // ascii string
+        let len = size;
+        let strOff = offset + 1;
+        if (len === 0x0F) {
+          const extMarker = view.getUint8(strOff);
+          len = 1 << (extMarker & 0x0F);
+          strOff++;
+        }
+        let s = '';
+        for (let i = 0; i < len; i++) s += String.fromCharCode(view.getUint8(strOff + i));
+        return s;
+      }
+      case 0x06: { // unicode string
+        let len = size;
+        let strOff = offset + 1;
+        if (len === 0x0F) {
+          const extMarker = view.getUint8(strOff);
+          len = 1 << (extMarker & 0x0F);
+          strOff++;
+        }
+        let s = '';
+        for (let i = 0; i < len; i++) {
+          s += String.fromCharCode(view.getUint16(strOff + i * 2));
+        }
+        return s;
+      }
+      case 0x08: { // uid
+        const byteCount = size + 1;
+        let val = 0;
+        for (let i = 0; i < byteCount; i++) val = val * 256 + view.getUint8(offset + 1 + i);
+        return val;
+      }
+      case 0x0A: { // array
+        let len = size;
+        let arrOff = offset + 1;
+        if (len === 0x0F) {
+          const extMarker = view.getUint8(arrOff);
+          len = 1 << (extMarker & 0x0F);
+          arrOff++;
+        }
+        const arr = [];
+        for (let i = 0; i < len; i++) {
+          let ref = 0;
+          for (let j = 0; j < objectRefSize; j++) {
+            ref = ref * 256 + view.getUint8(arrOff + i * objectRefSize + j);
+          }
+          arr.push(readObject(ref));
+        }
+        return arr;
+      }
+      case 0x0D: { // dict
+        let len = size;
+        let dictOff = offset + 1;
+        if (len === 0x0F) {
+          const extMarker = view.getUint8(dictOff);
+          len = 1 << (extMarker & 0x0F);
+          dictOff++;
+        }
+        const dict = {};
+        for (let i = 0; i < len; i++) {
+          let keyRef = 0, valRef = 0;
+          for (let j = 0; j < objectRefSize; j++) {
+            keyRef = keyRef * 256 + view.getUint8(dictOff + i * objectRefSize * 2 + j);
+          }
+          for (let j = 0; j < objectRefSize; j++) {
+            valRef = valRef * 256 + view.getUint8(dictOff + i * objectRefSize * 2 + objectRefSize + j);
+          }
+          const key = readObject(keyRef);
+          dict[key] = readObject(valRef);
+        }
+        return dict;
+      }
+      default:
+        return null;
+    }
+  }
+
+  // Root es siempre el último objeto (index = objectCount - 1)
+  return readObject(objectCount - 1);
+}
+
+// Extraer publicContentKey de un archivo .3105 (solo patches sin password)
+// Retorna Uint8Array de 32 bytes o null si está protegido por password
+function extractContentKeyFrom3105(fileData) {
+  const magic = new TextEncoder().encode('3105PATCH\0');
+  const bytes = new Uint8Array(fileData);
+
+  // Verificar magic
+  if (bytes.length < magic.length + 20) return null;
+  for (let i = 0; i < magic.length; i++) {
+    if (bytes[i] !== magic[i]) return null;
+  }
+
+  // Parsear el binary plist después del magic
+  const plistData = bytes.slice(magic.length);
+  let envelope;
+  try {
+    envelope = parseBinaryPlist(plistData);
+  } catch {
+    return null;
+  }
+
+  // Solo extraer si NO está protegido por password
+  if (envelope.isPasswordProtected) return null;
+
+  const key = envelope.publicContentKey;
+  if (key instanceof Uint8Array && key.length === 32) return key;
+  return null;
+}
+
+// Convertir Uint8Array a hex string
+function toHex(uint8Array) {
+  return Array.from(uint8Array).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -365,7 +540,6 @@ async function handleAppDownloadPatch(id, env, headers, appAuth) {
     INNER JOIN user_patches up ON up.patch_id = p.id
     WHERE p.id = ? AND up.user_id = ? AND p.active = 1
   `).bind(id, appAuth.userId).first();
-
   if (!patch) {
     return Response.json({ error: 'Patch not found or access denied' }, { status: 404, headers });
   }
@@ -397,6 +571,11 @@ async function handleAppDownloadPatch(id, env, headers, appAuth) {
     'X-Patch-Version': patch.version,
     'X-Patch-Name': patch.name,
   };
+
+  // Enviar content_key si está disponible (para desbloqueo automático en el cliente)
+  if (patch.content_key && patch.content_key !== '') {
+    responseHeaders['X-Content-Key'] = patch.content_key;
+  }
 
   return new Response(object.body, { headers: responseHeaders });
 }
@@ -608,19 +787,27 @@ async function handleCreatePatch(request, env, headers) {
   const file = formData.get('file');
 
   let fileKey = '';
+  let contentKey = '';
   if (file && file.size > 0) {
     fileKey = `patches/${id}/${file.name}`;
-    await env.R2.put(fileKey, file.stream());
+    const fileBuffer = await file.arrayBuffer();
+    await env.R2.put(fileKey, fileBuffer);
+
+    // Extraer content_key del .3105 (solo si no está protegido por password)
+    const extracted = extractContentKeyFrom3105(fileBuffer);
+    if (extracted) {
+      contentKey = toHex(extracted);
+    }
   }
 
   const now = new Date().toISOString();
   await env.DB.prepare(
-    `INSERT INTO patches (id, name, description, version, type, file_key, active, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)`
-  ).bind(id, name, description, version, type, fileKey, now, now).run();
+    `INSERT INTO patches (id, name, description, version, type, file_key, content_key, active, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`
+  ).bind(id, name, description, version, type, fileKey, contentKey, now, now).run();
 
   await logActivity(env, 'patch_created', `Patch "${name}" created`);
-  return Response.json({ id, name, version, type }, { headers });
+  return Response.json({ id, name, version, type, hasContentKey: !!contentKey }, { headers });
 }
 
 async function handleUpdatePatch(id, request, env, headers) {
@@ -633,17 +820,31 @@ async function handleUpdatePatch(id, request, env, headers) {
 
   let patch = await env.DB.prepare('SELECT file_key FROM patches WHERE id = ?').bind(id).first();
 
+  let fileKey = patch?.file_key || '';
+  let contentKey = null;
   if (file && file.size > 0) {
-    const fileKey = `patches/${id}/${file.name}`;
-    await env.R2.put(fileKey, file.stream());
+    fileKey = `patches/${id}/${file.name}`;
+    const fileBuffer = await file.arrayBuffer();
+    await env.R2.put(fileKey, fileBuffer);
     if (patch.file_key) await env.R2.delete(patch.file_key);
-    patch = { file_key: fileKey };
+
+    // Re-extraer content_key del nuevo archivo
+    const extracted = extractContentKeyFrom3105(fileBuffer);
+    if (extracted) {
+      contentKey = toHex(extracted);
+    }
   }
 
   const now = new Date().toISOString();
-  await env.DB.prepare(
-    `UPDATE patches SET name = ?, description = ?, version = ?, type = ?, file_key = ?, updated_at = ? WHERE id = ?`
-  ).bind(name, description, version, type, patch.file_key, now, id).run();
+  if (contentKey !== null) {
+    await env.DB.prepare(
+      `UPDATE patches SET name = ?, description = ?, version = ?, type = ?, file_key = ?, content_key = ?, updated_at = ? WHERE id = ?`
+    ).bind(name, description, version, type, fileKey, contentKey, now, id).run();
+  } else {
+    await env.DB.prepare(
+      `UPDATE patches SET name = ?, description = ?, version = ?, type = ?, file_key = ?, updated_at = ? WHERE id = ?`
+    ).bind(name, description, version, type, fileKey, now, id).run();
+  }
 
   await logActivity(env, 'patch_updated', `Patch ${id} updated`);
   return Response.json({ success: true }, { headers });

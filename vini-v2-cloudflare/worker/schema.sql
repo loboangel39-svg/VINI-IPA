@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS patches (
   version TEXT DEFAULT '1.0.0',
   type TEXT DEFAULT 'free',
   file_key TEXT DEFAULT '',
+  content_key TEXT DEFAULT '',
   active INTEGER DEFAULT 1,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
