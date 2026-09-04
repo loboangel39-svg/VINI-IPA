@@ -4,39 +4,25 @@ enum AppSection: Int, CaseIterable, Identifiable {
     case home
     case files
     case patches
-    case cleaner
-    case wallpapers
+    case messages
+    case config
 
     var id: Int { rawValue }
 }
 
-enum WallpaperFeatureSupportPolicy {
-    static func isSupported(major: Int) -> Bool {
-        switch major {
-        case 17, 18, 26, 27:
-            return true
-        default:
-            return false
-        }
-    }
-}
-
 struct FeatureVisibility: Equatable {
-    static let cleanerStorageKey = "feature.cleaner.enabled"
-    static let wallpapersStorageKey = "feature.wallpapers.enabled"
+    static let messagesStorageKey = "feature.messages.enabled"
+    static let configStorageKey = "feature.config.enabled"
 
-    let cleanerEnabled: Bool
-    let wallpapersEnabled: Bool
-    let wallpapersSupported: Bool
+    let messagesEnabled: Bool
+    let configEnabled: Bool
 
     init(
-        cleanerEnabled: Bool,
-        wallpapersEnabled: Bool,
-        wallpapersSupported: Bool = true
+        messagesEnabled: Bool = true,
+        configEnabled: Bool = true
     ) {
-        self.cleanerEnabled = cleanerEnabled
-        self.wallpapersEnabled = wallpapersEnabled
-        self.wallpapersSupported = wallpapersSupported
+        self.messagesEnabled = messagesEnabled
+        self.configEnabled = configEnabled
     }
 
     var visibleSections: [AppSection] {
@@ -45,10 +31,10 @@ struct FeatureVisibility: Equatable {
 
     func isVisible(_ section: AppSection) -> Bool {
         switch section {
-        case .cleaner:
-            return cleanerEnabled
-        case .wallpapers:
-            return wallpapersEnabled && wallpapersSupported
+        case .messages:
+            return messagesEnabled
+        case .config:
+            return configEnabled
         case .home, .files, .patches:
             return true
         }

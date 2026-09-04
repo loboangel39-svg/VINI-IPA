@@ -9,28 +9,31 @@ struct LoginResponse {
 
 final class LoginManager {
     
-    // URL del Worker API para validación de licencias
-    private static let workerURL = "https://vini-patch-worker.loboangel39.workers.dev"
+    // MARK: - VINI V2 API URL
+    private static let workerURL = "https://vini-v2-api.loboangel39.workers.dev"
     
-    /// Inicia sesión validando la licencia contra el Worker
+    /// Obtiene el HWID persistente del Keychain.
+    /// Este HWID NO cambia al reinstalar la app.
+    static func getPersistentHWID() -> String {
+        return KeychainManager.shared.getOrCreatePersistentHWID()
+    }
+    
+    /// Inicia sesión validando la licencia contra el Worker V2
     static func login(licenseKey: String, completion: @escaping (Bool, String, Date?) -> Void) {
-        let hwid = UIDevice.current.identifierForVendor?.uuidString ?? "unknown"
+        let hwid = getPersistentHWID()
         
-        print("🔑 Validando licencia: \(licenseKey)")
-        print("📱 HWID: \(hwid)")
+        print("[LoginManager] Validating license: \(licenseKey)")
+        print("[LoginManager] HWID (persistent): \(hwid)")
         
         validateWithWorker(licenseKey: licenseKey, hwid: hwid, completion: completion)
     }
     
-    /// Valida licencia contra el Worker API de Cloudflare
+    /// Valida licencia contra el Worker V2 API
     private static func validateWithWorker(licenseKey: String, hwid: String, completion: @escaping (Bool, String, Date?) -> Void) {
         guard let url = URL(string: "\(workerURL)/api/app/validate-license") else {
-            print("❌ Error: URL inválida")
-            completion(false, "Error de configuración", nil)
+            completion(false, "Configuration error", nil)
             return
         }
-        
-        print("🌐 URL: \(url.absoluteString)")
         
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
@@ -44,56 +47,43 @@ final class LoginManager {
         
         do {
             request.httpBody = try JSONSerialization.data(withJSONObject: body)
-            print("📤 Body: \(String(data: request.httpBody!, encoding: .utf8) ?? "")")
         } catch {
-            print("❌ Error serializando body: \(error)")
-            completion(false, "Error al procesar la solicitud", nil)
+            completion(false, "Request error", nil)
             return
         }
         
-        print("⏳ Enviando request...")
-        
         URLSession.shared.dataTask(with: request) { data, response, error in
             if let error = error {
-                print("❌ Error de red: \(error.localizedDescription)")
-                completion(false, "Error de conexión: \(error.localizedDescription)", nil)
+                completion(false, "Connection error: \(error.localizedDescription)", nil)
                 return
-            }
-            
-            if let httpResponse = response as? HTTPURLResponse {
-                print("📥 Status code: \(httpResponse.statusCode)")
             }
             
             guard let data = data else {
-                print("❌ No se recibió data")
-                completion(false, "No se recibió respuesta del servidor", nil)
+                completion(false, "No response from server", nil)
                 return
             }
             
-            if let rawResponse = String(data: data, encoding: .utf8) {
-                print("📥 Respuesta raw: \(rawResponse)")
-            }
-            
             guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-                print("❌ Error parseando JSON")
-                completion(false, "Respuesta inválida del servidor", nil)
+                completion(false, "Invalid server response", nil)
                 return
             }
             
             let valid = json["valid"] as? Bool ?? false
             let errorMessage = json["error"] as? String
             
-            print("✅ Valid: \(valid)")
-            if let error = errorMessage {
-                print("❌ Error: \(error)")
-            }
-            
             if valid {
-                // Guardar token si viene
+                // Guardar token de sesión en Keychain (sobrevive reinstalaciones)
                 if let token = json["token"] as? String {
-                    UserDefaults.standard.set(token, forKey: "remotePatch.authToken")
-                    print("💾 Token guardado")
+                    KeychainManager.shared.saveAuthToken(token)
                 }
+                
+                // Guardar username en Keychain
+                if let username = json["username"] as? String {
+                    KeychainManager.shared.saveUsername(username)
+                }
+                
+                // Guardar license key en Keychain (para auto-login)
+                KeychainManager.shared.saveLicenseKey(licenseKey)
                 
                 // Parsear fecha de expiración
                 var expiresAt: Date? = nil
@@ -101,21 +91,18 @@ final class LoginManager {
                     let formatter = ISO8601DateFormatter()
                     formatter.formatOptions = [.withInternetDateTime]
                     expiresAt = formatter.date(from: expiresStr)
-                    print("📅 Expires: \(expiresAt ?? Date())")
                 }
                 
-                print("✅ Licencia validada exitosamente")
-                completion(true, "Inicio de sesión exitoso", expiresAt)
+                completion(true, "Login successful", expiresAt)
             } else {
-                print("❌ Licencia inválida: \(errorMessage ?? "unknown")")
-                completion(false, errorMessage ?? "Licencia inválida", nil)
+                completion(false, errorMessage ?? "Invalid license", nil)
             }
         }.resume()
     }
     
-    /// Verifica si una licencia sigue activa
+    /// Verifica si una licencia sigue activa (re-validate)
     static func verifyLicense(licenseKey: String, completion: @escaping (Bool) -> Void) {
-        let hwid = UIDevice.current.identifierForVendor?.uuidString ?? "unknown"
+        let hwid = getPersistentHWID()
         
         guard let url = URL(string: "\(workerURL)/api/app/validate-license") else {
             completion(false)
@@ -152,5 +139,39 @@ final class LoginManager {
                 DispatchQueue.main.async { completion(false) }
             }
         }.resume()
+    }
+    
+    /// Intenta auto-login con credenciales guardadas en Keychain.
+    /// Retorna true si hay credenciales y se puede intentar login.
+    static func tryAutoLogin(completion: @escaping (Bool, String?, Date?) -> Void) {
+        guard let licenseKey = KeychainManager.shared.loadLicenseKey() else {
+            completion(false, nil, nil)
+            return
+        }
+        
+        print("[LoginManager] Attempting auto-login with saved license key")
+        
+        login(licenseKey: licenseKey) { success, message, expiresAt in
+            if success {
+                print("[LoginManager] Auto-login successful")
+                completion(true, licenseKey, expiresAt)
+            } else {
+                print("[LoginManager] Auto-login failed: \(message)")
+                completion(false, nil, nil)
+            }
+        }
+    }
+    
+    /// Limpia la sesión del usuario (pero NO borra el license key del Keychain para permitir re-login)
+    static func clearSession() {
+        KeychainManager.shared.deleteAuthToken()
+        UserDefaults.standard.removeObject(forKey: "vini.authToken")
+        UserDefaults.standard.removeObject(forKey: "vini.username")
+    }
+    
+    /// Limpia TODAS las credenciales (logout completo, requiere nueva licencia)
+    static func clearAllCredentials() {
+        KeychainManager.shared.deleteAll()
+        clearSession()
     }
 }

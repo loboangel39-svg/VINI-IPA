@@ -442,6 +442,8 @@
 "browser.open_new_tab" = "Open in New Tab";
 
 "tab.wallpapers" = "Wallpapers";
+"tab.messages" = "Messages";
+"tab.config" = "Config";
 "wallpaper.title" = "Wallpaper Lab";
 "wallpaper.access" = "PosterBoard Access";
 "wallpaper.access_ready" = "Ready to install";

@@ -442,6 +442,8 @@
 "browser.open_new_tab" = "在新标签页中打开";
 
 "tab.wallpapers" = "壁纸";
+"tab.messages" = "消息";
+"tab.config" = "配置";
 "wallpaper.title" = "壁纸实验室";
 "wallpaper.access" = "PosterBoard 访问";
 "wallpaper.access_ready" = "可安装";

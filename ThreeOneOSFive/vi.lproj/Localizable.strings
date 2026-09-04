@@ -442,6 +442,8 @@
 "browser.open_new_tab" = "Mở trong thẻ mới";
 
 "tab.wallpapers" = "Hình nền";
+"tab.messages" = "Tin nhắn";
+"tab.config" = "Cấu hình";
 "wallpaper.title" = "Wallpaper Lab";
 "wallpaper.access" = "Quyền PosterBoard";
 "wallpaper.access_ready" = "Sẵn sàng cài đặt";

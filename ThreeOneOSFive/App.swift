@@ -6,7 +6,7 @@ struct ThreeOneOSFiveApp: App {
     @StateObject private var appState = AppState()
     @StateObject private var patchDraftCoordinator = PatchDraftCoordinator()
     @StateObject private var fileOperationCoordinator = FileOperationCoordinator()
-    @StateObject private var syncManager = PatchSyncManager.shared
+    @StateObject private var patchManager = PatchManager.shared
     @StateObject private var patchStore = PatchProjectStore()
     @AppStorage(AppLanguage.storageKey) private var languageCode = AppLanguage.english.rawValue
     @State private var showOnboarding = OnboardingStore.shouldShow()
@@ -15,12 +15,83 @@ struct ThreeOneOSFiveApp: App {
     @AppStorage("isLoggedIn") private var isLoggedIn = false
     @AppStorage("sessionExpiresAt") private var sessionExpiresAt: Double = 0
     @AppStorage("currentLicenseKey") private var currentLicenseKey: String = ""
+    @State private var isCheckingAutoLogin = true
     @Environment(\.scenePhase) private var scenePhase
 
     init() {
         setupLogCapture()
         log("app: 3105 launching - iOS \(AppInfo.osVersion) (\(AppInfo.osBuild)) \(AppInfo.machineName)")
-        checkSessionValidity()
+    }
+
+    var body: some Scene {
+        WindowGroup {
+            Group {
+                if isCheckingAutoLogin {
+                    // Pantalla de carga mientras verifica auto-login
+                    ProgressView("VINI V2")
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if isLoggedIn {
+                    mainContent
+                } else {
+                    LoginView(onLoginSuccess: { license, expiresAt in
+                        currentLicenseKey = license
+                        isLoggedIn = true
+                        if let expiresAt = expiresAt {
+                            sessionExpiresAt = expiresAt.timeIntervalSince1970
+                        } else {
+                            sessionExpiresAt = 0
+                        }
+                        // Sync patches via PatchManager (VINI V2)
+                        Task {
+                            await patchManager.syncPatches()
+                            await patchStore.loadAssignedPatches()
+                        }
+                    })
+                }
+            }
+            .task {
+                // Intentar auto-login al iniciar
+                await attemptAutoLogin()
+                
+                if isLoggedIn {
+                    await patchManager.syncPatches()
+                    await patchStore.loadAssignedPatches()
+                }
+            }
+        }
+    }
+    
+    // MARK: - Auto-Login
+    // Intenta login automático con credenciales guardadas en Keychain.
+    // Esto permite que al reinstalar la app, el usuario no necesite ingresar nueva licencia.
+    
+    private func attemptAutoLogin() async {
+        // Si ya está logueado, verificar sesión
+        if isLoggedIn {
+            await checkSessionValidityAsync()
+            await MainActor.run { isCheckingAutoLogin = false }
+            return
+        }
+        
+        // Intentar auto-login con Keychain
+        await withCheckedContinuation { continuation in
+            LoginManager.tryAutoLogin { success, licenseKey, expiresAt in
+                Task { @MainActor in
+                    if success, let license = licenseKey {
+                        currentLicenseKey = license
+                        isLoggedIn = true
+                        if let expiresAt = expiresAt {
+                            sessionExpiresAt = expiresAt.timeIntervalSince1970
+                        }
+                        log("app: auto-login successful")
+                    } else {
+                        log("app: auto-login failed, showing login screen")
+                    }
+                    isCheckingAutoLogin = false
+                    continuation.resume()
+                }
+            }
+        }
     }
 
     private func checkSessionValidity() {
@@ -44,13 +115,52 @@ struct ThreeOneOSFiveApp: App {
             }
         }
     }
+    
+    private func checkSessionValidityAsync() async {
+        guard isLoggedIn else { return }
+
+        if sessionExpiresAt > 0 {
+            let expirationDate = Date(timeIntervalSince1970: sessionExpiresAt)
+            if Date() > expirationDate {
+                await MainActor.run { logout() }
+                log("app: session expired locally")
+                return
+            }
+        }
+
+        if !currentLicenseKey.isEmpty {
+            await withCheckedContinuation { continuation in
+                LoginManager.verifyLicense(licenseKey: currentLicenseKey) { isValid in
+                    if !isValid {
+                        Task { @MainActor in
+                            logout()
+                            log("app: license invalidated on server")
+                        }
+                    }
+                    continuation.resume()
+                }
+            }
+        }
+    }
 
     private func logout() {
         isLoggedIn = false
         sessionExpiresAt = 0
         currentLicenseKey = ""
         RemotePatchService.shared.clearAuth()
+        LoginManager.clearSession()
         log("app: user logged out")
+    }
+    
+    /// Logout completo: borra TODAS las credenciales incluyendo Keychain.
+    /// Requiere nueva licencia para volver a entrar.
+    func forceLogout() {
+        isLoggedIn = false
+        sessionExpiresAt = 0
+        currentLicenseKey = ""
+        RemotePatchService.shared.clearAuth()
+        LoginManager.clearAllCredentials()
+        log("app: force logout - all credentials cleared")
     }
 
     private var language: AppLanguage {
@@ -64,38 +174,6 @@ struct ThreeOneOSFiveApp: App {
         }
     }
 
-    var body: some Scene {
-        WindowGroup {
-            Group {
-                if isLoggedIn {
-                    mainContent
-                } else {
-                    LoginView(onLoginSuccess: { license, expiresAt in
-                        currentLicenseKey = license
-                        isLoggedIn = true
-                        if let expiresAt = expiresAt {
-                            sessionExpiresAt = expiresAt.timeIntervalSince1970
-                        } else {
-                            sessionExpiresAt = 0
-                        }
-                        // PRIMERO descargar patches, LUEGO cargar IDs
-                        Task {
-                            await syncManager.syncPatches()
-                            await patchStore.loadAssignedPatches()
-                        }
-                    })
-                }
-            }
-            .task {
-                if isLoggedIn {
-                    // PRIMERO descargar patches, LUEGO cargar IDs
-                    await syncManager.syncPatches()
-                    await patchStore.loadAssignedPatches()
-                }
-            }
-        }
-    }
-
     @ViewBuilder
     private var mainContent: some View {
         ZStack {
@@ -104,6 +182,7 @@ struct ThreeOneOSFiveApp: App {
                 .environmentObject(patchDraftCoordinator)
                 .environmentObject(fileOperationCoordinator)
                 .environmentObject(patchStore)
+                .environmentObject(patchManager)
                 .environment(\.appLanguage, language)
                 .environment(\.locale, language.locale)
                 .opacity(showOnboarding ? 0 : 1)

@@ -1,5 +1,6 @@
 // VINI V2 - Cloudflare Worker API
 // Backend completo con D1 + R2
+// Endpoints: /api/app/* (app iOS) + /api/admin/* + /api/* (admin panel)
 
 export default {
   async fetch(request, env) {
@@ -7,24 +8,11 @@ export default {
     const path = url.pathname;
     const method = request.method;
 
-// === DEBUG STORAGE ===
-if (path === '/debug/storage' && method === 'GET') {
-  const db = await env.DB.prepare('SELECT 1 AS test').first();
-
-  const object = await env.R2.head(
-    'patches/0cb65ae9-3d46-4d79-ac4d-5d517ad522e7.3105'
-  );
-
-  return Response.json({
-    worker: 'OK',
-    d1: db?.test === 1 ? 'OK' : 'ERROR',
-    r2: object ? 'OK' : 'NOT_FOUND',
-    file: object ? {
-      key: 'patches/0cb65ae9-3d46-4d79-ac4d-5d517ad522e7.3105',
-      size: object.size
-    } : null
-  });
-}
+    // === DEBUG STORAGE ===
+    if (path === '/debug/storage' && method === 'GET') {
+      const db = await env.DB.prepare('SELECT 1 AS test').first();
+      return Response.json({ worker: 'OK', d1: db?.test === 1 ? 'OK' : 'ERROR' });
+    }
 
     // CORS
     if (method === 'OPTIONS') {
@@ -43,12 +31,70 @@ if (path === '/debug/storage' && method === 'GET') {
     };
 
     try {
-      // === AUTH ROUTES ===
+      // ============================================================
+      // APP ENDPOINTS (no requieren admin auth, usan license auth)
+      // ============================================================
+
+      // Validate license (login de la app)
+      if (path === '/api/app/validate-license' && method === 'POST') {
+        return handleAppValidateLicense(request, env, corsHeaders);
+      }
+
+      // App endpoints que requieren license auth
+      if (path.startsWith('/api/app/')) {
+        const appAuth = await verifyAppAuth(request, env);
+        if (!appAuth.valid) {
+          return Response.json({ error: 'Unauthorized', valid: false }, { status: 401, headers: corsHeaders });
+        }
+
+        // GET /api/app/config
+        if (path === '/api/app/config' && method === 'GET') {
+          return handleAppGetConfig(env, corsHeaders);
+        }
+
+        // GET /api/app/patches — lista de patches disponibles para el usuario
+        if (path === '/api/app/patches' && method === 'GET') {
+          return handleAppGetPatches(env, corsHeaders, appAuth);
+        }
+
+        // GET /api/app/patches/:id — detalle de un patch
+        if (path.match(/^\/api\/app\/patches\/[^/]+$/) && method === 'GET') {
+          const id = path.split('/')[4];
+          return handleAppGetPatchDetail(id, env, corsHeaders, appAuth);
+        }
+
+        // GET /api/app/patches/:id/download — descargar archivo .3105
+        if (path.match(/^\/api\/app\/patches\/[^/]+\/download$/) && method === 'GET') {
+          const id = path.split('/')[4];
+          return handleAppDownloadPatch(id, env, corsHeaders, appAuth);
+        }
+
+        // GET /api/app/messages
+        if (path === '/api/app/messages' && method === 'GET') {
+          return handleAppGetMessages(env, corsHeaders, appAuth);
+        }
+
+        // POST /api/app/messages/:id/ack
+        if (path.match(/^\/api\/app\/messages\/[^/]+\/ack$/) && method === 'POST') {
+          const id = path.split('/')[4];
+          return handleAppAckMessage(id, env, corsHeaders, appAuth);
+        }
+
+        // POST /api/app/telemetry
+        if (path === '/api/app/telemetry' && method === 'POST') {
+          return handleAppTelemetry(request, env, corsHeaders, appAuth);
+        }
+      }
+
+      // ============================================================
+      // ADMIN ENDPOINTS
+      // ============================================================
+
       if (path === '/api/admin/login' && method === 'POST') {
         return handleLogin(request, env, corsHeaders);
       }
 
-      // Verify auth for all other routes
+      // Verify admin auth for all other routes
       const auth = await verifyAuth(request, env);
       if (!auth.valid) {
         return Response.json({ error: 'Unauthorized' }, { status: 401, headers: corsHeaders });
@@ -162,7 +208,231 @@ if (path === '/debug/storage' && method === 'GET') {
   },
 };
 
-// === AUTH HELPERS ===
+// ============================================================
+// APP AUTH — Verifica license_key via Bearer token
+// ============================================================
+
+async function verifyAppAuth(request, env) {
+  const authHeader = request.headers.get('Authorization');
+  if (!authHeader || !authHeader.startsWith('Bearer ')) return { valid: false };
+
+  const token = authHeader.split(' ')[1];
+
+  // El token es un JWT simple que contiene { userId, licenseKey, hwid, exp }
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return { valid: false };
+    const payload = JSON.parse(atob(parts[1]));
+    if (payload.exp < Date.now()) return { valid: false };
+
+    const secret = env.JWT_SECRET || 'vini-jwt-secret-change-me';
+    const expectedSig = await hmacSign(`${parts[0]}.${parts[1]}`, secret);
+    if (expectedSig !== parts[2]) return { valid: false };
+
+    // Verificar que el usuario sigue activo
+    const user = await env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(payload.userId).first();
+    if (!user) return { valid: false };
+    if (!user.is_active || user.is_paused || user.is_blocked) return { valid: false };
+
+    return { valid: true, userId: payload.userId, hwid: payload.hwid, user };
+  } catch {
+    return { valid: false };
+  }
+}
+
+// ============================================================
+// APP ENDPOINTS HANDLERS
+// ============================================================
+
+// POST /api/app/validate-license
+async function handleAppValidateLicense(request, env, headers) {
+  const { licenseKey, hwid } = await request.json();
+
+  if (!licenseKey) {
+    return Response.json({ valid: false, error: 'License key required' }, { status: 400, headers });
+  }
+
+  // Buscar usuario por license_key
+  const user = await env.DB.prepare('SELECT * FROM users WHERE license_key = ?').bind(licenseKey).first();
+
+  if (!user) {
+    return Response.json({ valid: false, error: 'Invalid license key' }, { status: 401, headers });
+  }
+
+  // Verificar estado
+  if (!user.is_active) {
+    return Response.json({ valid: false, error: 'Account inactive' }, { status: 403, headers });
+  }
+  if (user.is_blocked) {
+    return Response.json({ valid: false, error: 'Account blocked' }, { status: 403, headers });
+  }
+  if (user.is_paused) {
+    return Response.json({ valid: false, error: 'Account paused' }, { status: 403, headers });
+  }
+
+  // Verificar HWID
+  if (user.hwid && user.hwid !== '' && user.hwid !== hwid) {
+    return Response.json({ valid: false, error: 'HWID mismatch. Contact admin to reset.' }, { status: 403, headers });
+  }
+
+  // Registrar HWID si no está registrado
+  if (!user.hwid || user.hwid === '') {
+    await env.DB.prepare('UPDATE users SET hwid = ? WHERE id = ?').bind(hwid, user.id).run();
+  }
+
+  // Generar token de sesión (24h)
+  const exp = Date.now() + 86400000; // 24 horas
+  const token = await createJWT({ userId: user.id, licenseKey, hwid, exp }, env);
+
+  // Registrar actividad
+  await logActivity(env, 'app_login', `User ${user.username} logged in`);
+
+  return Response.json({
+    valid: true,
+    token,
+    expiresAt: new Date(exp).toISOString(),
+    username: user.username,
+    isPremium: !!user.is_premium,
+  }, { headers });
+}
+
+// GET /api/app/config
+async function handleAppGetConfig(env, headers) {
+  const result = await env.DB.prepare('SELECT key, value FROM config').all();
+  const config = {};
+  result.results.forEach(r => { config[r.key] = r.value; });
+  return Response.json(config, { headers });
+}
+
+// GET /api/app/patches — lista de patches disponibles para el usuario
+async function handleAppGetPatches(env, headers, appAuth) {
+  // Obtener patches activos a los que el usuario tiene acceso
+  const result = await env.DB.prepare(`
+    SELECT p.id, p.name, p.description, p.version, p.type, p.file_key, p.created_at, p.updated_at
+    FROM patches p
+    INNER JOIN user_patches up ON up.patch_id = p.id
+    WHERE p.active = 1
+      AND up.user_id = ?
+    ORDER BY p.created_at DESC
+  `).bind(appAuth.userId).all();
+
+  const patches = result.results.map(p => ({
+    id: p.id,
+    name: p.name,
+    description: p.description,
+    version: p.version,
+    type: p.type,
+    status: 'available',
+    created_at: p.created_at,
+    updated_at: p.updated_at,
+  }));
+
+  return Response.json({ patches }, { headers });
+}
+
+// GET /api/app/patches/:id — detalle de un patch
+async function handleAppGetPatchDetail(id, env, headers, appAuth) {
+  const patch = await env.DB.prepare(`
+    SELECT p.* FROM patches p
+    INNER JOIN user_patches up ON up.patch_id = p.id
+    WHERE p.id = ? AND up.user_id = ? AND p.active = 1
+  `).bind(id, appAuth.userId).first();
+
+  if (!patch) {
+    return Response.json({ error: 'Patch not found or access denied' }, { status: 404, headers });
+  }
+
+  return Response.json({
+    id: patch.id,
+    name: patch.name,
+    description: patch.description,
+    version: patch.version,
+    type: patch.type,
+    status: 'available',
+    file_size: patch.file_key ? 'unknown' : 0,
+    created_at: patch.created_at,
+    updated_at: patch.updated_at,
+  }, { headers });
+}
+
+// GET /api/app/patches/:id/download — descargar archivo .3105 desde R2
+// REGLA PRINCIPAL: No se bloquea por descargas anteriores.
+// Solo se verifica: licencia activa + permiso de acceso al patch.
+async function handleAppDownloadPatch(id, env, headers, appAuth) {
+  // 1. Verificar que el patch existe y el usuario tiene acceso
+  const patch = await env.DB.prepare(`
+    SELECT p.* FROM patches p
+    INNER JOIN user_patches up ON up.patch_id = p.id
+    WHERE p.id = ? AND up.user_id = ? AND p.active = 1
+  `).bind(id, appAuth.userId).first();
+
+  if (!patch) {
+    return Response.json({ error: 'Patch not found or access denied' }, { status: 404, headers });
+  }
+
+  if (!patch.file_key) {
+    return Response.json({ error: 'Patch has no file' }, { status: 400, headers });
+  }
+
+  // 2. Obtener archivo desde R2
+  const object = await env.R2.get(patch.file_key);
+  if (!object) {
+    return Response.json({ error: 'File not found in storage' }, { status: 404, headers });
+  }
+
+  // 3. Registrar descarga (siempre, sin importar si ya descargó antes)
+  const downloadId = crypto.randomUUID();
+  await env.DB.prepare(
+    'INSERT INTO downloads (id, user_id, patch_id, created_at) VALUES (?, ?, ?, ?)'
+  ).bind(downloadId, appAuth.userId, id, new Date().toISOString()).run();
+
+  // 4. Devolver el archivo como stream
+  const filename = patch.file_key.split('/').pop() || `patch_${id}.3105`;
+  const responseHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Content-Type': 'application/octet-stream',
+    'Content-Disposition': `attachment; filename="${filename}"`,
+    'Content-Length': String(object.size),
+    'X-Patch-Id': id,
+    'X-Patch-Version': patch.version,
+    'X-Patch-Name': patch.name,
+  };
+
+  return new Response(object.body, { headers: responseHeaders });
+}
+
+// GET /api/app/messages
+async function handleAppGetMessages(env, headers, appAuth) {
+  const result = await env.DB.prepare(`
+    SELECT id, title, content, type, created_at
+    FROM messages
+    WHERE active = 1
+      AND (target_hwid IS NULL OR target_hwid = '' OR target_hwid = ?)
+    ORDER BY created_at DESC
+  `).bind(appAuth.hwid).all();
+
+  return Response.json({ messages: result.results }, { headers });
+}
+
+// POST /api/app/messages/:id/ack
+async function handleAppAckMessage(id, env, headers, appAuth) {
+  // Los ACK se podrían guardar en una tabla, pero por ahora solo registramos actividad
+  await logActivity(env, 'message_ack', `User ${appAuth.userId} ack message ${id}`);
+  return Response.json({ success: true }, { headers });
+}
+
+// POST /api/app/telemetry
+async function handleAppTelemetry(request, env, headers, appAuth) {
+  const data = await request.json();
+  const action = data.action || 'unknown';
+  const details = JSON.stringify(data);
+  await logActivity(env, `telemetry_${action}`, details);
+  return Response.json({ success: true }, { headers });
+}
+
+// ============================================================
+// ADMIN AUTH HELPERS
+// ============================================================
 
 async function handleLogin(request, env, headers) {
   const { username, password } = await request.json();
@@ -214,7 +484,9 @@ async function hmacSign(data, secret) {
   return btoa(String.fromCharCode(...new Uint8Array(sig)));
 }
 
-// === LOG ACTIVITY ===
+// ============================================================
+// LOG ACTIVITY
+// ============================================================
 
 async function logActivity(env, action, details) {
   await env.DB.prepare(
@@ -222,7 +494,9 @@ async function logActivity(env, action, details) {
   ).bind(action, details, new Date().toISOString()).run();
 }
 
-// === DASHBOARD ===
+// ============================================================
+// ADMIN DASHBOARD
+// ============================================================
 
 async function handleDashboardStats(env, headers) {
   const users = await env.DB.prepare('SELECT COUNT(*) as count FROM users').first();
@@ -245,7 +519,9 @@ async function handleDashboardActivity(env, headers) {
   return Response.json(result.results, { headers });
 }
 
-// === USERS ===
+// ============================================================
+// ADMIN USERS
+// ============================================================
 
 async function handleGetUsers(env, headers, url) {
   const search = url.searchParams.get('search') || '';
@@ -309,7 +585,9 @@ async function handleToggleBlock(id, env, headers) {
   return Response.json({ is_blocked: newState }, { headers });
 }
 
-// === PATCHES ===
+// ============================================================
+// ADMIN PATCHES
+// ============================================================
 
 async function handleGetPatches(env, headers, url) {
   const type = url.searchParams.get('type') || '';
@@ -388,7 +666,9 @@ async function handleTogglePatch(id, env, headers) {
   return Response.json({ active: newState }, { headers });
 }
 
-// === ACCESS ===
+// ============================================================
+// ADMIN ACCESS
+// ============================================================
 
 async function handleGetAccess(env, headers) {
   const result = await env.DB.prepare(
@@ -423,7 +703,9 @@ async function handleRevokeAccess(request, env, headers) {
   return Response.json({ success: true }, { headers });
 }
 
-// === MESSAGES ===
+// ============================================================
+// ADMIN MESSAGES
+// ============================================================
 
 async function handleGetMessages(env, headers) {
   const result = await env.DB.prepare('SELECT * FROM messages ORDER BY created_at DESC').all();
@@ -468,7 +750,9 @@ async function handleToggleMessage(id, env, headers) {
   return Response.json({ active: newState }, { headers });
 }
 
-// === STATS ===
+// ============================================================
+// ADMIN STATS
+// ============================================================
 
 async function handleStats(env, headers, url) {
   const type = url.searchParams.get('type') || 'all';
@@ -492,7 +776,6 @@ async function handleStats(env, headers, url) {
     return Response.json(result.results, { headers });
   }
 
-  // All stats
   const users = await env.DB.prepare('SELECT COUNT(*) as count FROM users').first();
   const patches = await env.DB.prepare('SELECT COUNT(*) as count FROM patches').first();
   const downloads = await env.DB.prepare('SELECT COUNT(*) as count FROM downloads').first();
@@ -508,7 +791,9 @@ async function handleStats(env, headers, url) {
   }, { headers });
 }
 
-// === ACTIVITY ===
+// ============================================================
+// ADMIN ACTIVITY
+// ============================================================
 
 async function handleGetActivity(env, headers, url) {
   const limit = parseInt(url.searchParams.get('limit') || '50');
@@ -518,7 +803,9 @@ async function handleGetActivity(env, headers, url) {
   return Response.json(result.results, { headers });
 }
 
-// === CONFIG ===
+// ============================================================
+// ADMIN CONFIG
+// ============================================================
 
 async function handleGetConfig(env, headers) {
   const result = await env.DB.prepare('SELECT * FROM config ORDER BY key').all();
