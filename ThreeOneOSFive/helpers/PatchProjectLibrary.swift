@@ -41,6 +41,9 @@ enum PatchProjectLibrary {
     // Carga todos los patches del directorio (sin filtrar)
     // El worker ya filtra por usuario, así que solo se descargan los asignados
     static func load(fileManager: FileManager = .default) -> [PatchLibraryItem] {
+        // Bridge: copiar patches descargados de Documents/RemotePatches/ a Application Support/PatchProjects/
+        bridgeDownloadedPatches(fileManager: fileManager)
+
         guard let root = try? packageRootURL(fileManager: fileManager),
               let urls = try? fileManager.contentsOfDirectory(
                 at: root,
@@ -216,5 +219,41 @@ enum PatchProjectLibrary {
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .prefix(80)
         return result.isEmpty ? "Patch" : String(result)
+    }
+
+    // MARK: - Bridge: RemotePatches → PatchProjects
+    // Copia los archivos .3105 descargados por PatchManager/PatchStorage
+    // (Documents/RemotePatches/) al directorio que escanea este módulo
+    // (Application Support/PatchProjects/).
+    private static func bridgeDownloadedPatches(fileManager: FileManager) {
+        let patchManager = PatchManager.shared
+        let localIds = patchManager.localPatchIds()
+        guard !localIds.isEmpty else { return }
+
+        guard let libraryRoot = try? packageRootURL(fileManager: fileManager) else {
+            log("patch: bridge failed — cannot resolve PatchProjects directory")
+            return
+        }
+
+        var copied = 0
+        for patchId in localIds {
+            guard let data = patchManager.patchData(patchId) else { continue }
+            let destURL = libraryRoot.appendingPathComponent("patch-\(patchId).3105")
+
+            // Solo escribir si el contenido cambió
+            if let existingData = try? Data(contentsOf: destURL), existingData == data {
+                continue
+            }
+
+            do {
+                try data.write(to: destURL, options: [.atomic])
+                copied += 1
+            } catch {
+                log("patch: bridge failed for \(patchId) — \(error.localizedDescription)")
+            }
+        }
+        if copied > 0 {
+            log("patch: bridged \(copied) patches from RemotePatches to PatchProjects")
+        }
     }
 }
