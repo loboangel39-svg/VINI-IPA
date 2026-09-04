@@ -77,7 +77,7 @@ final class PatchSyncManager: ObservableObject {
 
     // MARK: - Journal Restore (compatibilidad con sistema existente)
     func journalLogRestore(patchId: String) async -> String? {
-        guard let token = UserDefaults.standard.string(forKey: "vini.authToken") else { return nil }
+        guard let token = KeychainManager.shared.loadAuthToken() else { return nil }
         guard let url = URL(string: "\(workerURL)/api/app/telemetry") else { return nil }
 
         var request = URLRequest(url: url)
