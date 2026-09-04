@@ -21,7 +21,7 @@ final class MessageService: ObservableObject {
         var request = URLRequest(url: url)
         request.timeoutInterval = 15
         
-        if let token = UserDefaults.standard.string(forKey: "vini.authToken") {
+        if let token = KeychainManager.shared.loadAuthToken() {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
         
@@ -53,7 +53,7 @@ final class MessageService: ObservableObject {
         request.httpMethod = "POST"
         request.timeoutInterval = 10
         
-        if let token = UserDefaults.standard.string(forKey: "vini.authToken") {
+        if let token = KeychainManager.shared.loadAuthToken() {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
         
