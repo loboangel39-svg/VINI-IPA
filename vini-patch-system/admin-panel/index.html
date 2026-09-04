@@ -189,7 +189,15 @@ function showApp() {
     document.getElementById('mainApp').classList.remove('hidden');
     setupNav();
     loadAll();
-    setInterval(loadAll, 30000);
+    // Solo recargar stats cada 30s, no todo
+    setInterval(loadStatsOnly, 30000);
+}
+
+async function loadStatsOnly() {
+    try {
+        const s = await api('/api/stats').then(r => r.json()).catch(() => ({}));
+        data.stats = s;
+    } catch(e) { console.error('Stats load error:', e); }
 }
 
 function logout() { authToken = null; currentUser = null; localStorage.clear(); location.reload(); }
@@ -213,9 +221,33 @@ function toggleSidebar() {
 // ========== SECTIONS ==========
 const sectionTitles = { dashboard:'Dashboard', patches:'Patches', users:'Usuarios', licenses:'Licencias', messages:'Mensajes', features:'Feature Flags', banners:'Banners', versions:'Versiones', analytics:'Analíticas', logs:'Logs', security:'Seguridad', webhooks:'Webhooks', maintenance:'Mantenimiento', settings:'Configuración' };
 
-function showSection(name) {
+async function showSection(name) {
     document.getElementById('sectionTitle').textContent = sectionTitles[name] || name;
     const area = document.getElementById('contentArea');
+    
+    // Recargar datos específicos de cada sección
+    try {
+        if (name === 'patches') {
+            data.patches = await api('/api/patches').then(r => r.json()).catch(() => []);
+        } else if (name === 'users') {
+            data.users = await api('/api/users').then(r => r.json()).catch(() => []);
+        } else if (name === 'licenses') {
+            data.licenses = await api('/api/licenses').then(r => r.json()).catch(() => []);
+        } else if (name === 'messages') {
+            data.messages = await api('/api/messages').then(r => r.json()).catch(() => []);
+        } else if (name === 'banners') {
+            data.banners = await api('/api/banners').then(r => r.json()).catch(() => []);
+        } else if (name === 'versions') {
+            data.versions = await api('/api/versions').then(r => r.json()).catch(() => []);
+        } else if (name === 'webhooks') {
+            data.webhooks = await api('/api/webhooks').then(r => r.json()).catch(() => []);
+        } else if (name === 'dashboard') {
+            data.stats = await api('/api/stats').then(r => r.json()).catch(() => ({}));
+        }
+    } catch (e) {
+        console.error('Error loading section data:', e);
+    }
+    
     const renderers = { dashboard: renderDashboard, patches: renderPatches, users: renderUsers, licenses: renderLicenses, messages: renderMessages, features: renderFeatures, banners: renderBanners, versions: renderVersions, analytics: renderAnalytics, logs: renderLogs, security: renderSecurity, webhooks: renderWebhooks, maintenance: renderMaintenance, settings: renderSettings };
     if (renderers[name]) renderers[name](area);
 }
@@ -491,7 +523,7 @@ async function savePatchAssignment(hwid) {
     const patchIds = Array.from(checkboxes).map(cb => cb.value);
     
     try {
-        const res = await fetch(`${API_BASE}/api/users/${hwid}/patches`, {
+        const res = await fetch(`${API}/api/users/${hwid}/patches`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
