@@ -88,36 +88,6 @@
                 <a data-section="licenses" class="nav-item flex items-center space-x-3 px-4 py-3 rounded-lg">
                     <i class="fas fa-key w-5"></i><span class="sidebar-text">Licencias</span>
                 </a>
-                <a data-section="messages" class="nav-item flex items-center space-x-3 px-4 py-3 rounded-lg">
-                    <i class="fas fa-envelope w-5"></i><span class="sidebar-text">Mensajes</span>
-                </a>
-                <a data-section="features" class="nav-item flex items-center space-x-3 px-4 py-3 rounded-lg">
-                    <i class="fas fa-toggle-on w-5"></i><span class="sidebar-text">Features</span>
-                </a>
-                <a data-section="banners" class="nav-item flex items-center space-x-3 px-4 py-3 rounded-lg">
-                    <i class="fas fa-flag w-5"></i><span class="sidebar-text">Banners</span>
-                </a>
-                <a data-section="versions" class="nav-item flex items-center space-x-3 px-4 py-3 rounded-lg">
-                    <i class="fas fa-code-branch w-5"></i><span class="sidebar-text">Versiones</span>
-                </a>
-                <a data-section="analytics" class="nav-item flex items-center space-x-3 px-4 py-3 rounded-lg">
-                    <i class="fas fa-chart-bar w-5"></i><span class="sidebar-text">Analíticas</span>
-                </a>
-                <a data-section="logs" class="nav-item flex items-center space-x-3 px-4 py-3 rounded-lg">
-                    <i class="fas fa-list-alt w-5"></i><span class="sidebar-text">Logs</span>
-                </a>
-                <a data-section="security" class="nav-item flex items-center space-x-3 px-4 py-3 rounded-lg">
-                    <i class="fas fa-lock w-5"></i><span class="sidebar-text">Seguridad</span>
-                </a>
-                <a data-section="webhooks" class="nav-item flex items-center space-x-3 px-4 py-3 rounded-lg">
-                    <i class="fas fa-plug w-5"></i><span class="sidebar-text">Webhooks</span>
-                </a>
-                <a data-section="maintenance" class="nav-item flex items-center space-x-3 px-4 py-3 rounded-lg">
-                    <i class="fas fa-wrench w-5"></i><span class="sidebar-text">Mantenimiento</span>
-                </a>
-                <a data-section="settings" class="nav-item flex items-center space-x-3 px-4 py-3 rounded-lg">
-                    <i class="fas fa-cog w-5"></i><span class="sidebar-text">Config</span>
-                </a>
             </nav>
         </div>
     </aside>
@@ -189,7 +159,6 @@ function showApp() {
     document.getElementById('mainApp').classList.remove('hidden');
     setupNav();
     loadAll();
-    // Solo recargar stats cada 30s, no todo
     setInterval(loadStatsOnly, 30000);
 }
 
@@ -197,7 +166,7 @@ async function loadStatsOnly() {
     try {
         const s = await api('/api/stats').then(r => r.json()).catch(() => ({}));
         data.stats = s;
-    } catch(e) { console.error('Stats load error:', e); }
+    } catch(e) {}
 }
 
 function logout() { authToken = null; currentUser = null; localStorage.clear(); location.reload(); }
@@ -219,7 +188,7 @@ function toggleSidebar() {
 }
 
 // ========== SECTIONS ==========
-const sectionTitles = { dashboard:'Dashboard', patches:'Patches', users:'Usuarios', licenses:'Licencias', messages:'Mensajes', features:'Feature Flags', banners:'Banners', versions:'Versiones', analytics:'Analíticas', logs:'Logs', security:'Seguridad', webhooks:'Webhooks', maintenance:'Mantenimiento', settings:'Configuración' };
+const sectionTitles = { dashboard:'Dashboard', patches:'Patches', users:'Usuarios', licenses:'Licencias' };
 
 async function showSection(name) {
     document.getElementById('sectionTitle').textContent = sectionTitles[name] || name;
@@ -233,14 +202,6 @@ async function showSection(name) {
             data.users = await api('/api/users').then(r => r.json()).catch(() => []);
         } else if (name === 'licenses') {
             data.licenses = await api('/api/licenses').then(r => r.json()).catch(() => []);
-        } else if (name === 'messages') {
-            data.messages = await api('/api/messages').then(r => r.json()).catch(() => []);
-        } else if (name === 'banners') {
-            data.banners = await api('/api/banners').then(r => r.json()).catch(() => []);
-        } else if (name === 'versions') {
-            data.versions = await api('/api/versions').then(r => r.json()).catch(() => []);
-        } else if (name === 'webhooks') {
-            data.webhooks = await api('/api/webhooks').then(r => r.json()).catch(() => []);
         } else if (name === 'dashboard') {
             data.stats = await api('/api/stats').then(r => r.json()).catch(() => ({}));
         }
@@ -248,7 +209,7 @@ async function showSection(name) {
         console.error('Error loading section data:', e);
     }
     
-    const renderers = { dashboard: renderDashboard, patches: renderPatches, users: renderUsers, licenses: renderLicenses, messages: renderMessages, features: renderFeatures, banners: renderBanners, versions: renderVersions, analytics: renderAnalytics, logs: renderLogs, security: renderSecurity, webhooks: renderWebhooks, maintenance: renderMaintenance, settings: renderSettings };
+    const renderers = { dashboard: renderDashboard, patches: renderPatches, users: renderUsers, licenses: renderLicenses };
     if (renderers[name]) renderers[name](area);
 }
 
@@ -327,33 +288,47 @@ async function loadCharts() {
 // ========== PATCHES ==========
 function renderPatches(area) {
     area.innerHTML = `
-        <div class="flex justify-between items-center mb-6">
-            <div><h2 class="text-2xl font-bold">Gestión de Patches</h2><p class="text-gray-500">Crea y distribuye patches</p></div>
-            <button onclick="showModal('patch')" class="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700"><i class="fas fa-plus mr-2"></i>Nuevo Patch</button>
+        <div class="mb-6">
+            <h2 class="text-2xl font-bold">Patches Embebidos</h2>
+            <p class="text-gray-500">Contraseñas de los patches embebidos en la app</p>
         </div>
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             ${data.patches.length === 0 ? '<div class="col-span-3 text-center py-12"><i class="fas fa-puzzle-piece text-4xl text-gray-300 mb-4"></i><p class="text-gray-500">No hay patches</p></div>' :
             data.patches.map(p => `
                 <div class="bg-white rounded-xl shadow card-hover p-6">
-                    <div class="flex justify-between items-start mb-3"><div><h3 class="text-lg font-bold">${p.name}</h3><p class="text-sm text-gray-500">${p.bundle_id}</p></div><span class="px-2 py-1 text-xs bg-purple-100 text-purple-800 rounded-full">v${p.version}</span></div>
-                    <p class="text-sm text-gray-600 mb-3">${p.description||'Sin descripción'}</p>
-                    <div class="flex items-center justify-between text-sm text-gray-500 mb-4"><span><i class="fas fa-download mr-1"></i>${p.downloads||0}</span><span>${new Date(p.created_at).toLocaleDateString()}</span></div>
-                    <div class="flex space-x-2">
-                        <button onclick="pushGitHub('${p.id}')" class="flex-1 bg-green-50 text-green-600 py-2 rounded-lg text-sm font-medium hover:bg-green-100"><i class="fab fa-github mr-1"></i>GitHub</button>
-                        <button onclick="deletePatch('${p.id}')" class="flex-1 bg-red-50 text-red-600 py-2 rounded-lg text-sm font-medium hover:bg-red-100"><i class="fas fa-trash mr-1"></i>Eliminar</button>
+                    <div class="flex justify-between items-start mb-3">
+                        <div>
+                            <h3 class="text-lg font-bold">${p.name}</h3>
+                            <p class="text-sm text-gray-500">${p.bundle_id}</p>
+                        </div>
+                        <span class="px-2 py-1 text-xs bg-purple-100 text-purple-800 rounded-full">v${p.version}</span>
+                    </div>
+                    <div class="mt-4 p-3 bg-gray-50 rounded-lg">
+                        <p class="text-xs text-gray-500 mb-1">Contraseña:</p>
+                        <div class="flex items-center justify-between">
+                            <code class="text-sm font-mono">${p.password || 'Sin contraseña'}</code>
+                            <button onclick="copyPassword('${p.password || ''}')" class="text-blue-600 hover:text-blue-800" title="Copiar">
+                                <i class="fas fa-copy"></i>
+                            </button>
+                        </div>
                     </div>
                 </div>`).join('')}
         </div>`;
 }
 
-async function deletePatch(id) { if (!confirm('¿Eliminar?')) return; await api(`/api/patches/${id}`, {method:'DELETE'}); toast('Eliminado','success'); await loadAll(); showSection('patches'); }
-async function pushGitHub(id) { toast('Subiendo...','info'); const r = await api(`/api/patches/${id}/push-github`, {method:'POST'}); if (r.ok) toast('Subido a GitHub','success'); else toast('Error','error'); }
+function copyPassword(password) {
+    if (!password) { toast('Sin contraseña', 'error'); return; }
+    navigator.clipboard.writeText(password);
+    toast('Contraseña copiada', 'success');
+}
 
 // ========== USERS ==========
 function renderUsers(area) {
     area.innerHTML = `
-        <div class="flex justify-between items-center mb-6"><div><h2 class="text-2xl font-bold">Usuarios</h2><p class="text-gray-500">${data.users.length} registrados</p></div>
-        <button onclick="exportCSV()" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"><i class="fas fa-download mr-2"></i>Exportar CSV</button></div>
+        <div class="flex justify-between items-center mb-6">
+            <div><h2 class="text-2xl font-bold">Usuarios</h2><p class="text-gray-500">${data.users.length} registrados</p></div>
+            <button onclick="exportCSV()" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"><i class="fas fa-download mr-2"></i>Exportar CSV</button>
+        </div>
         
         <!-- Búsqueda por licencia -->
         <div class="bg-white rounded-xl shadow p-4 mb-4">
@@ -362,17 +337,14 @@ function renderUsers(area) {
                 <input type="text" id="searchLicense" placeholder="Buscar por licencia..." class="flex-1 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500" onkeyup="filterUsersByLicense()">
                 <button onclick="clearUserSearch()" class="px-3 py-2 bg-gray-200 rounded-lg hover:bg-gray-300">Limpiar</button>
             </div>
-            <p class="text-xs text-gray-500 mt-2">Ingresa una licencia completa o parcial para filtrar usuarios</p>
         </div>
         
         <div class="bg-white rounded-xl shadow overflow-hidden"><table class="min-w-full"><thead class="bg-gray-50"><tr>
             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">HWID</th>
             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Licencia</th>
             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Dispositivo</th>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">iOS</th>
             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Patches</th>
             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Última Vez</th>
             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Acciones</th>
         </tr></thead><tbody id="usersTableBody" class="divide-y divide-gray-200">
             ${renderUsersTable(data.users)}
@@ -381,7 +353,7 @@ function renderUsers(area) {
 
 function renderUsersTable(users) {
     if (users.length === 0) {
-        return '<tr><td colspan="8" class="px-6 py-8 text-center text-gray-500">No hay usuarios</td></tr>';
+        return '<tr><td colspan="6" class="px-6 py-8 text-center text-gray-500">No hay usuarios</td></tr>';
     }
     return users.map(u => {
         const license = data.licenses.find(l => l.key === u.license_key);
@@ -390,10 +362,8 @@ function renderUsersTable(users) {
             <td class="px-6 py-4 text-sm font-mono">${u.hwid.substring(0,12)}...</td>
             <td class="px-6 py-4">${licenseDisplay}</td>
             <td class="px-6 py-4 text-sm">${u.device_model||'-'}</td>
-            <td class="px-6 py-4 text-sm">${u.ios_version||'-'}</td>
             <td class="px-6 py-4"><span class="px-2 py-1 bg-purple-100 text-purple-800 rounded-full text-xs">${(u.patches||[]).length}</span></td>
             <td class="px-6 py-4"><span class="px-2 py-1 text-xs font-medium ${u.active?'bg-green-100 text-green-800':'bg-red-100 text-red-800'} rounded-full">${u.active?'Activo':'Inactivo'}</span></td>
-            <td class="px-6 py-4 text-sm text-gray-500">${u.last_seen_at?new Date(u.last_seen_at).toLocaleString('es'):'Nunca'}</td>
             <td class="px-6 py-4 text-sm">
                 <button onclick="assignPatches('${u.hwid}')" class="text-purple-600 hover:text-purple-800 mr-2" title="Asignar patches"><i class="fas fa-puzzle-piece"></i></button>
                 <button onclick="toggleUser('${u.hwid}',${!u.active})" class="${u.active?'text-red-600':'text-green-600'}" title="${u.active?'Desactivar':'Activar'}"><i class="fas ${u.active?'fa-ban':'fa-check'}"></i></button>
@@ -412,11 +382,7 @@ function filterUsersByLicense() {
     
     rows.forEach(row => {
         const license = row.getAttribute('data-license').toLowerCase();
-        if (license.includes(searchTerm)) {
-            row.style.display = '';
-        } else {
-            row.style.display = 'none';
-        }
+        row.style.display = license.includes(searchTerm) ? '' : 'none';
     });
 }
 
@@ -426,7 +392,7 @@ function clearUserSearch() {
 }
 
 async function toggleUser(hwid, active) { await api(`/api/users/${hwid}`, {method:'PUT',body:{active}}); toast(`Usuario ${active?'activado':'desactivado'}`,'success'); await loadAll(); showSection('users'); }
-function exportCSV() { const csv='HWID,Dispositivo,iOS,Patches,Estado\n'+data.users.map(u=>`${u.hwid},${u.device_model},${u.ios_version},${(u.patches||[]).length},${u.active?'Activo':'Inactivo'}`).join('\n'); const a=document.createElement('a'); a.href='data:text/csv,'+encodeURIComponent(csv); a.download='usuarios.csv'; a.click(); }
+function exportCSV() { const csv='HWID,Licencia,Dispositivo,Patches,Estado\n'+data.users.map(u=>`${u.hwid},${u.license_key||'N/A'},${u.device_model},${(u.patches||[]).length},${u.active?'Activo':'Inactivo'}`).join('\n'); const a=document.createElement('a'); a.href='data:text/csv,'+encodeURIComponent(csv); a.download='usuarios.csv'; a.click(); }
 
 let selectedHwid = null;
 function assignPatches(hwid) {
@@ -446,14 +412,89 @@ async function saveAssign() {
 }
 
 // ========== LICENSES ==========
+async function loadGlobalPauseStatus() {
+    try {
+        const d = await api('/api/licenses/pause-status').then(r => r.json());
+        data.globalPause = d;
+        const badge = document.getElementById('globalPauseBadge');
+        if (badge) {
+            if (d.paused) {
+                badge.innerHTML = `<span class="px-3 py-1 bg-red-100 text-red-700 rounded-full text-sm"><i class="fas fa-pause-circle mr-1"></i>PAUSADO</span>` + (d.startedAt ? `<span class="text-xs text-gray-500 ml-2">Desde: ${new Date(d.startedAt).toLocaleString('es')}</span>` : '');
+            } else {
+                badge.innerHTML = '<span class="px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm"><i class="fas fa-check-circle mr-1"></i>ACTIVO</span>';
+            }
+        }
+    } catch(e) { console.error('Pause status error:', e); }
+}
+
+async function toggleGlobalPause() {
+    const toggle = document.getElementById('globalPauseToggle');
+    const reason = document.getElementById('globalPauseReason');
+    if (!toggle) return;
+    const isPaused = toggle.checked;
+    try {
+        if (isPaused) {
+            const reasonText = reason ? reason.value.trim() : '';
+            if (!reasonText) { toast('Ingresa un motivo para la pausa','error'); toggle.checked=false; return; }
+            const r = await api('/api/licenses/pause-all', {method:'POST', body:{reason:reasonText}});
+            if (r.ok) { toast('Todas las licencias pausadas','success'); } else { toast('Error pausando','error'); toggle.checked=false; }
+        } else {
+            const r = await api('/api/licenses/unpause-all', {method:'POST'});
+            if (r.ok) { toast('Licencias reactivadas','success'); if(reason) reason.value=''; } else { toast('Error reactivando','error'); toggle.checked=true; }
+        }
+        await loadGlobalPauseStatus();
+    } catch(e) { toast('Error de conexión','error'); toggle.checked=!isPaused; }
+}
+
+async function pauseLicense(k) {
+    if(!confirm('¿Pausar esta licencia?'))return;
+    try { const r=await api(`/api/licenses/${k}/pause`,{method:'POST'}); if(r.ok){toast('Licencia pausada','success');await loadAll();showSection('licenses');}else{toast('Error','error');} } catch(e){toast('Error','error');}
+}
+
+async function unpauseLicense(k) {
+    try { const r=await api(`/api/licenses/${k}/unpause`,{method:'POST'}); if(r.ok){toast('Licencia reactivada','success');await loadAll();showSection('licenses');}else{toast('Error','error');} } catch(e){toast('Error','error');}
+}
+
 function renderLicenses(area) {
     area.innerHTML = `
-        <div class="flex justify-between items-center mb-6"><div><h2 class="text-2xl font-bold">Licencias</h2><p class="text-gray-500">${data.licenses.length} generadas</p></div>
-        <div class="flex space-x-2">
-            <button onclick="unbindAllLicenses()" class="bg-yellow-600 text-white px-4 py-2 rounded-lg hover:bg-yellow-700"><i class="fas fa-unlink mr-2"></i>Desvincular Todas</button>
-            <button onclick="showModal('license')" class="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700"><i class="fas fa-plus mr-2"></i>Generar</button>
-            <button onclick="showModal('bulkLicense')" class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700"><i class="fas fa-layer-group mr-2"></i>Lote</button>
-        </div></div>
+        <div class="flex justify-between items-center mb-6">
+            <div><h2 class="text-2xl font-bold">Licencias</h2><p class="text-gray-500">${data.licenses.length} generadas</p></div>
+            <div class="flex space-x-2">
+                <button onclick="unbindAllLicenses()" class="bg-yellow-600 text-white px-4 py-2 rounded-lg hover:bg-yellow-700"><i class="fas fa-unlink mr-2"></i>Desvincular Todas</button>
+                <button onclick="showModal('license')" class="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700"><i class="fas fa-plus mr-2"></i>Generar</button>
+                <button onclick="showModal('bulkLicense')" class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700"><i class="fas fa-layer-group mr-2"></i>Lote</button>
+            </div>
+        </div>
+
+        <!-- Panel de Pausa Global -->
+        <div class="bg-white rounded-xl shadow-lg p-6 mb-6 border-2 border-purple-200">
+            <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-12 h-12 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
+                        <i class="fas fa-pause-circle text-white text-xl"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-bold text-gray-800">Control Global de Licencias</h3>
+                        <p class="text-sm text-gray-500">Pausa todas las licencias temporalmente</p>
+                    </div>
+                </div>
+                <div id="globalPauseBadge">
+                    <span class="px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm"><i class="fas fa-check-circle mr-1"></i>ACTIVO</span>
+                </div>
+            </div>
+            <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                <div>
+                    <p class="font-medium text-gray-700">Pausa Global</p>
+                    <p class="text-sm text-gray-500">Cuando está activo, NINGUNA licencia funcionará</p>
+                </div>
+                <label class="switch"><input type="checkbox" id="globalPauseToggle" onchange="toggleGlobalPause()"><span class="slider"></span></label>
+            </div>
+            <div class="mt-4">
+                <label class="block text-sm font-medium text-gray-700 mb-2"><i class="fas fa-comment-alt mr-1"></i>Motivo de la pausa</label>
+                <input type="text" id="globalPauseReason" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500" placeholder="Ej: Actualización del sistema, Mantenimiento programado...">
+            </div>
+        </div>
+
         <div class="bg-white rounded-xl shadow overflow-hidden"><table class="min-w-full"><thead class="bg-gray-50"><tr>
             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Clave</th>
             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Expiración</th>
@@ -462,14 +503,27 @@ function renderLicenses(area) {
             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Acciones</th>
         </tr></thead><tbody class="divide-y divide-gray-200">
             ${data.licenses.length===0?'<tr><td colspan="5" class="px-6 py-8 text-center text-gray-500">No hay licencias</td></tr>':
-            data.licenses.map(l=>{const exp=new Date(l.expires_at)<new Date();return `<tr class="hover:bg-gray-50">
+            data.licenses.map(l=>{
+                const exp=new Date(l.expires_at)<new Date();
+                const paused=l.paused===1;
+                const statusClass=l.revoked?'bg-red-100 text-red-800':paused?'bg-yellow-100 text-yellow-800':exp?'bg-gray-100 text-gray-800':'bg-green-100 text-green-800';
+                const statusText=l.revoked?'Revocada':paused?'Pausada':exp?'Expirada':'Activa';
+                return `<tr class="hover:bg-gray-50">
                 <td class="px-6 py-4 text-sm font-mono">${l.key}</td>
                 <td class="px-6 py-4 text-sm">${new Date(l.expires_at).toLocaleDateString('es')}</td>
-                <td class="px-6 py-4"><span class="px-2 py-1 text-xs font-medium ${l.revoked||exp?'bg-red-100 text-red-800':'bg-green-100 text-green-800'} rounded-full">${l.revoked?'Revocada':exp?'Expirada':'Activa'}</span></td>
+                <td class="px-6 py-4"><span class="px-2 py-1 text-xs font-medium ${statusClass} rounded-full">${statusText}</span></td>
                 <td class="px-6 py-4 text-sm font-mono">${l.hwid?l.hwid.substring(0,12)+'...':'Sin vincular'}</td>
-                <td class="px-6 py-4 text-sm"><button onclick="copyKey('${l.key}')" class="text-blue-600 mr-2" title="Copiar"><i class="fas fa-copy"></i></button><button onclick="assignPatchesToLicense('${l.key}')" class="text-purple-600 mr-2" title="Asignar patches"><i class="fas fa-puzzle-piece"></i></button><button onclick="unbindLicense('${l.key}')" class="text-yellow-600 mr-2" title="Desvincular"><i class="fas fa-unlink"></i></button><button onclick="revokeLicense('${l.key}')" class="text-orange-600 mr-2" title="Revocar"><i class="fas fa-ban"></i></button><button onclick="deleteLicense('${l.key}')" class="text-red-600" title="Eliminar"><i class="fas fa-trash"></i></button></td>
+                <td class="px-6 py-4 text-sm">
+                    <button onclick="copyKey('${l.key}')" class="text-blue-600 mr-2" title="Copiar"><i class="fas fa-copy"></i></button>
+                    ${!l.revoked&&!exp?(paused?`<button onclick="unpauseLicense('${l.key}')" class="text-green-600 mr-2" title="Reactivar"><i class="fas fa-play"></i></button>`:`<button onclick="pauseLicense('${l.key}')" class="text-yellow-600 mr-2" title="Pausar"><i class="fas fa-pause"></i></button>`):''}
+                    <button onclick="assignPatchesToLicense('${l.key}')" class="text-purple-600 mr-2" title="Asignar patches"><i class="fas fa-puzzle-piece"></i></button>
+                    <button onclick="unbindLicense('${l.key}')" class="text-yellow-600 mr-2" title="Desvincular"><i class="fas fa-unlink"></i></button>
+                    <button onclick="revokeLicense('${l.key}')" class="text-orange-600 mr-2" title="Revocar"><i class="fas fa-ban"></i></button>
+                    <button onclick="deleteLicense('${l.key}')" class="text-red-600" title="Eliminar"><i class="fas fa-trash"></i></button>
+                </td>
             </tr>`}).join('')}
         </tbody></table></div>`;
+    loadGlobalPauseStatus();
 }
 
 function copyKey(k) { navigator.clipboard.writeText(k); toast('Copiada','success'); }
@@ -482,281 +536,12 @@ async function assignPatchesToLicense(licenseKey) {
     const license = data.licenses.find(l => l.key === licenseKey);
     if (!license) { toast('Licencia no encontrada','error'); return; }
     
-    // Obtener el usuario vinculado a esta licencia
     const user = data.users.find(u => u.license_key === licenseKey);
     if (!user) { toast('Esta licencia no está vinculada a ningún usuario','error'); return; }
     
-    // Abrir modal de asignación
-    openAssignPatchesModal(user.hwid, user);
+    assignPatches(user.hwid);
 }
 
-function openAssignPatchesModal(hwid, user) {
-    const userPatches = user.patches || [];
-    const modal = document.createElement('div');
-    modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
-    modal.innerHTML = `
-        <div class="bg-white rounded-xl p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-            <h3 class="text-xl font-bold mb-4">Asignar Patches</h3>
-            <p class="text-sm text-gray-600 mb-4">Usuario: ${hwid.substring(0, 16)}...</p>
-            <div class="space-y-2 mb-4">
-                ${data.patches.map(patch => `
-                    <label class="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100">
-                        <input type="checkbox" value="${patch.id}" ${userPatches.includes(patch.id) ? 'checked' : ''} class="patch-checkbox w-4 h-4">
-                        <div class="flex-1">
-                            <div class="font-medium">${patch.name}</div>
-                            <div class="text-xs text-gray-500">${patch.bundle_id} - v${patch.version}</div>
-                        </div>
-                    </label>
-                `).join('')}
-            </div>
-            <div class="flex justify-end space-x-2">
-                <button onclick="this.closest('.fixed').remove()" class="px-4 py-2 bg-gray-200 rounded-lg">Cancelar</button>
-                <button onclick="savePatchAssignment('${hwid}')" class="px-4 py-2 bg-purple-600 text-white rounded-lg">Guardar</button>
-            </div>
-        </div>
-    `;
-    document.body.appendChild(modal);
-}
-
-async function savePatchAssignment(hwid) {
-    const checkboxes = document.querySelectorAll('.patch-checkbox:checked');
-    const patchIds = Array.from(checkboxes).map(cb => cb.value);
-    
-    try {
-        const res = await fetch(`${API}/api/users/${hwid}/patches`, {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${authToken}`
-            },
-            body: JSON.stringify({ patchIds })
-        });
-        
-        if (res.ok) {
-            toast('Patches asignados correctamente','success');
-            document.querySelector('.fixed').remove();
-            await loadAll();
-        } else {
-            toast('Error al asignar patches','error');
-        }
-    } catch (err) {
-        console.error('Error:', err);
-        toast('Error de conexión','error');
-    }
-}
-
-// ========== MESSAGES ==========
-function renderMessages(area) {
-    area.innerHTML = `
-        <div class="flex justify-between items-center mb-6"><div><h2 class="text-2xl font-bold">Mensajes</h2><p class="text-gray-500">Broadcast a usuarios</p></div>
-        <button onclick="showModal('message')" class="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700"><i class="fas fa-plus mr-2"></i>Nuevo</button></div>
-        <div class="space-y-4">${data.messages.length===0?'<p class="text-gray-500 text-center py-8">No hay mensajes</p>':
-        data.messages.map(m=>`<div class="bg-white rounded-xl shadow p-6"><div class="flex justify-between items-start mb-2"><div><h3 class="text-lg font-bold">${m.title}</h3><span class="text-xs px-2 py-1 rounded-full ${msgClass(m.type)}">${m.type}</span></div><button onclick="deleteMsg('${m.id}')" class="text-red-600"><i class="fas fa-trash"></i></button></div><p class="text-gray-600 mb-2">${m.content}</p><p class="text-sm text-gray-500">${new Date(m.created_at).toLocaleString('es')} ${m.target_hwid?'| Específico':'| <span class="text-purple-600">Todos</span>'}</p></div>`).join('')}</div>`;
-}
-
-function msgClass(t) { return {info:'bg-blue-100 text-blue-800',warning:'bg-orange-100 text-orange-800',error:'bg-red-100 text-red-800',success:'bg-green-100 text-green-800',update:'bg-purple-100 text-purple-800'}[t]||'bg-gray-100 text-gray-800'; }
-async function deleteMsg(id) { if(!confirm('¿Eliminar?'))return; await api(`/api/messages/${id}`,{method:'DELETE'}); toast('Eliminado','success'); await loadAll(); showSection('messages'); }
-
-// ========== FEATURES ==========
-function renderFeatures(area) {
-    const flags = Object.entries(data.features);
-    const sets = Object.entries(data.settings);
-    area.innerHTML = `
-        <div class="flex justify-between items-center mb-6"><div><h2 class="text-2xl font-bold">Feature Flags & Remote Config</h2><p class="text-gray-500">Controla funciones sin actualizar la app</p></div>
-        <button onclick="addFlag()" class="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700"><i class="fas fa-plus mr-2"></i>Agregar Flag</button></div>
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div class="bg-white rounded-xl shadow p-6"><h3 class="text-lg font-bold mb-4">Feature Flags</h3><div class="space-y-3">
-                ${flags.length===0?'<p class="text-gray-500 text-center py-4">No hay flags</p>':flags.map(([k,v])=>`<div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg"><div><p class="font-medium">${k}</p><p class="text-xs text-gray-500">${v?'Activo':'Inactivo'}</p></div><div class="flex items-center space-x-2"><label class="switch"><input type="checkbox" ${v?'checked':''} onchange="toggleFlag('${k}',this.checked)"><span class="slider"></span></label><button onclick="deleteFlag('${k}')" class="text-red-600"><i class="fas fa-trash"></i></button></div></div>`).join('')}
-            </div></div>
-            <div class="bg-white rounded-xl shadow p-6"><h3 class="text-lg font-bold mb-4">Configuración Remota</h3><div class="space-y-3">
-                ${sets.length===0?'<p class="text-gray-500 text-center py-4">No hay settings</p>':sets.map(([k,v])=>`<div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg"><div class="flex-1"><p class="font-medium">${k}</p><input type="text" value="${v}" onchange="updateSetting('${k}',this.value)" class="mt-1 w-full px-2 py-1 border rounded text-sm"></div><button onclick="deleteSetting('${k}')" class="ml-2 text-red-600"><i class="fas fa-trash"></i></button></div>`).join('')}
-            </div><button onclick="addSetting()" class="mt-4 text-purple-600 hover:text-purple-800 text-sm font-medium"><i class="fas fa-plus mr-1"></i>Agregar Setting</button></div>
-        </div>`;
-}
-
-async function addFlag() { const k=prompt('Nombre del flag:'); if(!k)return; data.features[k]=false; await saveConfig(); showSection('features'); }
-async function toggleFlag(k,v) { data.features[k]=v; await saveConfig(); }
-async function deleteFlag(k) { if(!confirm('¿Eliminar?'))return; delete data.features[k]; await saveConfig(); showSection('features'); }
-async function addSetting() { const k=prompt('Nombre:'); if(!k)return; data.settings[k]=''; await saveConfig(); showSection('features'); }
-async function updateSetting(k,v) { data.settings[k]=v; await saveConfig(); }
-async function deleteSetting(k) { if(!confirm('¿Eliminar?'))return; delete data.settings[k]; await saveConfig(); showSection('features'); }
-async function saveConfig() { await api('/api/config',{method:'PUT',body:{featureFlags:data.features,settings:data.settings}}); toast('Guardado','success'); }
-
-// ========== BANNERS ==========
-function renderBanners(area) {
-    area.innerHTML = `
-        <div class="flex justify-between items-center mb-6"><div><h2 class="text-2xl font-bold">Banners In-App</h2></div>
-        <button onclick="showModal('banner')" class="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700"><i class="fas fa-plus mr-2"></i>Nuevo</button></div>
-        <div class="space-y-4">${data.banners.length===0?'<p class="text-gray-500 text-center py-8">No hay banners</p>':
-        data.banners.map(b=>`<div class="bg-white rounded-xl shadow p-6"><div class="flex justify-between"><div class="flex-1"><div class="flex items-center space-x-2 mb-2"><div class="w-4 h-4 rounded" style="background:${b.color}"></div><h3 class="text-lg font-bold">${b.title}</h3></div><p class="text-gray-600">${b.text}</p><p class="text-sm text-gray-500 mt-1">Posición: ${b.position}</p></div><button onclick="deleteBanner('${b.id}')" class="text-red-600"><i class="fas fa-trash"></i></button></div></div>`).join('')}</div>`;
-}
-async function deleteBanner(id) { if(!confirm('¿Eliminar?'))return; await api(`/api/banners/${id}`,{method:'DELETE'}); toast('Eliminado','success'); await loadAll(); showSection('banners'); }
-
-// ========== VERSIONS ==========
-function renderVersions(area) {
-    area.innerHTML = `
-        <div class="flex justify-between items-center mb-6"><div><h2 class="text-2xl font-bold">Control de Versiones</h2></div>
-        <button onclick="showModal('version')" class="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700"><i class="fas fa-plus mr-2"></i>Nueva</button></div>
-        <div class="space-y-4">${data.versions.length===0?'<p class="text-gray-500 text-center py-8">No hay versiones</p>':
-        data.versions.map(v=>`<div class="bg-white rounded-xl shadow p-6"><div class="flex justify-between"><div><div class="flex items-center space-x-2 mb-2"><h3 class="text-xl font-bold">v${v.version}</h3>${v.force_update?'<span class="px-2 py-1 bg-red-100 text-red-800 text-xs rounded-full">FORZADA</span>':''}</div><p class="text-sm text-gray-500">iOS ${v.min_ios} - ${v.max_ios}</p><p class="text-gray-600 mt-1">${v.changelog||''}</p></div><button onclick="deleteVersion('${v.id}')" class="text-red-600"><i class="fas fa-trash"></i></button></div></div>`).join('')}</div>`;
-}
-async function deleteVersion(id) { if(!confirm('¿Eliminar?'))return; await api(`/api/versions/${id}`,{method:'DELETE'}); toast('Eliminada','success'); await loadAll(); showSection('versions'); }
-
-// ========== ANALYTICS ==========
-function renderAnalytics(area) {
-    area.innerHTML = `<h2 class="text-2xl font-bold mb-6">Analíticas</h2>
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6"><div class="bg-white rounded-xl shadow p-6"><h3 class="text-lg font-bold mb-4">Actividad</h3><canvas id="chartAnalytics1" height="200"></canvas></div><div class="bg-white rounded-xl shadow p-6"><h3 class="text-lg font-bold mb-4">Patches Populares</h3><canvas id="chartAnalytics2" height="200"></canvas></div></div>`;
-    loadAnalyticsCharts();
-}
-async function loadAnalyticsCharts() {
-    try {
-        const rt = await api('/api/stats/realtime').then(r=>r.json());
-        const c1 = document.getElementById('chartAnalytics1');
-        if (c1 && rt.hourlyActivity) { new Chart(c1,{type:'bar',data:{labels:rt.hourlyActivity.map(h=>new Date(h.hour).toLocaleTimeString('es',{hour:'2-digit'})),datasets:[{label:'Eventos',data:rt.hourlyActivity.map(h=>h.events),backgroundColor:'#667eea'}]},options:{responsive:true,scales:{y:{beginAtZero:true}}}}); }
-        const c2 = document.getElementById('chartAnalytics2');
-        if (c2 && rt.patchPopularity) { new Chart(c2,{type:'bar',data:{labels:rt.patchPopularity.map(p=>p.name),datasets:[{label:'Descargas',data:rt.patchPopularity.map(p=>p.downloads),backgroundColor:'#764ba2'}]},options:{responsive:true,indexAxis:'y',scales:{x:{beginAtZero:true}}}}); }
-    } catch(e) {}
-}
-
-// ========== LOGS ==========
-function renderLogs(area) {
-    area.innerHTML = `<div class="flex justify-between items-center mb-6"><h2 class="text-2xl font-bold">Logs</h2><button onclick="clearLogs()" class="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700"><i class="fas fa-trash mr-2"></i>Limpiar</button></div>
-        <div class="bg-gray-900 rounded-xl p-4 max-h-96 overflow-y-auto"><div class="space-y-1" id="logsBox"><p class="text-gray-500 text-center py-4">Cargando...</p></div></div>`;
-    loadLogsData();
-}
-async function loadLogsData() {
-    try { const logs = await api('/api/logs').then(r=>r.json()); document.getElementById('logsBox').innerHTML = logs.length===0?'<p class="text-gray-500 text-center py-4">Sin logs</p>':logs.slice(-100).map(l=>`<div class="text-xs font-mono text-${l.level==='error'?'red':l.level==='warning'?'yellow':'green'}-400">[${new Date(l.created_at).toLocaleString()}] [${l.level.toUpperCase()}] ${l.message}</div>`).join(''); } catch(e) { document.getElementById('logsBox').innerHTML='<p class="text-gray-500 text-center py-4">Sin logs</p>'; }
-}
-async function clearLogs() { if(!confirm('¿Limpiar?'))return; await api('/api/logs',{method:'DELETE'}); toast('Limpiado','success'); showSection('logs'); }
-
-// ========== SECURITY ==========
-function renderSecurity(area) {
-    area.innerHTML = `<h2 class="text-2xl font-bold mb-6">Seguridad</h2>
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div class="bg-white rounded-xl shadow p-6"><h3 class="text-lg font-bold mb-4">IPs Bloqueadas</h3><div id="ipList" class="space-y-2 mb-4"><p class="text-gray-500 text-sm">Cargando...</p></div><div class="flex space-x-2"><input type="text" id="newIP" placeholder="IP a bloquear" class="flex-1 px-4 py-2 border rounded-lg"><button onclick="blockIP()" class="bg-red-600 text-white px-4 py-2 rounded-lg">Bloquear</button></div></div>
-            <div class="bg-white rounded-xl shadow p-6"><h3 class="text-lg font-bold mb-4">Rate Limiting</h3><div class="space-y-4"><div><label class="block text-sm font-medium text-gray-700 mb-2">Requests/minuto</label><input type="number" id="rateLimit" value="60" class="w-full px-4 py-2 border rounded-lg"></div><button onclick="saveRate()" class="bg-purple-600 text-white px-4 py-2 rounded-lg">Guardar</button></div></div>
-            <div class="bg-white rounded-xl shadow p-6"><h3 class="text-lg font-bold mb-4">API Keys</h3><div id="keysList" class="space-y-2 mb-4"><p class="text-gray-500 text-sm">Cargando...</p></div><button onclick="genKey()" class="bg-purple-600 text-white px-4 py-2 rounded-lg">Generar</button></div>
-        </div>`;
-    loadSecurityData();
-}
-async function loadSecurityData() {
-    try { const d = await api('/api/security').then(r=>r.json());
-        document.getElementById('ipList').innerHTML = d.blockedIPs.length===0?'<p class="text-gray-500 text-sm">Sin IPs bloqueadas</p>':d.blockedIPs.map(ip=>`<div class="flex justify-between p-2 bg-red-50 rounded"><span class="font-mono text-sm">${ip}</span><button onclick="unblockIP('${ip}')" class="text-red-600"><i class="fas fa-times"></i></button></div>`).join('');
-        document.getElementById('keysList').innerHTML = d.apiKeys.length===0?'<p class="text-gray-500 text-sm">Sin API keys</p>':d.apiKeys.map(k=>`<div class="flex justify-between p-2 bg-gray-50 rounded"><span class="font-mono text-xs">${k.key.substring(0,20)}...</span><button onclick="revokeKey('${k.id}')" class="text-red-600"><i class="fas fa-trash"></i></button></div>`).join('');
-    } catch(e) {}
-}
-async function blockIP() { const ip=document.getElementById('newIP').value; if(!ip)return; await api('/api/security/block-ip',{method:'POST',body:{ip}}); toast('IP bloqueada','success'); document.getElementById('newIP').value=''; loadSecurityData(); }
-async function unblockIP(ip) { await api('/api/security/unblock-ip',{method:'POST',body:{ip}}); toast('Desbloqueada','success'); loadSecurityData(); }
-async function saveRate() { await api('/api/security/rate-limit',{method:'POST',body:{rateLimit:parseInt(document.getElementById('rateLimit').value),banTime:300}}); toast('Guardado','success'); }
-async function genKey() { const r=await api('/api/security/api-keys',{method:'POST'}); const d=await r.json(); toast('Key: '+d.key,'success'); loadSecurityData(); }
-async function revokeKey(id) { await api(`/api/security/api-keys/${id}`,{method:'DELETE'}); toast('Revocada','success'); loadSecurityData(); }
-
-// ========== WEBHOOKS ==========
-function renderWebhooks(area) {
-    area.innerHTML = `<div class="flex justify-between items-center mb-6"><div><h2 class="text-2xl font-bold">Webhooks</h2></div><button onclick="showModal('webhook')" class="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700"><i class="fas fa-plus mr-2"></i>Nuevo</button></div>
-        <div class="space-y-4">${data.webhooks.length===0?'<p class="text-gray-500 text-center py-8">No hay webhooks</p>':data.webhooks.map(w=>`<div class="bg-white rounded-xl shadow p-6"><div class="flex justify-between"><div><h3 class="text-lg font-bold">${w.name}</h3><p class="text-sm text-gray-500 font-mono">${w.url}</p><div class="flex space-x-2 mt-2">${(w.events||[]).map(e=>`<span class="px-2 py-1 bg-purple-100 text-purple-800 text-xs rounded-full">${e}</span>`).join('')}</div></div><button onclick="deleteWebhook('${w.id}')" class="text-red-600"><i class="fas fa-trash"></i></button></div></div>`).join('')}</div>`;
-}
-async function deleteWebhook(id) { if(!confirm('¿Eliminar?'))return; await api(`/api/webhooks/${id}`,{method:'DELETE'}); toast('Eliminado','success'); await loadAll(); showSection('webhooks'); }
-
-// ========== MAINTENANCE ==========
-function renderMaintenance(area) {
-    area.innerHTML = `<h2 class="text-2xl font-bold mb-6">Mantenimiento</h2>
-        <div class="bg-white rounded-xl shadow p-6 mb-6"><div class="flex items-center justify-between mb-4"><div><h3 class="text-lg font-bold">Modo Mantenimiento</h3><p class="text-gray-500">Bloquea el acceso a la app</p></div><label class="switch"><input type="checkbox" id="maintToggle" onchange="toggleMaint()"><span class="slider"></span></label></div>
-        <div id="maintConfig" class="hidden space-y-4"><div><label class="block text-sm font-medium text-gray-700 mb-2">Mensaje</label><textarea id="maintMsg" rows="3" class="w-full px-4 py-2 border rounded-lg" placeholder="Estamos en mantenimiento..."></textarea></div><div><label class="block text-sm font-medium text-gray-700 mb-2">Whitelist HWIDs</label><input type="text" id="maintWL" class="w-full px-4 py-2 border rounded-lg" placeholder="HWID1, HWID2"></div><button onclick="saveMaint()" class="bg-purple-600 text-white px-4 py-2 rounded-lg">Guardar</button></div></div>
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6"><div class="bg-white rounded-xl shadow p-6"><h3 class="text-lg font-bold mb-2">API</h3><div class="flex items-center space-x-2"><div class="w-3 h-3 bg-green-500 rounded-full"></div><span class="text-green-600 font-medium">Operacional</span></div></div><div class="bg-white rounded-xl shadow p-6"><h3 class="text-lg font-bold mb-2">Base de Datos</h3><div class="flex items-center space-x-2"><div class="w-3 h-3 bg-green-500 rounded-full"></div><span class="text-green-600 font-medium">Conectada</span></div></div><div class="bg-white rounded-xl shadow p-6"><h3 class="text-lg font-bold mb-2">Storage</h3><div class="flex items-center space-x-2"><div class="w-3 h-3 bg-green-500 rounded-full"></div><span class="text-green-600 font-medium">Operacional</span></div></div></div>`;
-    loadMaintData();
-}
-async function loadMaintData() { try { const d=await api('/api/maintenance').then(r=>r.json()); document.getElementById('maintToggle').checked=d.enabled||false; document.getElementById('maintMsg').value=d.message||''; document.getElementById('maintWL').value=(d.whitelist||[]).join(', '); document.getElementById('maintConfig').classList.toggle('hidden',!d.enabled); } catch(e) {} }
-function toggleMaint() { document.getElementById('maintConfig').classList.toggle('hidden',!document.getElementById('maintToggle').checked); }
-async function saveMaint() { await api('/api/maintenance',{method:'POST',body:{enabled:document.getElementById('maintToggle').checked,message:document.getElementById('maintMsg').value,whitelist:document.getElementById('maintWL').value.split(',').map(s=>s.trim()).filter(s=>s)}}); toast('Guardado','success'); }
-
-// ========== SETTINGS ==========
-function renderSettings(area) {
-    area.innerHTML = `<h2 class="text-2xl font-bold mb-6">Configuración</h2>
-        <div class="bg-white rounded-xl shadow p-6 space-y-6">
-            <div><label class="block text-sm font-medium text-gray-700 mb-2">Worker URL</label><input type="text" id="setWorker" value="${API}" class="w-full px-4 py-2 border rounded-lg" readonly></div>
-            <div><label class="block text-sm font-medium text-gray-700 mb-2">Repo GitHub</label><input type="text" id="setRepo" value="loboangel39-svg/VINI-IPA" class="w-full px-4 py-2 border rounded-lg"></div>
-            <div><label class="block text-sm font-medium text-gray-700 mb-2">Zona Horaria</label><select class="w-full px-4 py-2 border rounded-lg"><option>America/Mexico_City</option><option>America/New_York</option><option>Europe/Madrid</option><option>UTC</option></select></div>
-            <button onclick="toast('Configuración guardada','success')" class="bg-purple-600 text-white px-6 py-2 rounded-lg hover:bg-purple-700"><i class="fas fa-save mr-2"></i>Guardar</button>
-        </div>`;
-}
-
-// ========== MODALS ==========
-function showModal(type) {
-    const modals = {
-        patch: `<div class="modal active fixed inset-0 bg-black/50 items-center justify-center z-50"><div class="bg-white rounded-2xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto"><div class="p-6 border-b"><h3 class="text-xl font-bold">Nuevo Patch</h3></div><form id="modalForm" class="p-6 space-y-4"><div><label class="block text-sm font-medium mb-2">Nombre</label><input name="name" required class="w-full px-4 py-2 border rounded-lg"></div><div><label class="block text-sm font-medium mb-2">Bundle ID</label><input name="bundleId" required class="w-full px-4 py-2 border rounded-lg"></div><div><label class="block text-sm font-medium mb-2">Versión</label><input name="version" required class="w-full px-4 py-2 border rounded-lg"></div><div><label class="block text-sm font-medium mb-2">Descripción</label><textarea name="description" rows="2" class="w-full px-4 py-2 border rounded-lg"></textarea></div><div><label class="block text-sm font-medium mb-2">Contraseña de cifrado</label><input name="password" type="text" placeholder="Contraseña para decodificar el .3105" class="w-full px-4 py-2 border rounded-lg"><p class="text-xs text-gray-500 mt-1">La contraseña que se usó para cifrar este patch</p></div><div><label class="block text-sm font-medium mb-2">Archivo .3105</label><input name="file" type="file" accept=".3105" required class="w-full px-4 py-2 border rounded-lg"></div></form><div class="p-6 border-t flex justify-end space-x-3"><button onclick="this.closest('.modal').remove()" class="px-4 py-2 bg-gray-200 rounded-lg">Cancelar</button><button onclick="submitPatch()" class="px-4 py-2 bg-purple-600 text-white rounded-lg">Crear</button></div></div></div>`,
-        license: `<div class="modal active fixed inset-0 bg-black/50 items-center justify-center z-50"><div class="bg-white rounded-2xl w-full max-w-md mx-4"><div class="p-6 border-b"><h3 class="text-xl font-bold">Generar Licencia</h3></div><div class="p-6 space-y-4"><div><label class="block text-sm font-medium mb-2">Prefijo (opcional)</label><input type="text" id="licPrefix" placeholder="VINI" class="w-full px-4 py-2 border rounded-lg"><p class="text-xs text-gray-500 mt-1">Ejemplo: VINI → VINI-A1B2-C3D4-E5F6</p></div><div><label class="block text-sm font-medium mb-2">Días de validez</label><input type="number" id="licDays" value="30" class="w-full px-4 py-2 border rounded-lg"></div></div><div class="p-6 border-t flex justify-end space-x-3"><button onclick="this.closest('.modal').remove()" class="px-4 py-2 bg-gray-200 rounded-lg">Cancelar</button><button onclick="submitLicense()" class="px-4 py-2 bg-purple-600 text-white rounded-lg">Generar</button></div></div></div>`,
-        bulkLicense: `<div class="modal active fixed inset-0 bg-black/50 items-center justify-center z-50"><div class="bg-white rounded-2xl w-full max-w-md mx-4"><div class="p-6 border-b"><h3 class="text-xl font-bold">Generar en Lote</h3></div><div class="p-6 space-y-4"><div><label class="block text-sm font-medium mb-2">Prefijo (opcional)</label><input type="text" id="bulkPrefix" placeholder="VINI" class="w-full px-4 py-2 border rounded-lg"><p class="text-xs text-gray-500 mt-1">Ejemplo: VINI → VINI-A1B2-C3D4-E5F6</p></div><div><label class="block text-sm font-medium mb-2">Cantidad</label><input type="number" id="bulkN" value="10" class="w-full px-4 py-2 border rounded-lg"></div><div><label class="block text-sm font-medium mb-2">Días</label><input type="number" id="bulkD" value="30" class="w-full px-4 py-2 border rounded-lg"></div></div><div class="p-6 border-t flex justify-end space-x-3"><button onclick="this.closest('.modal').remove()" class="px-4 py-2 bg-gray-200 rounded-lg">Cancelar</button><button onclick="submitBulk()" class="px-4 py-2 bg-purple-600 text-white rounded-lg">Generar</button></div></div></div>`,
-        message: `<div class="modal active fixed inset-0 bg-black/50 items-center justify-center z-50"><div class="bg-white rounded-2xl w-full max-w-lg mx-4"><div class="p-6 border-b"><h3 class="text-xl font-bold">Nuevo Mensaje</h3></div><div class="p-6 space-y-4"><div><label class="block text-sm font-medium mb-2">Título</label><input id="msgT" required class="w-full px-4 py-2 border rounded-lg"></div><div><label class="block text-sm font-medium mb-2">Contenido</label><textarea id="msgC" rows="3" required class="w-full px-4 py-2 border rounded-lg"></textarea></div><div><label class="block text-sm font-medium mb-2">Tipo</label><select id="msgTy" class="w-full px-4 py-2 border rounded-lg"><option value="info">Info</option><option value="warning">Advertencia</option><option value="error">Error</option><option value="success">Éxito</option><option value="update">Actualización</option></select></div><div><label class="block text-sm font-medium mb-2">Destino (vacío=todos)</label><input id="msgTg" class="w-full px-4 py-2 border rounded-lg" placeholder="HWID o vacío"></div></div><div class="p-6 border-t flex justify-end space-x-3"><button onclick="this.closest('.modal').remove()" class="px-4 py-2 bg-gray-200 rounded-lg">Cancelar</button><button onclick="submitMsg()" class="px-4 py-2 bg-purple-600 text-white rounded-lg">Enviar</button></div></div></div>`,
-        banner: `<div class="modal active fixed inset-0 bg-black/50 items-center justify-center z-50"><div class="bg-white rounded-2xl w-full max-w-lg mx-4"><div class="p-6 border-b"><h3 class="text-xl font-bold">Nuevo Banner</h3></div><div class="p-6 space-y-4"><div><label class="block text-sm font-medium mb-2">Título</label><input id="banT" required class="w-full px-4 py-2 border rounded-lg"></div><div><label class="block text-sm font-medium mb-2">Texto</label><input id="banTx" required class="w-full px-4 py-2 border rounded-lg"></div><div><label class="block text-sm font-medium mb-2">Color</label><select id="banC" class="w-full px-4 py-2 border rounded-lg"><option value="#667eea">Púrpura</option><option value="#4facfe">Azul</option><option value="#38ef7d">Verde</option><option value="#f5576c">Rojo</option><option value="#f093fb">Rosa</option></select></div><div><label class="block text-sm font-medium mb-2">Posición</label><select id="banP" class="w-full px-4 py-2 border rounded-lg"><option value="top">Arriba</option><option value="bottom">Abajo</option></select></div></div><div class="p-6 border-t flex justify-end space-x-3"><button onclick="this.closest('.modal').remove()" class="px-4 py-2 bg-gray-200 rounded-lg">Cancelar</button><button onclick="submitBanner()" class="px-4 py-2 bg-purple-600 text-white rounded-lg">Crear</button></div></div></div>`,
-        version: `<div class="modal active fixed inset-0 bg-black/50 items-center justify-center z-50"><div class="bg-white rounded-2xl w-full max-w-lg mx-4"><div class="p-6 border-b"><h3 class="text-xl font-bold">Nueva Versión</h3></div><div class="p-6 space-y-4"><div><label class="block text-sm font-medium mb-2">Versión</label><input id="verN" required placeholder="1.2.0" class="w-full px-4 py-2 border rounded-lg"></div><div><label class="block text-sm font-medium mb-2">Min iOS</label><input id="verMin" placeholder="16.0" class="w-full px-4 py-2 border rounded-lg"></div><div><label class="block text-sm font-medium mb-2">Max iOS</label><input id="verMax" placeholder="18.7" class="w-full px-4 py-2 border rounded-lg"></div><div><label class="block text-sm font-medium mb-2">Changelog</label><textarea id="verCL" rows="3" class="w-full px-4 py-2 border rounded-lg"></textarea></div><div><label class="block text-sm font-medium mb-2">URL descarga</label><input id="verURL" class="w-full px-4 py-2 border rounded-lg"></div><label class="flex items-center space-x-2"><input type="checkbox" id="verForce" class="w-4 h-4"><span class="text-sm font-medium">Forzar actualización</span></label></div><div class="p-6 border-t flex justify-end space-x-3"><button onclick="this.closest('.modal').remove()" class="px-4 py-2 bg-gray-200 rounded-lg">Cancelar</button><button onclick="submitVersion()" class="px-4 py-2 bg-purple-600 text-white rounded-lg">Crear</button></div></div></div>`,
-        webhook: `<div class="modal active fixed inset-0 bg-black/50 items-center justify-center z-50"><div class="bg-white rounded-2xl w-full max-w-lg mx-4"><div class="p-6 border-b"><h3 class="text-xl font-bold">Nuevo Webhook</h3></div><div class="p-6 space-y-4"><div><label class="block text-sm font-medium mb-2">Nombre</label><input id="whN" required class="w-full px-4 py-2 border rounded-lg"></div><div><label class="block text-sm font-medium mb-2">URL</label><input id="whU" required placeholder="https://..." class="w-full px-4 py-2 border rounded-lg"></div><div><label class="block text-sm font-medium mb-2">Eventos</label><div class="space-y-2"><label class="flex items-center space-x-2"><input type="checkbox" value="user.login" class="wh-ev w-4 h-4"><span class="text-sm">Login</span></label><label class="flex items-center space-x-2"><input type="checkbox" value="patch.download" class="wh-ev w-4 h-4"><span class="text-sm">Descarga patch</span></label><label class="flex items-center space-x-2"><input type="checkbox" value="license.created" class="wh-ev w-4 h-4"><span class="text-sm">Licencia creada</span></label><label class="flex items-center space-x-2"><input type="checkbox" value="error" class="wh-ev w-4 h-4"><span class="text-sm">Error</span></label></div></div></div><div class="p-6 border-t flex justify-end space-x-3"><button onclick="this.closest('.modal').remove()" class="px-4 py-2 bg-gray-200 rounded-lg">Cancelar</button><button onclick="submitWebhook()" class="px-4 py-2 bg-purple-600 text-white rounded-lg">Crear</button></div></div></div>`
-    };
-    document.getElementById('modalContainer').innerHTML = modals[type] || '';
-}
-
-// ========== SUBMIT HANDLERS ==========
-async function submitPatch() {
-    const form = document.querySelector('#modalForm');
-    const fd = new FormData();
-    fd.append('name', form.name.value);
-    fd.append('bundleId', form.bundleId.value);
-    fd.append('version', form.version.value);
-    fd.append('description', form.description.value);
-    fd.append('password', form.password.value);
-    fd.append('file', form.file.files[0]);
-    const r = await api('/api/patches', {method:'POST', body:fd});
-    if (r.ok) { toast('Patch creado','success'); document.querySelector('.modal')?.remove(); await loadAll(); showSection('patches'); } else toast('Error','error');
-}
-
-async function submitLicense() {
-    const prefix = document.getElementById('licPrefix').value.trim().toUpperCase();
-    const days = parseInt(document.getElementById('licDays').value);
-    const key = generateLicenseKey(prefix);
-    const r = await api('/api/licenses', {method:'POST', body:{validDays:days, customKey:key}});
-    if (r.ok) { toast('Licencia: ' + key,'success'); document.querySelector('.modal')?.remove(); await loadAll(); showSection('licenses'); } else toast('Error','error');
-}
-
-async function submitBulk() {
-    const prefix = document.getElementById('bulkPrefix').value.trim().toUpperCase();
-    const n = parseInt(document.getElementById('bulkN').value);
-    const days = parseInt(document.getElementById('bulkD').value);
-    toast(`Generando ${n} licencias...`, 'info');
-    let successCount = 0;
-    for (let i = 0; i < n; i++) {
-        try {
-            const key = generateLicenseKey(prefix);
-            const r = await api('/api/licenses', {method:'POST', body:{validDays:days, customKey:key}});
-            if (r.ok) successCount++;
-        } catch(e) {
-            console.error('Error generating license:', e);
-        }
-    }
-    toast(`${successCount}/${n} licencias generadas`, successCount === n ? 'success' : 'info');
-    document.querySelector('.modal')?.remove();
-    await loadAll(); showSection('licenses');
-}
-
-async function submitMsg() {
-    const r = await api('/api/messages', {method:'POST', body:{title:document.getElementById('msgT').value,content:document.getElementById('msgC').value,type:document.getElementById('msgTy').value,targetHwid:document.getElementById('msgTg').value||null}});
-    if (r.ok) { toast('Enviado','success'); document.querySelector('.modal')?.remove(); await loadAll(); showSection('messages'); } else toast('Error','error');
-}
-
-async function submitBanner() {
-    const r = await api('/api/banners', {method:'POST', body:{title:document.getElementById('banT').value,text:document.getElementById('banTx').value,color:document.getElementById('banC').value,position:document.getElementById('banP').value}});
-    if (r.ok) { toast('Banner creado','success'); document.querySelector('.modal')?.remove(); await loadAll(); showSection('banners'); } else toast('Error','error');
-}
-
-async function submitVersion() {
-    const r = await api('/api/versions', {method:'POST', body:{version:document.getElementById('verN').value,min_ios:document.getElementById('verMin').value,max_ios:document.getElementById('verMax').value,changelog:document.getElementById('verCL').value,download_url:document.getElementById('verURL').value,force_update:document.getElementById('verForce').checked}});
-    if (r.ok) { toast('Versión creada','success'); document.querySelector('.modal')?.remove(); await loadAll(); showSection('versions'); } else toast('Error','error');
-}
-
-async function submitWebhook() {
-    const events = Array.from(document.querySelectorAll('.wh-ev:checked')).map(cb=>cb.value);
-    const r = await api('/api/webhooks', {method:'POST', body:{name:document.getElementById('whN').value,url:document.getElementById('whU').value,events}});
-    if (r.ok) { toast('Webhook creado','success'); document.querySelector('.modal')?.remove(); await loadAll(); showSection('webhooks'); } else toast('Error','error');
-}
 
 // ========== TOAST ==========
 function toast(msg, type='info') {
@@ -769,7 +554,5 @@ function toast(msg, type='info') {
     setTimeout(() => { t.style.opacity='0'; t.style.transition='opacity 0.3s'; setTimeout(()=>t.remove(),300); }, 3000);
 }
 </script>
-<script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v3d52b47920f24c319d37e2661827c42b1787588026925" integrity="sha512-d9sL6GJLXn6fInD1+TVXhTcQOsmxeHfmHAvwGDIxp5TO+uo1fiWW7mHomMj4MLRlCsJDTqXzWLHJFFlPCEIj/A==" data-cf-beacon='{"version":"2024.11.0","token":"75124c326cb447fe934cde04713ae013","r":1}' crossorigin="anonymous"></script>
-<script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v3d52b47920f24c319d37e2661827c42b1787588026925" integrity="sha512-d9sL6GJLXn6fInD1+TVXhTcQOsmxeHfmHAvwGDIxp5TO+uo1fiWW7mHomMj4MLRlCsJDTqXzWLHJFFlPCEIj/A==" data-cf-beacon='{"version":"2024.11.0","token":"75124c326cb447fe934cde04713ae013","r":1}' crossorigin="anonymous"></script>
 </body>
 </html>
