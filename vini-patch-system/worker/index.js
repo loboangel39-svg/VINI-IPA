@@ -1,20 +1,11 @@
 /**
- * VINI Patch Manager - Cloudflare Worker API v2
+ * VINI Patch Manager - Cloudflare Worker API v3
  * 
- * Features:
- * - Remote patch management with per-user assignment
- * - Remote configuration (feature flags, app settings)
- * - Broadcast messages to users
- * - Real-time statistics and telemetry
- * - License management with Keychain-backed device binding
- * 
- * Bindings required (wrangler.toml):
- * - D1 Database: VINI_DB
- * - R2 Bucket: VINI_PATCHES
- * - KV Namespace: VINI_CONFIG (for remote config)
- * - Secret: ADMIN_PASSWORD_HASH
- * - Secret: JWT_SECRET
- * - Secret: GITHUB_TOKEN
+ * Arquitectura: Descarga única + verificación remota
+ * - Los patches se descargan UNA VEZ cuando se asignan
+ * - Se quedan en el dispositivo
+ * - Solo se verifica versión y contraseña con el worker
+ * - Si hay nueva versión, se descarga de nuevo
  */
 
 export default {
@@ -41,22 +32,22 @@ export default {
                 return await handleGetRemoteConfig(request, env);
             }
 
-            // Check for updates
-            if (path === '/api/app/check-updates' && method === 'GET') {
+            // Check for updates - NUEVO: verifica qué patches necesitan actualización
+            if (path === '/api/app/check-updates' && method === 'POST') {
                 return await handleCheckUpdates(request, env);
             }
 
-            // Patch list for user
+            // Patch list for user (solo metadata, no descarga)
             if (path === '/api/app/patches' && method === 'GET') {
                 return await handleAppListPatches(request, env);
             }
 
-            // Patch download
+            // Patch download (solo cuando se asigna o hay actualización)
             if (path.startsWith('/api/app/patches/') && method === 'GET') {
                 return await handleAppDownloadPatch(request, env);
             }
 
-            // Telemetry (app sends stats)
+            // Telemetry
             if (path === '/api/app/telemetry' && method === 'POST') {
                 return await handleTelemetry(request, env);
             }
@@ -122,20 +113,6 @@ export default {
             }
             if (path.match(/^\/api\/licenses\/[^/]+$/) && method === 'DELETE') {
                 return await handleRevokeLicense(request, env);
-            }
-
-            // Patch Access Management (Premium)
-            if (path === '/api/access' && method === 'GET') {
-                return await handleListAccess(request, env);
-            }
-            if (path === '/api/access' && method === 'POST') {
-                return await handleGrantAccess(request, env);
-            }
-            if (path.match(/^\/api\/access\/[^/]+\/[^/]+$/) && method === 'DELETE') {
-                return await handleRevokeAccess(request, env);
-            }
-            if (path.match(/^\/api\/access\/[^/]+$/) && method === 'GET') {
-                return await handleGetUserAccess(request, env);
             }
 
             // Remote Config (Admin)
@@ -206,10 +183,7 @@ export default {
                 return await handleUnblockIP(request, env);
             }
             if (path === '/api/security/rate-limit' && method === 'POST') {
-                return await handleSetRateLimit(request, env);
-            }
-            if (path === '/api/security/api-keys' && method === 'GET') {
-                return await handleListAPIKeys(request, env);
+                return await handleSaveRateLimit(request, env);
             }
             if (path === '/api/security/api-keys' && method === 'POST') {
                 return await handleGenerateAPIKey(request, env);
@@ -252,7 +226,6 @@ function corsHeaders() {
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
         'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-        'Access-Control-Max-Age': '86400',
     };
 }
 
@@ -266,95 +239,93 @@ function jsonResponse(data, status = 200) {
     });
 }
 
-async function hashPassword(password) {
-    const encoder = new TextEncoder();
-    const data = encoder.encode(password);
-    const hash = await crypto.subtle.digest('SHA-256', data);
-    return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, '0')).join('');
-}
-
-async function createJWT(payload, secret) {
-    const header = { alg: 'HS256', typ: 'JWT' };
-    const encodedHeader = btoa(JSON.stringify(header));
-    const encodedPayload = btoa(JSON.stringify({ ...payload, iat: Math.floor(Date.now() / 1000) }));
-    const signingInput = `${encodedHeader}.${encodedPayload}`;
-
-    const encoder = new TextEncoder();
-    const key = await crypto.subtle.importKey(
-        'raw', encoder.encode(secret),
-        { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']
-    );
-    const signature = await crypto.subtle.sign('HMAC', key, encoder.encode(signingInput));
-    const encodedSignature = btoa(String.fromCharCode(...new Uint8Array(signature)));
-
-    return `${encodedHeader}.${encodedPayload}.${encodedSignature}`;
-}
-
-async function verifyJWT(token, secret) {
-    try {
-        const [encodedHeader, encodedPayload, encodedSignature] = token.split('.');
-        const signingInput = `${encodedHeader}.${encodedPayload}`;
-
-        const encoder = new TextEncoder();
-        const key = await crypto.subtle.importKey(
-            'raw', encoder.encode(secret),
-            { name: 'HMAC', hash: 'SHA-256' }, false, ['verify']
-        );
-
-        const signature = Uint8Array.from(atob(encodedSignature), c => c.charCodeAt(0));
-        const valid = await crypto.subtle.verify('HMAC', key, signature, encoder.encode(signingInput));
-
-        if (!valid) return null;
-        return JSON.parse(atob(encodedPayload));
-    } catch {
-        return null;
-    }
-}
-
-function generateKey(length = 24) {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+function generateKey() {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     let result = '';
-    const array = new Uint8Array(length);
+    const array = new Uint8Array(12);
     crypto.getRandomValues(array);
-    for (let i = 0; i < length; i++) {
+    for (let i = 0; i < 12; i++) {
         result += chars[array[i] % chars.length];
     }
     return result.match(/.{1,4}/g).join('-');
 }
 
+async function createJWT(payload, secret) {
+    const header = { alg: 'HS256', typ: 'JWT' };
+    const encodedHeader = btoa(JSON.stringify(header));
+    const encodedPayload = btoa(JSON.stringify(payload));
+    const signature = await signHS256(`${encodedHeader}.${encodedPayload}`, secret);
+    return `${encodedHeader}.${encodedPayload}.${signature}`;
+}
+
+async function verifyJWT(token, secret) {
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+    
+    const [header, payload, signature] = parts;
+    const expectedSignature = await signHS256(`${header}.${payload}`, secret);
+    
+    if (signature !== expectedSignature) return null;
+    
+    const decoded = JSON.parse(atob(payload));
+    if (decoded.exp && decoded.exp < Date.now() / 1000) return null;
+    
+    return decoded;
+}
+
+async function signHS256(message, secret) {
+    const encoder = new TextEncoder();
+    const keyData = encoder.encode(secret);
+    const messageData = encoder.encode(message);
+    
+    const key = await crypto.subtle.importKey(
+        'raw',
+        keyData,
+        { name: 'HMAC', hash: 'SHA-256' },
+        false,
+        ['sign']
+    );
+    
+    const signature = await crypto.subtle.sign('HMAC', key, messageData);
+    return btoa(String.fromCharCode(...new Uint8Array(signature)))
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_')
+        .replace(/=+$/, '');
+}
+
+async function hashPassword(password) {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(password + 'vini_salt_2024');
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    return btoa(String.fromCharCode(...new Uint8Array(hashBuffer)));
+}
+
 async function verifyAdminAuth(request, env) {
-    const authHeader = request.headers.get('Authorization');
-    if (!authHeader?.startsWith('Bearer ')) return null;
-    const token = authHeader.slice(7);
-    const payload = await verifyJWT(token, env.JWT_SECRET);
-    if (!payload || payload.role !== 'admin') return null;
-    return payload;
+    const auth = request.headers.get('Authorization');
+    if (!auth || !auth.startsWith('Bearer ')) return null;
+    
+    const token = auth.substring(7);
+    const decoded = await verifyJWT(token, env.JWT_SECRET);
+    
+    if (!decoded || decoded.role !== 'admin') return null;
+    
+    return decoded;
 }
 
 async function verifyLicenseAuth(request, env) {
-    const authHeader = request.headers.get('Authorization');
-    if (!authHeader?.startsWith('Bearer ')) return null;
-    const token = authHeader.slice(7);
-
-    // Check if it's a license key directly
-    const { results } = await env.VINI_DB.prepare(
-        'SELECT * FROM licenses WHERE key = ? AND revoked = 0 AND expires_at > datetime("now")'
-    ).bind(token).all();
-
-    if (results.length > 0) {
-        return { type: 'license', data: results[0] };
+    const auth = request.headers.get('Authorization');
+    if (!auth) return null;
+    
+    if (auth.startsWith('Bearer ')) {
+        const token = auth.substring(7);
+        const decoded = await verifyJWT(token, env.JWT_SECRET);
+        if (decoded && decoded.role === 'user') return { type: 'jwt', data: decoded };
     }
-
-    // Check if it's a JWT
-    const payload = await verifyJWT(token, env.JWT_SECRET);
-    if (payload?.role === 'user') {
-        return { type: 'jwt', data: payload };
-    }
-
+    
     return null;
 }
 
-// ========== APP ROUTES ==========
+// ========== APP HANDLERS ==========
 
 async function handleValidateLicense(request, env) {
     const { licenseKey, hwid, deviceModel, iosVersion } = await request.json();
@@ -373,7 +344,6 @@ async function handleValidateLicense(request, env) {
         return jsonResponse({ valid: false, error: 'Licencia revocada' }, 403);
     }
 
-    // Verificar pausa individual
     if (license.paused) {
         return jsonResponse({ 
             valid: false, 
@@ -382,7 +352,6 @@ async function handleValidateLicense(request, env) {
         }, 403);
     }
 
-    // Verificar pausa global
     const globalPause = await env.VINI_CONFIG.get('global_license_pause');
     if (globalPause === 'true') {
         const pauseReason = await env.VINI_CONFIG.get('global_pause_reason');
@@ -398,7 +367,6 @@ async function handleValidateLicense(request, env) {
         return jsonResponse({ valid: false, error: 'Licencia expirada' }, 403);
     }
 
-    // Bind HWID on first use
     if (!license.hwid) {
         await env.VINI_DB.prepare(
             'UPDATE licenses SET hwid = ?, bound_at = datetime("now"), device_model = ?, ios_version = ? WHERE key = ?'
@@ -407,12 +375,10 @@ async function handleValidateLicense(request, env) {
         return jsonResponse({ valid: false, error: 'Licencia vinculada a otro dispositivo' }, 403);
     }
 
-    // Update last login
     await env.VINI_DB.prepare(
         'UPDATE licenses SET last_login = datetime("now") WHERE key = ?'
     ).bind(licenseKey).run();
 
-    // Create/update user record (preserve patches if user already exists)
     await env.VINI_DB.prepare(
         `INSERT INTO users (hwid, license_key, device_model, ios_version, active, created_at, last_seen_at) 
          VALUES (?, ?, ?, ?, 1, datetime("now"), datetime("now"))
@@ -424,20 +390,16 @@ async function handleValidateLicense(request, env) {
             last_seen_at = datetime("now")`
     ).bind(hwid, licenseKey, deviceModel || '', iosVersion || '').run();
 
-    // Generate JWT for the user (include tier in token)
-    const userTier = license.tier || 'normal';
-    const token = await createJWT({ hwid, role: 'user', license: licenseKey, tier: userTier }, env.JWT_SECRET);
+    const token = await createJWT({ hwid, role: 'user', license: licenseKey }, env.JWT_SECRET);
 
-    // Log session start
     await env.VINI_DB.prepare(
         'INSERT INTO telemetry (hwid, event_type, event_data, created_at) VALUES (?, "session_start", ?, datetime("now"))'
-    ).bind(hwid, JSON.stringify({ deviceModel, iosVersion, tier: userTier })).run();
+    ).bind(hwid, JSON.stringify({ deviceModel, iosVersion })).run();
 
     return jsonResponse({
         valid: true,
         token,
         expiresAt: license.expires_at,
-        tier: userTier,
     });
 }
 
@@ -445,7 +407,6 @@ async function handleGetRemoteConfig(request, env) {
     const auth = await verifyLicenseAuth(request, env);
     if (!auth) return jsonResponse({ error: 'Unauthorized' }, 401);
 
-    // Get config from KV
     const configData = await env.VINI_CONFIG.get('app_config', 'json');
     const config = configData || {
         featureFlags: {},
@@ -453,95 +414,99 @@ async function handleGetRemoteConfig(request, env) {
         settings: {},
     };
 
-    // Get active messages for this user
     const hwid = auth.type === 'jwt' ? auth.data.hwid : auth.data.hwid;
     const { results: messages } = await env.VINI_DB.prepare(
         'SELECT * FROM messages WHERE active = 1 AND (target_hwid IS NULL OR target_hwid = ?) ORDER BY created_at DESC LIMIT 10'
     ).bind(hwid).all();
 
-    // Filter out acknowledged messages
-    const { results: acks } = await env.VINI_DB.prepare(
-        'SELECT message_id FROM message_acks WHERE hwid = ?'
-    ).bind(hwid).all();
-    const ackedIds = new Set(acks.map(a => a.message_id));
-
-    const activeMessages = messages.filter(m => !ackedIds.has(m.id));
-
     return jsonResponse({
-        featureFlags: config.featureFlags || {},
-        settings: config.settings || {},
-        messages: activeMessages,
-        timestamp: new Date().toISOString(),
+        ...config,
+        messages,
     });
 }
 
+// NUEVO: Verificar qué patches necesitan actualización
 async function handleCheckUpdates(request, env) {
-    const { currentVersion } = Object.fromEntries(new URL(request.url).searchParams);
-    const githubToken = env.GITHUB_TOKEN;
-    const repo = 'loboangel39-svg/VINI-IPA';
+    const auth = await verifyLicenseAuth(request, env);
+    if (!auth) return jsonResponse({ error: 'Unauthorized' }, 401);
 
-    try {
-        const res = await fetch(`https://api.github.com/repos/${repo}/releases/latest`, {
-            headers: {
-                'Authorization': `token ${githubToken}`,
-                'User-Agent': 'VINI-Worker',
-            },
-        });
-        if (!res.ok) return jsonResponse({ updateAvailable: false });
+    const hwid = auth.data.hwid;
+    const { localPatches } = await request.json(); // Array de {id, version} que el usuario tiene localmente
 
-        const release = await res.json();
-        const latestVersion = release.tag_name.replace('v', '');
+    // Obtener patches asignados al usuario
+    const { results: users } = await env.VINI_DB.prepare(
+        'SELECT patches FROM users WHERE hwid = ? AND active = 1'
+    ).bind(hwid).all();
 
-        if (currentVersion && latestVersion !== currentVersion) {
-            return jsonResponse({
-                updateAvailable: true,
-                latestVersion,
-                releaseNotes: release.body,
-                downloadUrl: release.assets?.[0]?.browser_download_url || release.html_url,
-            });
-        }
-    } catch (err) {
-        // Silently fail
+    if (users.length === 0) {
+        return jsonResponse({ updates: [] });
     }
 
-    return jsonResponse({ updateAvailable: false });
+    const patchIds = JSON.parse(users[0].patches || '[]');
+    if (patchIds.length === 0) {
+        return jsonResponse({ updates: [] });
+    }
+
+    const placeholders = patchIds.map(() => '?').join(',');
+    const { results: patches } = await env.VINI_DB.prepare(
+        `SELECT id, name, version, password FROM patches WHERE id IN (${placeholders})`
+    ).bind(...patchIds).all();
+
+    // Comparar versiones locales vs remotas
+    const updates = [];
+    for (const patch of patches) {
+        const local = localPatches.find(lp => lp.id === patch.id);
+        
+        if (!local) {
+            // No tiene el patch localmente → necesita descargarlo
+            updates.push({
+                id: patch.id,
+                name: patch.name,
+                version: patch.version,
+                password: patch.password,
+                action: 'download'
+            });
+        } else if (local.version !== patch.version) {
+            // Versión diferente → necesita actualizar
+            updates.push({
+                id: patch.id,
+                name: patch.name,
+                version: patch.version,
+                password: patch.password,
+                action: 'update'
+            });
+        }
+        // Si versión es igual → no hacer nada (ya está actualizado)
+    }
+
+    return jsonResponse({ updates });
 }
 
 async function handleAppListPatches(request, env) {
     const auth = await verifyLicenseAuth(request, env);
     if (!auth) return jsonResponse({ error: 'Unauthorized' }, 401);
 
-    const hwid = auth.type === 'jwt' ? auth.data.hwid : auth.data.hwid;
-    const userTier = auth.type === 'jwt' ? (auth.data.tier || 'normal') : 'normal';
+    const hwid = auth.data.hwid;
 
-    // Obtener todos los patches normales (accesibles para todos)
-    const { results: normalPatches } = await env.VINI_DB.prepare(
-        `SELECT id, name, bundle_id, version, description, password, tier, created_at 
-         FROM patches WHERE (tier = 'normal' OR tier IS NULL)`
-    ).all();
+    const { results: users } = await env.VINI_DB.prepare(
+        'SELECT patches FROM users WHERE hwid = ? AND active = 1'
+    ).bind(hwid).all();
 
-    let allPatches = [...normalPatches];
-
-    // Si es premium, agregar patches premium a los que tiene acceso
-    if (userTier === 'premium') {
-        const { results: accessRecords } = await env.VINI_DB.prepare(
-            'SELECT patch_id FROM user_patch_access WHERE hwid = ?'
-        ).bind(hwid).all();
-
-        if (accessRecords.length > 0) {
-            const premiumPatchIds = accessRecords.map(r => r.patch_id);
-            const placeholders = premiumPatchIds.map(() => '?').join(',');
-            
-            const { results: premiumPatches } = await env.VINI_DB.prepare(
-                `SELECT id, name, bundle_id, version, description, password, tier, created_at 
-                 FROM patches WHERE id IN (${placeholders}) AND tier = 'premium'`
-            ).bind(...premiumPatchIds).all();
-            
-            allPatches = [...allPatches, ...premiumPatches];
-        }
+    if (users.length === 0) {
+        return jsonResponse({ patches: [] });
     }
 
-    return jsonResponse({ patches: allPatches, tier: userTier });
+    const patchIds = JSON.parse(users[0].patches || '[]');
+    if (patchIds.length === 0) {
+        return jsonResponse({ patches: [] });
+    }
+
+    const placeholders = patchIds.map(() => '?').join(',');
+    const { results: patches } = await env.VINI_DB.prepare(
+        `SELECT id, name, bundle_id, version, description, password, created_at FROM patches WHERE id IN (${placeholders})`
+    ).bind(...patchIds).all();
+
+    return jsonResponse({ patches });
 }
 
 async function handleAppDownloadPatch(request, env) {
@@ -549,10 +514,21 @@ async function handleAppDownloadPatch(request, env) {
     if (!auth) return jsonResponse({ error: 'Unauthorized' }, 401);
 
     const patchId = request.url.split('/').pop();
-    const hwid = auth.type === 'jwt' ? auth.data.hwid : auth.data.hwid;
-    const userTier = auth.type === 'jwt' ? (auth.data.tier || 'normal') : 'normal';
+    const hwid = auth.data.hwid;
 
-    // Obtener el patch
+    const { results: users } = await env.VINI_DB.prepare(
+        'SELECT patches FROM users WHERE hwid = ? AND active = 1'
+    ).bind(hwid).all();
+
+    if (users.length === 0) {
+        return jsonResponse({ error: 'No access', patchId }, 403);
+    }
+
+    const patchIds = JSON.parse(users[0].patches || '[]');
+    if (!patchIds.includes(patchId)) {
+        return jsonResponse({ error: 'No access to this patch', patchId }, 403);
+    }
+
     const { results } = await env.VINI_DB.prepare(
         'SELECT * FROM patches WHERE id = ?'
     ).bind(patchId).all();
@@ -562,30 +538,10 @@ async function handleAppDownloadPatch(request, env) {
     }
 
     const patch = results[0];
-    const patchTier = patch.tier || 'normal';
-
-    // Verificar permisos según tier del patch
-    if (patchTier === 'premium') {
-        // Usuario debe ser premium
-        if (userTier !== 'premium') {
-            return jsonResponse({ error: 'Licencia normal no puede acceder a patches premium', patchId }, 403);
-        }
-
-        // Verificar que tenga acceso específico a este patch
-        const { results: accessCheck } = await env.VINI_DB.prepare(
-            'SELECT patch_id FROM user_patch_access WHERE hwid = ? AND patch_id = ?'
-        ).bind(hwid, patchId).all();
-
-        if (accessCheck.length === 0) {
-            return jsonResponse({ error: 'No tienes permiso para este patch premium', patchId }, 403);
-        }
-    }
-    // Si es normal, cualquier usuario autenticado puede descargarlo
 
     const r2Key = `patches/${patchId}.3105`;
     const object = await env.VINI_PATCHES.get(r2Key);
     if (!object) {
-        // Log this for diagnostics
         await env.VINI_DB.prepare(
             'INSERT INTO telemetry (hwid, event_type, event_data, created_at) VALUES (?, "patch_missing", ?, datetime("now"))'
         ).bind(hwid, JSON.stringify({ patchId, patchName: patch.name, r2Key })).run();
@@ -599,15 +555,13 @@ async function handleAppDownloadPatch(request, env) {
         }, 404);
     }
 
-    // Increment download count
     await env.VINI_DB.prepare(
         'UPDATE patches SET downloads = downloads + 1 WHERE id = ?'
     ).bind(patchId).run();
 
-    // Log download
     await env.VINI_DB.prepare(
         'INSERT INTO telemetry (hwid, event_type, event_data, created_at) VALUES (?, "patch_download", ?, datetime("now"))'
-    ).bind(hwid, JSON.stringify({ patchId, patchName: patch.name, tier: patchTier })).run();
+    ).bind(hwid, JSON.stringify({ patchId, patchName: patch.name })).run();
 
     return new Response(object.body, {
         headers: {
@@ -622,17 +576,12 @@ async function handleTelemetry(request, env) {
     const auth = await verifyLicenseAuth(request, env);
     if (!auth) return jsonResponse({ error: 'Unauthorized' }, 401);
 
+    const hwid = auth.data.hwid;
     const { eventType, eventData } = await request.json();
-    const hwid = auth.type === 'jwt' ? auth.data.hwid : auth.data.hwid;
 
     await env.VINI_DB.prepare(
         'INSERT INTO telemetry (hwid, event_type, event_data, created_at) VALUES (?, ?, ?, datetime("now"))'
     ).bind(hwid, eventType, JSON.stringify(eventData || {})).run();
-
-    // Update user last seen
-    await env.VINI_DB.prepare(
-        'UPDATE users SET last_seen_at = datetime("now") WHERE hwid = ?'
-    ).bind(hwid).run();
 
     return jsonResponse({ success: true });
 }
@@ -641,8 +590,8 @@ async function handleAckMessage(request, env) {
     const auth = await verifyLicenseAuth(request, env);
     if (!auth) return jsonResponse({ error: 'Unauthorized' }, 401);
 
+    const hwid = auth.data.hwid;
     const messageId = request.url.split('/').slice(-2)[0];
-    const hwid = auth.type === 'jwt' ? auth.data.hwid : auth.data.hwid;
 
     await env.VINI_DB.prepare(
         'INSERT OR IGNORE INTO message_acks (message_id, hwid, acked_at) VALUES (?, ?, datetime("now"))'
@@ -651,26 +600,29 @@ async function handleAckMessage(request, env) {
     return jsonResponse({ success: true });
 }
 
-// ========== ADMIN ROUTES ==========
+// ========== ADMIN HANDLERS ==========
 
 async function handleAdminLogin(request, env) {
     const { username, password } = await request.json();
-
+    
     if (username !== 'admin') {
         return jsonResponse({ error: 'Invalid credentials' }, 401);
     }
 
-    const passwordHash = await hashPassword(password);
-    if (passwordHash !== env.ADMIN_PASSWORD_HASH) {
+    const storedHash = env.ADMIN_PASSWORD_HASH;
+    const providedHash = await hashPassword(password);
+
+    if (providedHash !== storedHash) {
         return jsonResponse({ error: 'Invalid credentials' }, 401);
     }
 
-    const token = await createJWT({ username, role: 'admin' }, env.JWT_SECRET);
+    const token = await createJWT({ 
+        username, 
+        role: 'admin',
+        exp: Math.floor(Date.now() / 1000) + (24 * 60 * 60)
+    }, env.JWT_SECRET);
 
-    return jsonResponse({
-        token,
-        admin: { username, role: 'admin' },
-    });
+    return jsonResponse({ token, admin: { username } });
 }
 
 async function handleListPatches(request, env) {
@@ -688,7 +640,6 @@ async function handleCreatePatch(request, env) {
     const version = formData.get('version');
     const description = formData.get('description');
     const password = formData.get('password') || '';
-    const tier = formData.get('tier') || 'normal';
 
     if (!file || !name || !bundleId || !version) {
         return jsonResponse({ error: 'Missing required fields' }, 400);
@@ -701,10 +652,10 @@ async function handleCreatePatch(request, env) {
     });
 
     await env.VINI_DB.prepare(
-        'INSERT INTO patches (id, name, bundle_id, version, description, password, tier, created_at, downloads) VALUES (?, ?, ?, ?, ?, ?, ?, datetime("now"), 0)'
-    ).bind(id, name, bundleId, version, description || '', password, tier).run();
+        'INSERT INTO patches (id, name, bundle_id, version, description, password, created_at, downloads) VALUES (?, ?, ?, ?, ?, ?, datetime("now"), 0)'
+    ).bind(id, name, bundleId, version, description || '', password).run();
 
-    return jsonResponse({ id, name, version, tier }, 201);
+    return jsonResponse({ id, name, version }, 201);
 }
 
 async function handleDeletePatch(request, env) {
@@ -713,8 +664,16 @@ async function handleDeletePatch(request, env) {
     await env.VINI_PATCHES.delete(`patches/${patchId}.3105`);
     await env.VINI_DB.prepare('DELETE FROM patches WHERE id = ?').bind(patchId).run();
 
-    // Remove from user_patch_access
-    await env.VINI_DB.prepare('DELETE FROM user_patch_access WHERE patch_id = ?').bind(patchId).run();
+    const { results: users } = await env.VINI_DB.prepare('SELECT hwid, patches FROM users').all();
+    for (const user of users) {
+        const patchIds = JSON.parse(user.patches || '[]');
+        if (patchIds.includes(patchId)) {
+            const updated = patchIds.filter(id => id !== patchId);
+            await env.VINI_DB.prepare(
+                'UPDATE users SET patches = ? WHERE hwid = ?'
+            ).bind(JSON.stringify(updated), user.hwid).run();
+        }
+    }
 
     return jsonResponse({ success: true });
 }
@@ -733,61 +692,44 @@ async function handlePushToGitHub(request, env) {
     }
 
     const patch = results[0];
+    const r2Key = `patches/${patchId}.3105`;
+    const object = await env.VINI_PATCHES.get(r2Key);
 
-    const object = await env.VINI_PATCHES.get(`patches/${patchId}.3105`);
     if (!object) {
         return jsonResponse({ error: 'File not found' }, 404);
     }
 
-    const buffer = await object.arrayBuffer();
-    const base64 = btoa(String.fromCharCode(...new Uint8Array(buffer)));
+    const fileData = await object.arrayBuffer();
+    const base64 = btoa(String.fromCharCode(...new Uint8Array(fileData)));
 
-    const filePath = `patches/${patch.name.replace(/[^a-zA-Z0-9]/g, '_')}.3105`;
+    const path = `patches/${patch.name}.3105`;
+    const content = base64;
 
-    let sha = null;
-    try {
-        const existing = await fetch(`https://api.github.com/repos/${repo}/contents/${filePath}`, {
-            headers: { 'Authorization': `token ${githubToken}`, 'User-Agent': 'VINI-Worker' },
-        });
-        if (existing.ok) {
-            const data = await existing.json();
-            sha = data.sha;
-        }
-    } catch (e) { /* File doesn't exist yet */ }
-
-    const body = {
-        message: `Update patch: ${patch.name} v${patch.version}`,
-        content: base64,
-        branch: 'main',
-    };
-    if (sha) body.sha = sha;
-
-    const res = await fetch(`https://api.github.com/repos/${repo}/contents/${filePath}`, {
+    const response = await fetch(`https://api.github.com/repos/${repo}/contents/${path}`, {
         method: 'PUT',
         headers: {
             'Authorization': `token ${githubToken}`,
             'Content-Type': 'application/json',
-            'User-Agent': 'VINI-Worker',
         },
-        body: JSON.stringify(body),
+        body: JSON.stringify({
+            message: `Add patch: ${patch.name} v${patch.version}`,
+            content,
+        }),
     });
 
-    if (!res.ok) {
-        const err = await res.json();
-        return jsonResponse({ error: err.message }, 500);
+    if (!response.ok) {
+        const error = await response.text();
+        return jsonResponse({ error: 'GitHub upload failed', details: error }, 500);
     }
 
-    return jsonResponse({ success: true, path: filePath });
+    return jsonResponse({ success: true });
 }
 
 async function handleListUsers(request, env) {
     const { results } = await env.VINI_DB.prepare(
-        'SELECT * FROM users ORDER BY last_seen_at DESC'
+        'SELECT * FROM users ORDER BY created_at DESC'
     ).all();
-    return jsonResponse(results.map(u => ({
-        ...u,
-        patches: JSON.parse(u.patches || '[]'),
-    })));
+    return jsonResponse(results);
 }
 
 async function handleUpdateUser(request, env) {
@@ -820,136 +762,55 @@ async function handleListLicenses(request, env) {
 }
 
 async function handleGenerateLicense(request, env) {
-    const { validDays, customKey, tier } = await request.json();
+    const { validDays, customKey } = await request.json();
     const key = customKey || generateKey();
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + (validDays || 30));
-    const licenseTier = tier || 'normal';
 
     await env.VINI_DB.prepare(
-        'INSERT INTO licenses (key, expires_at, created_at, revoked, tier) VALUES (?, ?, datetime("now"), 0, ?)'
-    ).bind(key, expiresAt.toISOString(), licenseTier).run();
+        'INSERT INTO licenses (key, expires_at, created_at, revoked) VALUES (?, ?, datetime("now"), 0)'
+    ).bind(key, expiresAt.toISOString()).run();
 
-    return jsonResponse({ key, expiresAt: expiresAt.toISOString(), tier: licenseTier }, 201);
+    return jsonResponse({ key, expiresAt: expiresAt.toISOString() }, 201);
 }
 
 async function handleRevokeLicense(request, env) {
     const key = request.url.split('/').pop();
-    
+
     await env.VINI_DB.prepare(
         'UPDATE licenses SET revoked = 1 WHERE key = ?'
     ).bind(key).run();
-    
+
     return jsonResponse({ success: true });
 }
 
 async function handleUnbindLicense(request, env) {
-    const parts = request.url.split('/');
-    const key = parts[parts.length - 2]; // Get key before /unbind
-    
+    const key = request.url.split('/').slice(-2)[0];
+
     await env.VINI_DB.prepare(
         'UPDATE licenses SET hwid = NULL, bound_at = NULL WHERE key = ?'
     ).bind(key).run();
-    
-    return jsonResponse({ success: true, message: 'License unbound successfully' });
+
+    return jsonResponse({ success: true });
 }
 
 async function handleUnbindAllLicenses(request, env) {
     await env.VINI_DB.prepare(
         'UPDATE licenses SET hwid = NULL, bound_at = NULL WHERE hwid IS NOT NULL'
     ).run();
-    
-    return jsonResponse({ success: true, message: 'All licenses unbound successfully' });
+
+    return jsonResponse({ success: true });
 }
 
 async function handleDeleteLicense(request, env) {
-    const parts = request.url.split('/');
-    const key = parts[parts.length - 2]; // Get key before /delete
-    
+    const key = request.url.split('/').slice(-2)[0];
+
     await env.VINI_DB.prepare(
         'DELETE FROM licenses WHERE key = ?'
     ).bind(key).run();
-    
-    return jsonResponse({ success: true, message: 'License deleted successfully' });
+
+    return jsonResponse({ success: true });
 }
-
-// ========== PATCH ACCESS MANAGEMENT ==========
-
-async function handleListAccess(request, env) {
-    const { results } = await env.VINI_DB.prepare(
-        `SELECT a.hwid, a.patch_id, a.granted_at, a.granted_by, 
-                u.device_model, u.ios_version, p.name as patch_name
-         FROM user_patch_access a
-         LEFT JOIN users u ON a.hwid = u.hwid
-         LEFT JOIN patches p ON a.patch_id = p.id
-         ORDER BY a.granted_at DESC`
-    ).all();
-    return jsonResponse(results);
-}
-
-async function handleGrantAccess(request, env) {
-    const { hwid, patchId } = await request.json();
-
-    if (!hwid || !patchId) {
-        return jsonResponse({ error: 'hwid and patchId required' }, 400);
-    }
-
-    // Verify patch exists and is premium
-    const { results: patchCheck } = await env.VINI_DB.prepare(
-        'SELECT tier FROM patches WHERE id = ?'
-    ).bind(patchId).all();
-
-    if (patchCheck.length === 0) {
-        return jsonResponse({ error: 'Patch not found' }, 404);
-    }
-
-    if (patchCheck[0].tier !== 'premium') {
-        return jsonResponse({ error: 'Solo se puede dar acceso a patches premium' }, 400);
-    }
-
-    // Verify user exists
-    const { results: userCheck } = await env.VINI_DB.prepare(
-        'SELECT hwid FROM users WHERE hwid = ?'
-    ).bind(hwid).all();
-
-    if (userCheck.length === 0) {
-        return jsonResponse({ error: 'User not found' }, 404);
-    }
-
-    await env.VINI_DB.prepare(
-        'INSERT OR IGNORE INTO user_patch_access (hwid, patch_id, granted_at, granted_by) VALUES (?, ?, datetime("now"), "admin")'
-    ).bind(hwid, patchId).run();
-
-    return jsonResponse({ success: true, message: 'Access granted' });
-}
-
-async function handleRevokeAccess(request, env) {
-    const parts = request.url.split('/');
-    const hwid = parts[parts.length - 2];
-    const patchId = parts[parts.length - 1];
-
-    await env.VINI_DB.prepare(
-        'DELETE FROM user_patch_access WHERE hwid = ? AND patch_id = ?'
-    ).bind(hwid, patchId).run();
-
-    return jsonResponse({ success: true, message: 'Access revoked' });
-}
-
-async function handleGetUserAccess(request, env) {
-    const hwid = request.url.split('/').pop();
-
-    const { results } = await env.VINI_DB.prepare(
-        `SELECT a.patch_id, a.granted_at, p.name as patch_name, p.bundle_id
-         FROM user_patch_access a
-         LEFT JOIN patches p ON a.patch_id = p.id
-         WHERE a.hwid = ?
-         ORDER BY a.granted_at DESC`
-    ).bind(hwid).all();
-
-    return jsonResponse(results);
-}
-
-// ========== REMOTE CONFIG ==========
 
 async function handleGetConfig(request, env) {
     const configData = await env.VINI_CONFIG.get('app_config', 'json');
@@ -962,18 +823,9 @@ async function handleGetConfig(request, env) {
 
 async function handleUpdateConfig(request, env) {
     const config = await request.json();
-
-    // Validate structure
-    if (!config.featureFlags && !config.settings) {
-        return jsonResponse({ error: 'Invalid config structure' }, 400);
-    }
-
     await env.VINI_CONFIG.put('app_config', JSON.stringify(config));
-
     return jsonResponse({ success: true });
 }
-
-// ========== MESSAGES ==========
 
 async function handleListMessages(request, env) {
     const { results } = await env.VINI_DB.prepare(
@@ -983,7 +835,7 @@ async function handleListMessages(request, env) {
 }
 
 async function handleCreateMessage(request, env) {
-    const { title, content, type, targetHwid, expiresAt } = await request.json();
+    const { title, content, type, targetHwid } = await request.json();
 
     if (!title || !content) {
         return jsonResponse({ error: 'Title and content required' }, 400);
@@ -993,7 +845,7 @@ async function handleCreateMessage(request, env) {
 
     await env.VINI_DB.prepare(
         'INSERT INTO messages (id, title, content, type, target_hwid, expires_at, active, created_at) VALUES (?, ?, ?, ?, ?, ?, 1, datetime("now"))'
-    ).bind(id, title, content, type || 'info', targetHwid || null, expiresAt || null).run();
+    ).bind(id, title, content, type || 'info', targetHwid || null, null).run();
 
     return jsonResponse({ id }, 201);
 }
@@ -1007,8 +859,6 @@ async function handleDeleteMessage(request, env) {
 
     return jsonResponse({ success: true });
 }
-
-// ========== STATISTICS ==========
 
 async function handleGetStats(request, env) {
     const { results: totalUsers } = await env.VINI_DB.prepare(
@@ -1027,26 +877,15 @@ async function handleGetStats(request, env) {
         'SELECT SUM(downloads) as total FROM patches'
     ).all();
 
-    const { results: activeToday } = await env.VINI_DB.prepare(
-        'SELECT COUNT(DISTINCT hwid) as count FROM telemetry WHERE created_at > datetime("now", "-1 day")'
-    ).all();
-
-    const { results: recentEvents } = await env.VINI_DB.prepare(
-        'SELECT event_type, COUNT(*) as count FROM telemetry WHERE created_at > datetime("now", "-7 days") GROUP BY event_type ORDER BY count DESC LIMIT 10'
-    ).all();
-
     return jsonResponse({
         totalUsers: totalUsers[0].count,
         totalLicenses: totalLicenses[0].count,
         totalPatches: totalPatches[0].count,
         totalDownloads: totalDownloads[0].total || 0,
-        activeToday: activeToday[0].count,
-        recentEvents,
     });
 }
 
 async function handleGetRealtimeStats(request, env) {
-    // Last 24 hours activity
     const { results: hourlyActivity } = await env.VINI_DB.prepare(
         `SELECT 
             strftime('%Y-%m-%d %H:00:00', created_at) as hour,
@@ -1057,7 +896,6 @@ async function handleGetRealtimeStats(request, env) {
         ORDER BY hour`
     ).all();
 
-    // Device breakdown
     const { results: deviceBreakdown } = await env.VINI_DB.prepare(
         `SELECT 
             device_model,
@@ -1070,21 +908,14 @@ async function handleGetRealtimeStats(request, env) {
         LIMIT 10`
     ).all();
 
-    // Patch popularity
-    let patchPopularity = [];
-    try {
-        const { results } = await env.VINI_DB.prepare(
-            `SELECT 
-                p.name,
-                p.downloads
-            FROM patches p
-            ORDER BY p.downloads DESC
-            LIMIT 10`
-        ).all();
-        patchPopularity = results;
-    } catch (e) {
-        console.error('Error fetching patch popularity:', e);
-    }
+    const { results: patchPopularity } = await env.VINI_DB.prepare(
+        `SELECT 
+            p.name,
+            p.downloads
+        FROM patches p
+        ORDER BY p.downloads DESC
+        LIMIT 10`
+    ).all();
 
     return jsonResponse({
         hourlyActivity,
@@ -1094,8 +925,6 @@ async function handleGetRealtimeStats(request, env) {
     });
 }
 
-// ========== BANNERS ==========
-
 async function handleListBanners(request, env) {
     const config = await env.VINI_CONFIG.get('banners', 'json');
     return jsonResponse(config || []);
@@ -1104,10 +933,10 @@ async function handleListBanners(request, env) {
 async function handleCreateBanner(request, env) {
     const banner = await request.json();
     const id = crypto.randomUUID();
-    
+
     const banners = await env.VINI_CONFIG.get('banners', 'json') || [];
     banners.unshift({ id, ...banner, created_at: new Date().toISOString() });
-    
+
     await env.VINI_CONFIG.put('banners', JSON.stringify(banners));
     return jsonResponse({ id }, 201);
 }
@@ -1120,8 +949,6 @@ async function handleDeleteBanner(request, env) {
     return jsonResponse({ success: true });
 }
 
-// ========== VERSIONS ==========
-
 async function handleListVersions(request, env) {
     const { results } = await env.VINI_DB.prepare(
         'SELECT * FROM versions ORDER BY created_at DESC'
@@ -1132,11 +959,11 @@ async function handleListVersions(request, env) {
 async function handleCreateVersion(request, env) {
     const version = await request.json();
     const id = crypto.randomUUID();
-    
+
     await env.VINI_DB.prepare(
         'INSERT INTO versions (id, version, min_ios, max_ios, changelog, download_url, force_update, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, datetime("now"))'
     ).bind(id, version.version, version.min_ios, version.max_ios, version.changelog || '', version.download_url || '', version.force_update ? 1 : 0).run();
-    
+
     return jsonResponse({ id }, 201);
 }
 
@@ -1146,13 +973,11 @@ async function handleDeleteVersion(request, env) {
     return jsonResponse({ success: true });
 }
 
-// ========== LOGS ==========
-
 async function handleGetLogs(request, env) {
     const { results } = await env.VINI_DB.prepare(
-        'SELECT * FROM logs ORDER BY created_at DESC LIMIT 500'
+        'SELECT * FROM logs ORDER BY created_at DESC LIMIT 100'
     ).all();
-    return jsonResponse(results.map(l => ({ ...l, timestamp: l.created_at })));
+    return jsonResponse(results);
 }
 
 async function handleClearLogs(request, env) {
@@ -1160,77 +985,82 @@ async function handleClearLogs(request, env) {
     return jsonResponse({ success: true });
 }
 
-// ========== SECURITY ==========
-
 async function handleGetSecurity(request, env) {
-    const blockedIPs = await env.VINI_CONFIG.get('blocked_ips', 'json') || [];
-    const apiKeys = await env.VINI_CONFIG.get('api_keys', 'json') || [];
-    return jsonResponse({ blockedIPs, apiKeys });
+    const securityData = await env.VINI_CONFIG.get('security', 'json');
+    return jsonResponse(securityData || {
+        blockedIPs: [],
+        apiKeys: [],
+        rateLimit: { requests: 60, banTime: 300 }
+    });
 }
 
 async function handleBlockIP(request, env) {
     const { ip } = await request.json();
-    const blockedIPs = await env.VINI_CONFIG.get('blocked_ips', 'json') || [];
-    if (!blockedIPs.includes(ip)) {
-        blockedIPs.push(ip);
-        await env.VINI_CONFIG.put('blocked_ips', JSON.stringify(blockedIPs));
+    const securityData = await env.VINI_CONFIG.get('security', 'json') || { blockedIPs: [], apiKeys: [], rateLimit: { requests: 60, banTime: 300 } };
+    
+    if (!securityData.blockedIPs.includes(ip)) {
+        securityData.blockedIPs.push(ip);
+        await env.VINI_CONFIG.put('security', JSON.stringify(securityData));
     }
+
     return jsonResponse({ success: true });
 }
 
 async function handleUnblockIP(request, env) {
     const { ip } = await request.json();
-    const blockedIPs = await env.VINI_CONFIG.get('blocked_ips', 'json') || [];
-    const filtered = blockedIPs.filter(i => i !== ip);
-    await env.VINI_CONFIG.put('blocked_ips', JSON.stringify(filtered));
+    const securityData = await env.VINI_CONFIG.get('security', 'json') || { blockedIPs: [], apiKeys: [], rateLimit: { requests: 60, banTime: 300 } };
+    
+    securityData.blockedIPs = securityData.blockedIPs.filter(i => i !== ip);
+    await env.VINI_CONFIG.put('security', JSON.stringify(securityData));
+
     return jsonResponse({ success: true });
 }
 
-async function handleSetRateLimit(request, env) {
-    const { rateLimit, banTime } = await request.json();
-    await env.VINI_CONFIG.put('rate_limit', JSON.stringify({ rateLimit, banTime }));
-    return jsonResponse({ success: true });
-}
+async function handleSaveRateLimit(request, env) {
+    const { rateLimit } = await request.json();
+    const securityData = await env.VINI_CONFIG.get('security', 'json') || { blockedIPs: [], apiKeys: [], rateLimit: { requests: 60, banTime: 300 } };
+    
+    securityData.rateLimit = rateLimit;
+    await env.VINI_CONFIG.put('security', JSON.stringify(securityData));
 
-async function handleListAPIKeys(request, env) {
-    const apiKeys = await env.VINI_CONFIG.get('api_keys', 'json') || [];
-    return jsonResponse(apiKeys);
+    return jsonResponse({ success: true });
 }
 
 async function handleGenerateAPIKey(request, env) {
+    const securityData = await env.VINI_CONFIG.get('security', 'json') || { blockedIPs: [], apiKeys: [], rateLimit: { requests: 60, banTime: 300 } };
+    
     const id = crypto.randomUUID();
-    const key = `vini_${crypto.randomUUID().replace(/-/g, '')}`;
+    const key = generateKey() + '-' + generateKey();
     
-    const apiKeys = await env.VINI_CONFIG.get('api_keys', 'json') || [];
-    apiKeys.push({ id, key, created_at: new Date().toISOString() });
-    await env.VINI_CONFIG.put('api_keys', JSON.stringify(apiKeys));
-    
-    return jsonResponse({ id, key }, 201);
+    securityData.apiKeys.push({ id, key, created_at: new Date().toISOString() });
+    await env.VINI_CONFIG.put('security', JSON.stringify(securityData));
+
+    return jsonResponse({ id, key });
 }
 
 async function handleRevokeAPIKey(request, env) {
     const keyId = request.url.split('/').pop();
-    const apiKeys = await env.VINI_CONFIG.get('api_keys', 'json') || [];
-    const filtered = apiKeys.filter(k => k.id !== keyId);
-    await env.VINI_CONFIG.put('api_keys', JSON.stringify(filtered));
+    const securityData = await env.VINI_CONFIG.get('security', 'json') || { blockedIPs: [], apiKeys: [], rateLimit: { requests: 60, banTime: 300 } };
+    
+    securityData.apiKeys = securityData.apiKeys.filter(k => k.id !== keyId);
+    await env.VINI_CONFIG.put('security', JSON.stringify(securityData));
+
     return jsonResponse({ success: true });
 }
 
-// ========== WEBHOOKS ==========
-
 async function handleListWebhooks(request, env) {
-    const webhooks = await env.VINI_CONFIG.get('webhooks', 'json') || [];
-    return jsonResponse(webhooks);
+    const config = await env.VINI_CONFIG.get('webhooks', 'json');
+    return jsonResponse(config || []);
 }
 
 async function handleCreateWebhook(request, env) {
     const webhook = await request.json();
     const id = crypto.randomUUID();
-    
+
     const webhooks = await env.VINI_CONFIG.get('webhooks', 'json') || [];
     webhooks.push({ id, ...webhook, created_at: new Date().toISOString() });
+
     await env.VINI_CONFIG.put('webhooks', JSON.stringify(webhooks));
-    
     return jsonResponse({ id }, 201);
 }
 
@@ -1241,8 +1071,6 @@ async function handleDeleteWebhook(request, env) {
     await env.VINI_CONFIG.put('webhooks', JSON.stringify(filtered));
     return jsonResponse({ success: true });
 }
-
-// ========== MAINTENANCE ==========
 
 async function handleGetMaintenance(request, env) {
     try {
