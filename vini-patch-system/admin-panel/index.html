@@ -88,9 +88,6 @@
                 <a data-section="licenses" class="nav-item flex items-center space-x-3 px-4 py-3 rounded-lg">
                     <i class="fas fa-key w-5"></i><span class="sidebar-text">Licencias</span>
                 </a>
-                <a data-section="access" class="nav-item flex items-center space-x-3 px-4 py-3 rounded-lg">
-                    <i class="fas fa-crown w-5"></i><span class="sidebar-text">Accesos Premium</span>
-                </a>
                 <a data-section="messages" class="nav-item flex items-center space-x-3 px-4 py-3 rounded-lg">
                     <i class="fas fa-envelope w-5"></i><span class="sidebar-text">Mensajes</span>
                 </a>
@@ -187,15 +184,12 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
     } catch (err) { document.getElementById('loginError').textContent = 'Error de conexión: ' + err.message; document.getElementById('loginError').classList.remove('hidden'); }
 });
 
-let currentSection = 'dashboard';
-
 function showApp() {
     document.getElementById('loginScreen').classList.add('hidden');
     document.getElementById('mainApp').classList.remove('hidden');
     setupNav();
     loadAll();
-    // Solo recargar stats cada 30s, no todo
-    setInterval(loadStatsOnly, 30000);
+    setInterval(loadAll, 30000);
 }
 
 function logout() { authToken = null; currentUser = null; localStorage.clear(); location.reload(); }
@@ -217,13 +211,12 @@ function toggleSidebar() {
 }
 
 // ========== SECTIONS ==========
-const sectionTitles = { dashboard:'Dashboard', patches:'Patches', users:'Usuarios', licenses:'Licencias', access:'Accesos Premium', messages:'Mensajes', features:'Feature Flags', banners:'Banners', versions:'Versiones', analytics:'Analíticas', logs:'Logs', security:'Seguridad', webhooks:'Webhooks', maintenance:'Mantenimiento', settings:'Configuración' };
+const sectionTitles = { dashboard:'Dashboard', patches:'Patches', users:'Usuarios', licenses:'Licencias', messages:'Mensajes', features:'Feature Flags', banners:'Banners', versions:'Versiones', analytics:'Analíticas', logs:'Logs', security:'Seguridad', webhooks:'Webhooks', maintenance:'Mantenimiento', settings:'Configuración' };
 
 function showSection(name) {
-    currentSection = name;
     document.getElementById('sectionTitle').textContent = sectionTitles[name] || name;
     const area = document.getElementById('contentArea');
-    const renderers = { dashboard: renderDashboard, patches: renderPatches, users: renderUsers, licenses: renderLicenses, access: renderAccess, messages: renderMessages, features: renderFeatures, banners: renderBanners, versions: renderVersions, analytics: renderAnalytics, logs: renderLogs, security: renderSecurity, webhooks: renderWebhooks, maintenance: renderMaintenance, settings: renderSettings };
+    const renderers = { dashboard: renderDashboard, patches: renderPatches, users: renderUsers, licenses: renderLicenses, messages: renderMessages, features: renderFeatures, banners: renderBanners, versions: renderVersions, analytics: renderAnalytics, logs: renderLogs, security: renderSecurity, webhooks: renderWebhooks, maintenance: renderMaintenance, settings: renderSettings };
     if (renderers[name]) renderers[name](area);
 }
 
@@ -252,18 +245,6 @@ async function loadAll() {
         try { data.versions = await api('/api/versions').then(r => r.json()); } catch(e) { data.versions = []; }
         try { data.webhooks = await api('/api/webhooks').then(r => r.json()); } catch(e) { data.webhooks = []; }
     } catch(e) { console.error('Load error:', e); }
-}
-
-// Solo cargar stats (ligero) para auto-refresh
-async function loadStatsOnly() {
-    try {
-        const s = await api('/api/stats').then(r => r.json()).catch(() => ({}));
-        data.stats = s;
-        // Solo actualizar si estamos en dashboard
-        if (currentSection === 'dashboard') {
-            showSection('dashboard');
-        }
-    } catch(e) { console.error('Stats load error:', e); }
 }
 
 // ========== DASHBOARD ==========
@@ -320,26 +301,16 @@ function renderPatches(area) {
         </div>
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             ${data.patches.length === 0 ? '<div class="col-span-3 text-center py-12"><i class="fas fa-puzzle-piece text-4xl text-gray-300 mb-4"></i><p class="text-gray-500">No hay patches</p></div>' :
-            data.patches.map(p => {
-                const tier = p.tier || 'normal';
-                const tierClass = tier === 'premium' ? 'bg-yellow-100 text-yellow-800 border-yellow-300' : 'bg-gray-100 text-gray-800 border-gray-300';
-                const tierIcon = tier === 'premium' ? '<i class="fas fa-crown mr-1"></i>' : '';
-                return `
-                <div class="bg-white rounded-xl shadow card-hover p-6 border-2 ${tier === 'premium' ? 'border-yellow-300' : 'border-transparent'}">
-                    <div class="flex justify-between items-start mb-3">
-                        <div><h3 class="text-lg font-bold">${p.name}</h3><p class="text-sm text-gray-500">${p.bundle_id}</p></div>
-                        <div class="flex flex-col items-end gap-1">
-                            <span class="px-2 py-1 text-xs bg-purple-100 text-purple-800 rounded-full">v${p.version}</span>
-                            <span class="px-2 py-1 text-xs ${tierClass} rounded-full border">${tierIcon}${tier.toUpperCase()}</span>
-                        </div>
-                    </div>
+            data.patches.map(p => `
+                <div class="bg-white rounded-xl shadow card-hover p-6">
+                    <div class="flex justify-between items-start mb-3"><div><h3 class="text-lg font-bold">${p.name}</h3><p class="text-sm text-gray-500">${p.bundle_id}</p></div><span class="px-2 py-1 text-xs bg-purple-100 text-purple-800 rounded-full">v${p.version}</span></div>
                     <p class="text-sm text-gray-600 mb-3">${p.description||'Sin descripción'}</p>
                     <div class="flex items-center justify-between text-sm text-gray-500 mb-4"><span><i class="fas fa-download mr-1"></i>${p.downloads||0}</span><span>${new Date(p.created_at).toLocaleDateString()}</span></div>
                     <div class="flex space-x-2">
                         <button onclick="pushGitHub('${p.id}')" class="flex-1 bg-green-50 text-green-600 py-2 rounded-lg text-sm font-medium hover:bg-green-100"><i class="fab fa-github mr-1"></i>GitHub</button>
                         <button onclick="deletePatch('${p.id}')" class="flex-1 bg-red-50 text-red-600 py-2 rounded-lg text-sm font-medium hover:bg-red-100"><i class="fas fa-trash mr-1"></i>Eliminar</button>
                     </div>
-                </div>`}).join('')}
+                </div>`).join('')}
         </div>`;
 }
 
@@ -351,163 +322,98 @@ function renderUsers(area) {
     area.innerHTML = `
         <div class="flex justify-between items-center mb-6"><div><h2 class="text-2xl font-bold">Usuarios</h2><p class="text-gray-500">${data.users.length} registrados</p></div>
         <button onclick="exportCSV()" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"><i class="fas fa-download mr-2"></i>Exportar CSV</button></div>
+        
+        <!-- Búsqueda por licencia -->
+        <div class="bg-white rounded-xl shadow p-4 mb-4">
+            <div class="flex items-center space-x-2">
+                <i class="fas fa-search text-gray-400"></i>
+                <input type="text" id="searchLicense" placeholder="Buscar por licencia..." class="flex-1 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500" onkeyup="filterUsersByLicense()">
+                <button onclick="clearUserSearch()" class="px-3 py-2 bg-gray-200 rounded-lg hover:bg-gray-300">Limpiar</button>
+            </div>
+            <p class="text-xs text-gray-500 mt-2">Ingresa una licencia completa o parcial para filtrar usuarios</p>
+        </div>
+        
         <div class="bg-white rounded-xl shadow overflow-hidden"><table class="min-w-full"><thead class="bg-gray-50"><tr>
             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">HWID</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Licencia</th>
             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Dispositivo</th>
             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">iOS</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Patches</th>
             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Última Vez</th>
             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Acciones</th>
-        </tr></thead><tbody class="divide-y divide-gray-200">
-            ${data.users.length === 0 ? '<tr><td colspan="6" class="px-6 py-8 text-center text-gray-500">No hay usuarios</td></tr>' :
-            data.users.map(u => `<tr class="hover:bg-gray-50">
-                <td class="px-6 py-4 text-sm font-mono">${u.hwid.substring(0,12)}...</td>
-                <td class="px-6 py-4 text-sm">${u.device_model||'-'}</td>
-                <td class="px-6 py-4 text-sm">${u.ios_version||'-'}</td>
-                <td class="px-6 py-4"><span class="px-2 py-1 text-xs font-medium ${u.active?'bg-green-100 text-green-800':'bg-red-100 text-red-800'} rounded-full">${u.active?'Activo':'Inactivo'}</span></td>
-                <td class="px-6 py-4 text-sm text-gray-500">${u.last_seen_at?new Date(u.last_seen_at).toLocaleString('es'):'Nunca'}</td>
-                <td class="px-6 py-4 text-sm">
-                    <button onclick="viewUserAccess('${u.hwid}')" class="text-yellow-600 hover:text-yellow-800 mr-2" title="Ver accesos premium"><i class="fas fa-crown"></i></button>
-                    <button onclick="toggleUser('${u.hwid}',${!u.active})" class="${u.active?'text-red-600':'text-green-600'}" title="${u.active?'Desactivar':'Activar'}"><i class="fas ${u.active?'fa-ban':'fa-check'}"></i></button>
-                </td></tr>`).join('')}
+        </tr></thead><tbody id="usersTableBody" class="divide-y divide-gray-200">
+            ${renderUsersTable(data.users)}
         </tbody></table></div>`;
 }
 
+function renderUsersTable(users) {
+    if (users.length === 0) {
+        return '<tr><td colspan="8" class="px-6 py-8 text-center text-gray-500">No hay usuarios</td></tr>';
+    }
+    return users.map(u => {
+        const license = data.licenses.find(l => l.key === u.license_key);
+        const licenseDisplay = license ? `<span class="font-mono text-xs">${license.key.substring(0, 12)}...</span>` : '<span class="text-gray-400 text-xs">N/A</span>';
+        return `<tr class="hover:bg-gray-50 user-row" data-license="${u.license_key || ''}">
+            <td class="px-6 py-4 text-sm font-mono">${u.hwid.substring(0,12)}...</td>
+            <td class="px-6 py-4">${licenseDisplay}</td>
+            <td class="px-6 py-4 text-sm">${u.device_model||'-'}</td>
+            <td class="px-6 py-4 text-sm">${u.ios_version||'-'}</td>
+            <td class="px-6 py-4"><span class="px-2 py-1 bg-purple-100 text-purple-800 rounded-full text-xs">${(u.patches||[]).length}</span></td>
+            <td class="px-6 py-4"><span class="px-2 py-1 text-xs font-medium ${u.active?'bg-green-100 text-green-800':'bg-red-100 text-red-800'} rounded-full">${u.active?'Activo':'Inactivo'}</span></td>
+            <td class="px-6 py-4 text-sm text-gray-500">${u.last_seen_at?new Date(u.last_seen_at).toLocaleString('es'):'Nunca'}</td>
+            <td class="px-6 py-4 text-sm">
+                <button onclick="assignPatches('${u.hwid}')" class="text-purple-600 hover:text-purple-800 mr-2" title="Asignar patches"><i class="fas fa-puzzle-piece"></i></button>
+                <button onclick="toggleUser('${u.hwid}',${!u.active})" class="${u.active?'text-red-600':'text-green-600'}" title="${u.active?'Desactivar':'Activar'}"><i class="fas ${u.active?'fa-ban':'fa-check'}"></i></button>
+            </td></tr>`;
+    }).join('');
+}
+
+function filterUsersByLicense() {
+    const searchTerm = document.getElementById('searchLicense').value.toLowerCase();
+    const rows = document.querySelectorAll('.user-row');
+    
+    if (!searchTerm) {
+        rows.forEach(row => row.style.display = '');
+        return;
+    }
+    
+    rows.forEach(row => {
+        const license = row.getAttribute('data-license').toLowerCase();
+        if (license.includes(searchTerm)) {
+            row.style.display = '';
+        } else {
+            row.style.display = 'none';
+        }
+    });
+}
+
+function clearUserSearch() {
+    document.getElementById('searchLicense').value = '';
+    filterUsersByLicense();
+}
+
 async function toggleUser(hwid, active) { await api(`/api/users/${hwid}`, {method:'PUT',body:{active}}); toast(`Usuario ${active?'activado':'desactivado'}`,'success'); await loadAll(); showSection('users'); }
-function exportCSV() { const csv='HWID,Dispositivo,iOS,Estado\n'+data.users.map(u=>`${u.hwid},${u.device_model},${u.ios_version},${u.active?'Activo':'Inactivo'}`).join('\n'); const a=document.createElement('a'); a.href='data:text/csv,'+encodeURIComponent(csv); a.download='usuarios.csv'; a.click(); }
+function exportCSV() { const csv='HWID,Dispositivo,iOS,Patches,Estado\n'+data.users.map(u=>`${u.hwid},${u.device_model},${u.ios_version},${(u.patches||[]).length},${u.active?'Activo':'Inactivo'}`).join('\n'); const a=document.createElement('a'); a.href='data:text/csv,'+encodeURIComponent(csv); a.download='usuarios.csv'; a.click(); }
 
-async function viewUserAccess(hwid) {
-    try {
-        const r = await api(`/api/access/${hwid}`).then(r => r.json());
-        const user = data.users.find(u => u.hwid === hwid);
-        const html = `<div class="modal active fixed inset-0 bg-black/50 items-center justify-center z-50"><div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4"><div class="p-6 border-b"><h3 class="text-xl font-bold"><i class="fas fa-crown text-yellow-500 mr-2"></i>Accesos Premium</h3><p class="text-sm text-gray-500">${hwid.substring(0,12)}...</p></div><div class="p-6 space-y-3 max-h-96 overflow-y-auto">${r.length === 0 ? '<p class="text-gray-500 text-center py-4">Sin accesos premium</p>' : r.map(a => `<div class="flex items-center justify-between p-3 bg-yellow-50 rounded-lg border border-yellow-200"><div><p class="font-medium">${a.patch_name}</p><p class="text-xs text-gray-500">${a.bundle_id}</p><p class="text-xs text-gray-400">Otorgado: ${new Date(a.granted_at).toLocaleString('es')}</p></div><button onclick="revokeAccess('${hwid}','${a.patch_id}')" class="text-red-600 hover:text-red-800"><i class="fas fa-times"></i></button></div>`).join('')}</div><div class="p-6 border-t flex justify-end"><button onclick="this.closest('.modal').remove()" class="px-4 py-2 bg-gray-200 rounded-lg">Cerrar</button></div></div></div>`;
-        document.getElementById('modalContainer').innerHTML = html;
-    } catch(e) { toast('Error cargando accesos','error'); }
+let selectedHwid = null;
+function assignPatches(hwid) {
+    selectedHwid = hwid;
+    const user = data.users.find(u => u.hwid === hwid);
+    const up = user?.patches || [];
+    const html = `<div class="modal active fixed inset-0 bg-black/50 items-center justify-center z-50"><div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4"><div class="p-6 border-b"><h3 class="text-xl font-bold">Asignar Patches</h3></div><div class="p-6 space-y-3 max-h-96 overflow-y-auto">${data.patches.map(p=>`<label class="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100"><input type="checkbox" value="${p.id}" ${up.includes(p.id)?'checked':''} class="assign-cb w-4 h-4 text-purple-600 rounded"><span class="font-medium">${p.name} <span class="text-gray-500 text-sm">v${p.version}</span></span></label>`).join('')}</div><div class="p-6 border-t flex justify-end space-x-3"><button onclick="this.closest('.modal').remove()" class="px-4 py-2 bg-gray-200 rounded-lg">Cancelar</button><button onclick="saveAssign()" class="px-4 py-2 bg-purple-600 text-white rounded-lg">Guardar</button></div></div></div>`;
+    document.getElementById('modalContainer').innerHTML = html;
 }
 
-async function revokeAccess(hwid, patchId) {
-    if(!confirm('¿Revocar acceso?'))return;
-    try {
-        const r = await api(`/api/access/${hwid}/${patchId}`, {method:'DELETE'});
-        if(r.ok) { toast('Acceso revocado','success'); viewUserAccess(hwid); } else { toast('Error','error'); }
-    } catch(e) { toast('Error','error'); }
-}
-
-// ========== ACCESS MANAGEMENT ==========
-async function renderAccess(area) {
-    let accessData = [];
-    try {
-        accessData = await api('/api/access').then(r => r.json());
-    } catch(e) { console.error('Error loading access:', e); }
-
-    const premiumPatches = data.patches.filter(p => p.tier === 'premium');
-
-    area.innerHTML = `
-        <div class="flex justify-between items-center mb-6">
-            <div><h2 class="text-2xl font-bold"><i class="fas fa-crown text-yellow-500 mr-2"></i>Accesos Premium</h2><p class="text-gray-500">Gestiona quién puede acceder a patches premium</p></div>
-            <button onclick="showModal('grantAccess')" class="bg-yellow-600 text-white px-4 py-2 rounded-lg hover:bg-yellow-700"><i class="fas fa-plus mr-2"></i>Otorgar Acceso</button>
-        </div>
-
-        <div class="bg-white rounded-xl shadow p-6 mb-6">
-            <h3 class="text-lg font-bold mb-4">Resumen</h3>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div class="bg-yellow-50 rounded-lg p-4 border border-yellow-200">
-                    <p class="text-sm text-yellow-700">Patches Premium</p>
-                    <p class="text-2xl font-bold text-yellow-800">${premiumPatches.length}</p>
-                </div>
-                <div class="bg-blue-50 rounded-lg p-4 border border-blue-200">
-                    <p class="text-sm text-blue-700">Accesos Otorgados</p>
-                    <p class="text-2xl font-bold text-blue-800">${accessData.length}</p>
-                </div>
-                <div class="bg-green-50 rounded-lg p-4 border border-green-200">
-                    <p class="text-sm text-green-700">Usuarios con Acceso</p>
-                    <p class="text-2xl font-bold text-green-800">${new Set(accessData.map(a => a.hwid)).size}</p>
-                </div>
-            </div>
-        </div>
-
-        <div class="bg-white rounded-xl shadow overflow-hidden">
-            <table class="min-w-full">
-                <thead class="bg-gray-50">
-                    <tr>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Usuario</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Patch</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Otorgado</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Acciones</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-gray-200">
-                    ${accessData.length === 0 ? '<tr><td colspan="4" class="px-6 py-8 text-center text-gray-500">No hay accesos otorgados</td></tr>' :
-                    accessData.map(a => `<tr class="hover:bg-gray-50">
-                        <td class="px-6 py-4">
-                            <p class="text-sm font-mono">${a.hwid.substring(0,12)}...</p>
-                            <p class="text-xs text-gray-500">${a.device_model || 'N/A'} - iOS ${a.ios_version || '?'}</p>
-                        </td>
-                        <td class="px-6 py-4">
-                            <p class="text-sm font-medium">${a.patch_name || 'N/A'}</p>
-                        </td>
-                        <td class="px-6 py-4 text-sm text-gray-500">${new Date(a.granted_at).toLocaleString('es')}</td>
-                        <td class="px-6 py-4 text-sm">
-                            <button onclick="revokeAccessFromTable('${a.hwid}','${a.patch_id}')" class="text-red-600 hover:text-red-800" title="Revocar"><i class="fas fa-times"></i></button>
-                        </td>
-                    </tr>`).join('')}
-                </tbody>
-            </table>
-        </div>`;
-}
-
-async function revokeAccessFromTable(hwid, patchId) {
-    if(!confirm('¿Revocar acceso?'))return;
-    try {
-        const r = await api(`/api/access/${hwid}/${patchId}`, {method:'DELETE'});
-        if(r.ok) { toast('Acceso revocado','success'); showSection('access'); } else { toast('Error','error'); }
-    } catch(e) { toast('Error','error'); }
+async function saveAssign() {
+    const ids = Array.from(document.querySelectorAll('.assign-cb:checked')).map(cb => cb.value);
+    await api(`/api/users/${selectedHwid}/patches`, {method:'PUT',body:{patchIds:ids}});
+    toast('Patches asignados','success');
+    document.querySelector('.modal')?.remove();
+    await loadAll(); showSection('users');
 }
 
 // ========== LICENSES ==========
-async function loadGlobalPauseStatus() {
-    try {
-        const d = await api('/api/licenses/pause-status').then(r => r.json());
-        data.globalPause = d;
-        const badge = document.getElementById('globalPauseBadge');
-        if (badge) {
-            if (d.paused) {
-                badge.innerHTML = `<span class="px-3 py-1 bg-red-100 text-red-700 rounded-full text-sm"><i class="fas fa-pause-circle mr-1"></i>PAUSADO</span>` + (d.startedAt ? `<span class="text-xs text-gray-500 ml-2">Desde: ${new Date(d.startedAt).toLocaleString('es')}</span>` : '');
-            } else {
-                badge.innerHTML = '<span class="px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm"><i class="fas fa-check-circle mr-1"></i>ACTIVO</span>';
-            }
-        }
-    } catch(e) { console.error('Pause status error:', e); }
-}
-
-async function toggleGlobalPause() {
-    const toggle = document.getElementById('globalPauseToggle');
-    const reason = document.getElementById('globalPauseReason');
-    if (!toggle) return;
-    const isPaused = toggle.checked;
-    try {
-        if (isPaused) {
-            const reasonText = reason ? reason.value.trim() : '';
-            if (!reasonText) { toast('Ingresa un motivo para la pausa','error'); toggle.checked=false; return; }
-            const r = await api('/api/licenses/pause-all', {method:'POST', body:{reason:reasonText}});
-            if (r.ok) { toast('Todas las licencias pausadas','success'); } else { toast('Error pausando','error'); toggle.checked=false; }
-        } else {
-            const r = await api('/api/licenses/unpause-all', {method:'POST'});
-            if (r.ok) { toast('Licencias reactivadas','success'); if(reason) reason.value=''; } else { toast('Error reactivando','error'); toggle.checked=true; }
-        }
-        await loadGlobalPauseStatus();
-    } catch(e) { toast('Error de conexión','error'); toggle.checked=!isPaused; }
-}
-
-async function pauseLicense(k) {
-    if(!confirm('¿Pausar esta licencia?'))return;
-    try { const r=await api(`/api/licenses/${k}/pause`,{method:'POST'}); if(r.ok){toast('Licencia pausada','success');await loadAll();showSection('licenses');}else{toast('Error','error');} } catch(e){toast('Error','error');}
-}
-
-async function unpauseLicense(k) {
-    try { const r=await api(`/api/licenses/${k}/unpause`,{method:'POST'}); if(r.ok){toast('Licencia reactivada','success');await loadAll();showSection('licenses');}else{toast('Error','error');} } catch(e){toast('Error','error');}
-}
-
 function renderLicenses(area) {
     area.innerHTML = `
         <div class="flex justify-between items-center mb-6"><div><h2 class="text-2xl font-bold">Licencias</h2><p class="text-gray-500">${data.licenses.length} generadas</p></div>
@@ -516,48 +422,6 @@ function renderLicenses(area) {
             <button onclick="showModal('license')" class="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700"><i class="fas fa-plus mr-2"></i>Generar</button>
             <button onclick="showModal('bulkLicense')" class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700"><i class="fas fa-layer-group mr-2"></i>Lote</button>
         </div></div>
-
-        <!-- Panel de Pausa Global -->
-        <div class="bg-white rounded-xl shadow-lg p-6 mb-6 border-2 border-purple-200">
-            <div class="flex items-center justify-between mb-4">
-                <div class="flex items-center gap-3">
-                    <div class="w-12 h-12 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
-                        <i class="fas fa-pause-circle text-white text-xl"></i>
-                    </div>
-                    <div>
-                        <h3 class="text-lg font-bold text-gray-800">Control Global de Licencias</h3>
-                        <p class="text-sm text-gray-500">Pausa todas las licencias temporalmente</p>
-                    </div>
-                </div>
-                <div id="globalPauseBadge">
-                    <span class="px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm"><i class="fas fa-check-circle mr-1"></i>ACTIVO</span>
-                </div>
-            </div>
-            <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                <div>
-                    <p class="font-medium text-gray-700">Pausa Global</p>
-                    <p class="text-sm text-gray-500">Cuando está activo, NINGUNA licencia funcionará</p>
-                </div>
-                <label class="switch"><input type="checkbox" id="globalPauseToggle" onchange="toggleGlobalPause()"><span class="slider"></span></label>
-            </div>
-            <div class="mt-4">
-                <label class="block text-sm font-medium text-gray-700 mb-2"><i class="fas fa-comment-alt mr-1"></i>Motivo de la pausa</label>
-                <input type="text" id="globalPauseReason" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500" placeholder="Ej: Actualización del sistema, Mantenimiento programado...">
-                <p class="text-xs text-gray-400 mt-1"><i class="fas fa-info-circle mr-1"></i>Este motivo se mostrará a los usuarios cuando intenten usar la app</p>
-            </div>
-            <div class="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                <p class="text-sm text-yellow-800"><i class="fas fa-exclamation-triangle mr-2"></i><strong>Atención:</strong> La pausa global afecta a TODOS los usuarios inmediatamente. Usa pausa individual para casos específicos.</p>
-            </div>
-        </div>
-
-        <!-- Leyenda -->
-        <div class="flex flex-wrap gap-4 mb-4 p-3 bg-gray-50 rounded-lg">
-            <div class="flex items-center gap-2"><span class="w-3 h-3 bg-green-500 rounded-full"></span><span class="text-sm text-gray-600">Activa</span></div>
-            <div class="flex items-center gap-2"><span class="w-3 h-3 bg-yellow-500 rounded-full"></span><span class="text-sm text-gray-600">Pausada</span></div>
-            <div class="flex items-center gap-2"><span class="w-3 h-3 bg-red-500 rounded-full"></span><span class="text-sm text-gray-600">Revocada</span></div>
-            <div class="flex items-center gap-2"><span class="w-3 h-3 bg-gray-400 rounded-full"></span><span class="text-sm text-gray-600">Expirada</span></div>
-        </div>
-
         <div class="bg-white rounded-xl shadow overflow-hidden"><table class="min-w-full"><thead class="bg-gray-50"><tr>
             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Clave</th>
             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Expiración</th>
@@ -566,27 +430,14 @@ function renderLicenses(area) {
             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Acciones</th>
         </tr></thead><tbody class="divide-y divide-gray-200">
             ${data.licenses.length===0?'<tr><td colspan="5" class="px-6 py-8 text-center text-gray-500">No hay licencias</td></tr>':
-            data.licenses.map(l=>{
-                const exp=new Date(l.expires_at)<new Date();
-                const paused=l.paused===1;
-                const statusClass=l.revoked?'bg-red-100 text-red-800':paused?'bg-yellow-100 text-yellow-800':exp?'bg-gray-100 text-gray-800':'bg-green-100 text-green-800';
-                const statusText=l.revoked?'Revocada':paused?'Pausada':exp?'Expirada':'Activa';
-                const rowBorder=l.revoked?'border-l-4 border-l-red-500':paused?'border-l-4 border-l-yellow-500':'border-l-4 border-l-green-500';
-                return `<tr class="hover:bg-gray-50 ${rowBorder}">
+            data.licenses.map(l=>{const exp=new Date(l.expires_at)<new Date();return `<tr class="hover:bg-gray-50">
                 <td class="px-6 py-4 text-sm font-mono">${l.key}</td>
                 <td class="px-6 py-4 text-sm">${new Date(l.expires_at).toLocaleDateString('es')}</td>
-                <td class="px-6 py-4"><span class="px-2 py-1 text-xs font-medium ${statusClass} rounded-full">${statusText}</span></td>
+                <td class="px-6 py-4"><span class="px-2 py-1 text-xs font-medium ${l.revoked||exp?'bg-red-100 text-red-800':'bg-green-100 text-green-800'} rounded-full">${l.revoked?'Revocada':exp?'Expirada':'Activa'}</span></td>
                 <td class="px-6 py-4 text-sm font-mono">${l.hwid?l.hwid.substring(0,12)+'...':'Sin vincular'}</td>
-                <td class="px-6 py-4 text-sm">
-                    <button onclick="copyKey('${l.key}')" class="text-blue-600 mr-2" title="Copiar"><i class="fas fa-copy"></i></button>
-                    ${!l.revoked&&!exp?(paused?`<button onclick="unpauseLicense('${l.key}')" class="text-green-600 mr-2" title="Reactivar"><i class="fas fa-play"></i></button>`:`<button onclick="pauseLicense('${l.key}')" class="text-yellow-600 mr-2" title="Pausar"><i class="fas fa-pause"></i></button>`):''}
-                    <button onclick="unbindLicense('${l.key}')" class="text-yellow-600 mr-2" title="Desvincular"><i class="fas fa-unlink"></i></button>
-                    <button onclick="revokeLicense('${l.key}')" class="text-orange-600 mr-2" title="Revocar"><i class="fas fa-ban"></i></button>
-                    <button onclick="deleteLicense('${l.key}')" class="text-red-600" title="Eliminar"><i class="fas fa-trash"></i></button>
-                </td>
+                <td class="px-6 py-4 text-sm"><button onclick="copyKey('${l.key}')" class="text-blue-600 mr-2" title="Copiar"><i class="fas fa-copy"></i></button><button onclick="assignPatchesToLicense('${l.key}')" class="text-purple-600 mr-2" title="Asignar patches"><i class="fas fa-puzzle-piece"></i></button><button onclick="unbindLicense('${l.key}')" class="text-yellow-600 mr-2" title="Desvincular"><i class="fas fa-unlink"></i></button><button onclick="revokeLicense('${l.key}')" class="text-orange-600 mr-2" title="Revocar"><i class="fas fa-ban"></i></button><button onclick="deleteLicense('${l.key}')" class="text-red-600" title="Eliminar"><i class="fas fa-trash"></i></button></td>
             </tr>`}).join('')}
         </tbody></table></div>`;
-    loadGlobalPauseStatus();
 }
 
 function copyKey(k) { navigator.clipboard.writeText(k); toast('Copiada','success'); }
@@ -594,6 +445,73 @@ async function revokeLicense(k) { if(!confirm('¿Revocar?'))return; await api(`/
 async function unbindLicense(k) { if(!confirm('¿Desvincular dispositivo?'))return; await api(`/api/licenses/${k}/unbind`,{method:'POST'}); toast('Desvinculada','success'); await loadAll(); showSection('licenses'); }
 async function unbindAllLicenses() { if(!confirm('¿Desvincular TODAS las licencias? Esta acción no se puede deshacer.'))return; await api('/api/licenses/unbind-all',{method:'POST'}); toast('Todas las licencias desvinculadas','success'); await loadAll(); showSection('licenses'); }
 async function deleteLicense(k) { if(!confirm('¿ELIMINAR esta licencia permanentemente? Esta acción no se puede deshacer.'))return; await api(`/api/licenses/${k}/delete`,{method:'DELETE'}); toast('Licencia eliminada','success'); await loadAll(); showSection('licenses'); }
+
+async function assignPatchesToLicense(licenseKey) {
+    const license = data.licenses.find(l => l.key === licenseKey);
+    if (!license) { toast('Licencia no encontrada','error'); return; }
+    
+    // Obtener el usuario vinculado a esta licencia
+    const user = data.users.find(u => u.license_key === licenseKey);
+    if (!user) { toast('Esta licencia no está vinculada a ningún usuario','error'); return; }
+    
+    // Abrir modal de asignación
+    openAssignPatchesModal(user.hwid, user);
+}
+
+function openAssignPatchesModal(hwid, user) {
+    const userPatches = user.patches || [];
+    const modal = document.createElement('div');
+    modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+    modal.innerHTML = `
+        <div class="bg-white rounded-xl p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <h3 class="text-xl font-bold mb-4">Asignar Patches</h3>
+            <p class="text-sm text-gray-600 mb-4">Usuario: ${hwid.substring(0, 16)}...</p>
+            <div class="space-y-2 mb-4">
+                ${data.patches.map(patch => `
+                    <label class="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100">
+                        <input type="checkbox" value="${patch.id}" ${userPatches.includes(patch.id) ? 'checked' : ''} class="patch-checkbox w-4 h-4">
+                        <div class="flex-1">
+                            <div class="font-medium">${patch.name}</div>
+                            <div class="text-xs text-gray-500">${patch.bundle_id} - v${patch.version}</div>
+                        </div>
+                    </label>
+                `).join('')}
+            </div>
+            <div class="flex justify-end space-x-2">
+                <button onclick="this.closest('.fixed').remove()" class="px-4 py-2 bg-gray-200 rounded-lg">Cancelar</button>
+                <button onclick="savePatchAssignment('${hwid}')" class="px-4 py-2 bg-purple-600 text-white rounded-lg">Guardar</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+}
+
+async function savePatchAssignment(hwid) {
+    const checkboxes = document.querySelectorAll('.patch-checkbox:checked');
+    const patchIds = Array.from(checkboxes).map(cb => cb.value);
+    
+    try {
+        const res = await fetch(`${API_BASE}/api/users/${hwid}/patches`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${authToken}`
+            },
+            body: JSON.stringify({ patchIds })
+        });
+        
+        if (res.ok) {
+            toast('Patches asignados correctamente','success');
+            document.querySelector('.fixed').remove();
+            await loadAll();
+        } else {
+            toast('Error al asignar patches','error');
+        }
+    } catch (err) {
+        console.error('Error:', err);
+        toast('Error de conexión','error');
+    }
+}
 
 // ========== MESSAGES ==========
 function renderMessages(area) {
@@ -734,13 +652,12 @@ function renderSettings(area) {
 // ========== MODALS ==========
 function showModal(type) {
     const modals = {
-        patch: `<div class="modal active fixed inset-0 bg-black/50 items-center justify-center z-50"><div class="bg-white rounded-2xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto"><div class="p-6 border-b"><h3 class="text-xl font-bold">Nuevo Patch</h3></div><form id="modalForm" class="p-6 space-y-4"><div><label class="block text-sm font-medium mb-2">Nombre</label><input name="name" required class="w-full px-4 py-2 border rounded-lg"></div><div><label class="block text-sm font-medium mb-2">Bundle ID</label><input name="bundleId" required class="w-full px-4 py-2 border rounded-lg"></div><div><label class="block text-sm font-medium mb-2">Versión</label><input name="version" required class="w-full px-4 py-2 border rounded-lg"></div><div><label class="block text-sm font-medium mb-2">Descripción</label><textarea name="description" rows="2" class="w-full px-4 py-2 border rounded-lg"></textarea></div><div><label class="block text-sm font-medium mb-2">Tipo</label><select name="tier" class="w-full px-4 py-2 border rounded-lg"><option value="normal">Normal - Todos los usuarios</option><option value="premium">Premium - Solo usuarios con acceso</option></select><p class="text-xs text-gray-500 mt-1">Los patches premium solo son visibles para usuarios con licencia premium y acceso específico</p></div><div><label class="block text-sm font-medium mb-2">Contraseña de cifrado</label><input name="password" type="text" placeholder="Contraseña para decodificar el .3105" class="w-full px-4 py-2 border rounded-lg"><p class="text-xs text-gray-500 mt-1">La contraseña que se usó para cifrar este patch</p></div><div><label class="block text-sm font-medium mb-2">Archivo .3105</label><input name="file" type="file" accept=".3105" required class="w-full px-4 py-2 border rounded-lg"></div></form><div class="p-6 border-t flex justify-end space-x-3"><button onclick="this.closest('.modal').remove()" class="px-4 py-2 bg-gray-200 rounded-lg">Cancelar</button><button onclick="submitPatch()" class="px-4 py-2 bg-purple-600 text-white rounded-lg">Crear</button></div></div></div>`,
-        license: `<div class="modal active fixed inset-0 bg-black/50 items-center justify-center z-50"><div class="bg-white rounded-2xl w-full max-w-md mx-4"><div class="p-6 border-b"><h3 class="text-xl font-bold">Generar Licencia</h3></div><div class="p-6 space-y-4"><div><label class="block text-sm font-medium mb-2">Prefijo (opcional)</label><input type="text" id="licPrefix" placeholder="VINI" class="w-full px-4 py-2 border rounded-lg"><p class="text-xs text-gray-500 mt-1">Ejemplo: VINI → VINI-A1B2-C3D4-E5F6</p></div><div><label class="block text-sm font-medium mb-2">Días de validez</label><input type="number" id="licDays" value="30" class="w-full px-4 py-2 border rounded-lg"></div><div><label class="block text-sm font-medium mb-2">Tipo</label><select id="licTier" class="w-full px-4 py-2 border rounded-lg"><option value="normal">Normal - Acceso a patches normales</option><option value="premium">Premium - Acceso a patches premium</option></select><p class="text-xs text-gray-500 mt-1">Las licencias premium pueden acceder a patches exclusivos</p></div></div><div class="p-6 border-t flex justify-end space-x-3"><button onclick="this.closest('.modal').remove()" class="px-4 py-2 bg-gray-200 rounded-lg">Cancelar</button><button onclick="submitLicense()" class="px-4 py-2 bg-purple-600 text-white rounded-lg">Generar</button></div></div></div>`,
-        bulkLicense: `<div class="modal active fixed inset-0 bg-black/50 items-center justify-center z-50"><div class="bg-white rounded-2xl w-full max-w-md mx-4"><div class="p-6 border-b"><h3 class="text-xl font-bold">Generar en Lote</h3></div><div class="p-6 space-y-4"><div><label class="block text-sm font-medium mb-2">Prefijo (opcional)</label><input type="text" id="bulkPrefix" placeholder="VINI" class="w-full px-4 py-2 border rounded-lg"><p class="text-xs text-gray-500 mt-1">Ejemplo: VINI → VINI-A1B2-C3D4-E5F6</p></div><div><label class="block text-sm font-medium mb-2">Cantidad</label><input type="number" id="bulkN" value="10" class="w-full px-4 py-2 border rounded-lg"></div><div><label class="block text-sm font-medium mb-2">Días</label><input type="number" id="bulkD" value="30" class="w-full px-4 py-2 border rounded-lg"></div><div><label class="block text-sm font-medium mb-2">Tipo</label><select id="bulkTier" class="w-full px-4 py-2 border rounded-lg"><option value="normal">Normal</option><option value="premium">Premium</option></select></div></div><div class="p-6 border-t flex justify-end space-x-3"><button onclick="this.closest('.modal').remove()" class="px-4 py-2 bg-gray-200 rounded-lg">Cancelar</button><button onclick="submitBulk()" class="px-4 py-2 bg-purple-600 text-white rounded-lg">Generar</button></div></div></div>`,
+        patch: `<div class="modal active fixed inset-0 bg-black/50 items-center justify-center z-50"><div class="bg-white rounded-2xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto"><div class="p-6 border-b"><h3 class="text-xl font-bold">Nuevo Patch</h3></div><form id="modalForm" class="p-6 space-y-4"><div><label class="block text-sm font-medium mb-2">Nombre</label><input name="name" required class="w-full px-4 py-2 border rounded-lg"></div><div><label class="block text-sm font-medium mb-2">Bundle ID</label><input name="bundleId" required class="w-full px-4 py-2 border rounded-lg"></div><div><label class="block text-sm font-medium mb-2">Versión</label><input name="version" required class="w-full px-4 py-2 border rounded-lg"></div><div><label class="block text-sm font-medium mb-2">Descripción</label><textarea name="description" rows="2" class="w-full px-4 py-2 border rounded-lg"></textarea></div><div><label class="block text-sm font-medium mb-2">Contraseña de cifrado</label><input name="password" type="text" placeholder="Contraseña para decodificar el .3105" class="w-full px-4 py-2 border rounded-lg"><p class="text-xs text-gray-500 mt-1">La contraseña que se usó para cifrar este patch</p></div><div><label class="block text-sm font-medium mb-2">Archivo .3105</label><input name="file" type="file" accept=".3105" required class="w-full px-4 py-2 border rounded-lg"></div></form><div class="p-6 border-t flex justify-end space-x-3"><button onclick="this.closest('.modal').remove()" class="px-4 py-2 bg-gray-200 rounded-lg">Cancelar</button><button onclick="submitPatch()" class="px-4 py-2 bg-purple-600 text-white rounded-lg">Crear</button></div></div></div>`,
+        license: `<div class="modal active fixed inset-0 bg-black/50 items-center justify-center z-50"><div class="bg-white rounded-2xl w-full max-w-md mx-4"><div class="p-6 border-b"><h3 class="text-xl font-bold">Generar Licencia</h3></div><div class="p-6 space-y-4"><div><label class="block text-sm font-medium mb-2">Prefijo (opcional)</label><input type="text" id="licPrefix" placeholder="VINI" class="w-full px-4 py-2 border rounded-lg"><p class="text-xs text-gray-500 mt-1">Ejemplo: VINI → VINI-A1B2-C3D4-E5F6</p></div><div><label class="block text-sm font-medium mb-2">Días de validez</label><input type="number" id="licDays" value="30" class="w-full px-4 py-2 border rounded-lg"></div></div><div class="p-6 border-t flex justify-end space-x-3"><button onclick="this.closest('.modal').remove()" class="px-4 py-2 bg-gray-200 rounded-lg">Cancelar</button><button onclick="submitLicense()" class="px-4 py-2 bg-purple-600 text-white rounded-lg">Generar</button></div></div></div>`,
+        bulkLicense: `<div class="modal active fixed inset-0 bg-black/50 items-center justify-center z-50"><div class="bg-white rounded-2xl w-full max-w-md mx-4"><div class="p-6 border-b"><h3 class="text-xl font-bold">Generar en Lote</h3></div><div class="p-6 space-y-4"><div><label class="block text-sm font-medium mb-2">Prefijo (opcional)</label><input type="text" id="bulkPrefix" placeholder="VINI" class="w-full px-4 py-2 border rounded-lg"><p class="text-xs text-gray-500 mt-1">Ejemplo: VINI → VINI-A1B2-C3D4-E5F6</p></div><div><label class="block text-sm font-medium mb-2">Cantidad</label><input type="number" id="bulkN" value="10" class="w-full px-4 py-2 border rounded-lg"></div><div><label class="block text-sm font-medium mb-2">Días</label><input type="number" id="bulkD" value="30" class="w-full px-4 py-2 border rounded-lg"></div></div><div class="p-6 border-t flex justify-end space-x-3"><button onclick="this.closest('.modal').remove()" class="px-4 py-2 bg-gray-200 rounded-lg">Cancelar</button><button onclick="submitBulk()" class="px-4 py-2 bg-purple-600 text-white rounded-lg">Generar</button></div></div></div>`,
         message: `<div class="modal active fixed inset-0 bg-black/50 items-center justify-center z-50"><div class="bg-white rounded-2xl w-full max-w-lg mx-4"><div class="p-6 border-b"><h3 class="text-xl font-bold">Nuevo Mensaje</h3></div><div class="p-6 space-y-4"><div><label class="block text-sm font-medium mb-2">Título</label><input id="msgT" required class="w-full px-4 py-2 border rounded-lg"></div><div><label class="block text-sm font-medium mb-2">Contenido</label><textarea id="msgC" rows="3" required class="w-full px-4 py-2 border rounded-lg"></textarea></div><div><label class="block text-sm font-medium mb-2">Tipo</label><select id="msgTy" class="w-full px-4 py-2 border rounded-lg"><option value="info">Info</option><option value="warning">Advertencia</option><option value="error">Error</option><option value="success">Éxito</option><option value="update">Actualización</option></select></div><div><label class="block text-sm font-medium mb-2">Destino (vacío=todos)</label><input id="msgTg" class="w-full px-4 py-2 border rounded-lg" placeholder="HWID o vacío"></div></div><div class="p-6 border-t flex justify-end space-x-3"><button onclick="this.closest('.modal').remove()" class="px-4 py-2 bg-gray-200 rounded-lg">Cancelar</button><button onclick="submitMsg()" class="px-4 py-2 bg-purple-600 text-white rounded-lg">Enviar</button></div></div></div>`,
         banner: `<div class="modal active fixed inset-0 bg-black/50 items-center justify-center z-50"><div class="bg-white rounded-2xl w-full max-w-lg mx-4"><div class="p-6 border-b"><h3 class="text-xl font-bold">Nuevo Banner</h3></div><div class="p-6 space-y-4"><div><label class="block text-sm font-medium mb-2">Título</label><input id="banT" required class="w-full px-4 py-2 border rounded-lg"></div><div><label class="block text-sm font-medium mb-2">Texto</label><input id="banTx" required class="w-full px-4 py-2 border rounded-lg"></div><div><label class="block text-sm font-medium mb-2">Color</label><select id="banC" class="w-full px-4 py-2 border rounded-lg"><option value="#667eea">Púrpura</option><option value="#4facfe">Azul</option><option value="#38ef7d">Verde</option><option value="#f5576c">Rojo</option><option value="#f093fb">Rosa</option></select></div><div><label class="block text-sm font-medium mb-2">Posición</label><select id="banP" class="w-full px-4 py-2 border rounded-lg"><option value="top">Arriba</option><option value="bottom">Abajo</option></select></div></div><div class="p-6 border-t flex justify-end space-x-3"><button onclick="this.closest('.modal').remove()" class="px-4 py-2 bg-gray-200 rounded-lg">Cancelar</button><button onclick="submitBanner()" class="px-4 py-2 bg-purple-600 text-white rounded-lg">Crear</button></div></div></div>`,
         version: `<div class="modal active fixed inset-0 bg-black/50 items-center justify-center z-50"><div class="bg-white rounded-2xl w-full max-w-lg mx-4"><div class="p-6 border-b"><h3 class="text-xl font-bold">Nueva Versión</h3></div><div class="p-6 space-y-4"><div><label class="block text-sm font-medium mb-2">Versión</label><input id="verN" required placeholder="1.2.0" class="w-full px-4 py-2 border rounded-lg"></div><div><label class="block text-sm font-medium mb-2">Min iOS</label><input id="verMin" placeholder="16.0" class="w-full px-4 py-2 border rounded-lg"></div><div><label class="block text-sm font-medium mb-2">Max iOS</label><input id="verMax" placeholder="18.7" class="w-full px-4 py-2 border rounded-lg"></div><div><label class="block text-sm font-medium mb-2">Changelog</label><textarea id="verCL" rows="3" class="w-full px-4 py-2 border rounded-lg"></textarea></div><div><label class="block text-sm font-medium mb-2">URL descarga</label><input id="verURL" class="w-full px-4 py-2 border rounded-lg"></div><label class="flex items-center space-x-2"><input type="checkbox" id="verForce" class="w-4 h-4"><span class="text-sm font-medium">Forzar actualización</span></label></div><div class="p-6 border-t flex justify-end space-x-3"><button onclick="this.closest('.modal').remove()" class="px-4 py-2 bg-gray-200 rounded-lg">Cancelar</button><button onclick="submitVersion()" class="px-4 py-2 bg-purple-600 text-white rounded-lg">Crear</button></div></div></div>`,
-        grantAccess: `<div class="modal active fixed inset-0 bg-black/50 items-center justify-center z-50"><div class="bg-white rounded-2xl w-full max-w-lg mx-4"><div class="p-6 border-b"><h3 class="text-xl font-bold"><i class="fas fa-crown text-yellow-500 mr-2"></i>Otorgar Acceso Premium</h3></div><div class="p-6 space-y-4"><div><label class="block text-sm font-medium mb-2">Usuario (HWID)</label><select id="accessHwid" class="w-full px-4 py-2 border rounded-lg">${data.users.map(u => `<option value="${u.hwid}">${u.hwid.substring(0,12)}... - ${u.device_model || 'N/A'}</option>`).join('')}</select><p class="text-xs text-gray-500 mt-1">Selecciona el usuario que recibirá el acceso</p></div><div><label class="block text-sm font-medium mb-2">Patch Premium</label><select id="accessPatch" class="w-full px-4 py-2 border rounded-lg">${data.patches.filter(p => p.tier === 'premium').map(p => `<option value="${p.id}">${p.name} - ${p.bundle_id}</option>`).join('')}</select><p class="text-xs text-gray-500 mt-1">Solo se muestran patches premium</p></div></div><div class="p-6 border-t flex justify-end space-x-3"><button onclick="this.closest('.modal').remove()" class="px-4 py-2 bg-gray-200 rounded-lg">Cancelar</button><button onclick="submitGrantAccess()" class="px-4 py-2 bg-yellow-600 text-white rounded-lg">Otorgar</button></div></div></div>`,
         webhook: `<div class="modal active fixed inset-0 bg-black/50 items-center justify-center z-50"><div class="bg-white rounded-2xl w-full max-w-lg mx-4"><div class="p-6 border-b"><h3 class="text-xl font-bold">Nuevo Webhook</h3></div><div class="p-6 space-y-4"><div><label class="block text-sm font-medium mb-2">Nombre</label><input id="whN" required class="w-full px-4 py-2 border rounded-lg"></div><div><label class="block text-sm font-medium mb-2">URL</label><input id="whU" required placeholder="https://..." class="w-full px-4 py-2 border rounded-lg"></div><div><label class="block text-sm font-medium mb-2">Eventos</label><div class="space-y-2"><label class="flex items-center space-x-2"><input type="checkbox" value="user.login" class="wh-ev w-4 h-4"><span class="text-sm">Login</span></label><label class="flex items-center space-x-2"><input type="checkbox" value="patch.download" class="wh-ev w-4 h-4"><span class="text-sm">Descarga patch</span></label><label class="flex items-center space-x-2"><input type="checkbox" value="license.created" class="wh-ev w-4 h-4"><span class="text-sm">Licencia creada</span></label><label class="flex items-center space-x-2"><input type="checkbox" value="error" class="wh-ev w-4 h-4"><span class="text-sm">Error</span></label></div></div></div><div class="p-6 border-t flex justify-end space-x-3"><button onclick="this.closest('.modal').remove()" class="px-4 py-2 bg-gray-200 rounded-lg">Cancelar</button><button onclick="submitWebhook()" class="px-4 py-2 bg-purple-600 text-white rounded-lg">Crear</button></div></div></div>`
     };
     document.getElementById('modalContainer').innerHTML = modals[type] || '';
@@ -755,7 +672,6 @@ async function submitPatch() {
     fd.append('version', form.version.value);
     fd.append('description', form.description.value);
     fd.append('password', form.password.value);
-    fd.append('tier', form.tier.value);
     fd.append('file', form.file.files[0]);
     const r = await api('/api/patches', {method:'POST', body:fd});
     if (r.ok) { toast('Patch creado','success'); document.querySelector('.modal')?.remove(); await loadAll(); showSection('patches'); } else toast('Error','error');
@@ -764,23 +680,21 @@ async function submitPatch() {
 async function submitLicense() {
     const prefix = document.getElementById('licPrefix').value.trim().toUpperCase();
     const days = parseInt(document.getElementById('licDays').value);
-    const tier = document.getElementById('licTier').value;
     const key = generateLicenseKey(prefix);
-    const r = await api('/api/licenses', {method:'POST', body:{validDays:days, customKey:key, tier}});
-    if (r.ok) { toast('Licencia: ' + key + ' (' + tier + ')','success'); document.querySelector('.modal')?.remove(); await loadAll(); showSection('licenses'); } else toast('Error','error');
+    const r = await api('/api/licenses', {method:'POST', body:{validDays:days, customKey:key}});
+    if (r.ok) { toast('Licencia: ' + key,'success'); document.querySelector('.modal')?.remove(); await loadAll(); showSection('licenses'); } else toast('Error','error');
 }
 
 async function submitBulk() {
     const prefix = document.getElementById('bulkPrefix').value.trim().toUpperCase();
     const n = parseInt(document.getElementById('bulkN').value);
     const days = parseInt(document.getElementById('bulkD').value);
-    const tier = document.getElementById('bulkTier').value;
-    toast(`Generando ${n} licencias ${tier}...`, 'info');
+    toast(`Generando ${n} licencias...`, 'info');
     let successCount = 0;
     for (let i = 0; i < n; i++) {
         try {
             const key = generateLicenseKey(prefix);
-            const r = await api('/api/licenses', {method:'POST', body:{validDays:days, customKey:key, tier}});
+            const r = await api('/api/licenses', {method:'POST', body:{validDays:days, customKey:key}});
             if (r.ok) successCount++;
         } catch(e) {
             console.error('Error generating license:', e);
@@ -804,17 +718,6 @@ async function submitBanner() {
 async function submitVersion() {
     const r = await api('/api/versions', {method:'POST', body:{version:document.getElementById('verN').value,min_ios:document.getElementById('verMin').value,max_ios:document.getElementById('verMax').value,changelog:document.getElementById('verCL').value,download_url:document.getElementById('verURL').value,force_update:document.getElementById('verForce').checked}});
     if (r.ok) { toast('Versión creada','success'); document.querySelector('.modal')?.remove(); await loadAll(); showSection('versions'); } else toast('Error','error');
-}
-
-async function submitGrantAccess() {
-    const hwid = document.getElementById('accessHwid').value;
-    const patchId = document.getElementById('accessPatch').value;
-    if (!hwid || !patchId) { toast('Selecciona usuario y patch','error'); return; }
-    try {
-        const r = await api('/api/access', {method:'POST', body:{hwid, patchId}});
-        if (r.ok) { toast('Acceso otorgado','success'); document.querySelector('.modal')?.remove(); showSection('access'); } 
-        else { const e = await r.json(); toast(e.error || 'Error','error'); }
-    } catch(e) { toast('Error','error'); }
 }
 
 async function submitWebhook() {
