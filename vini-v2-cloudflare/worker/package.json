@@ -1,0 +1,14 @@
+{
+  "name": "vini-v2-api",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "db:create": "wrangler d1 create vini-v2-db",
+    "db:init": "wrangler d1 execute vini-v2-db --file=worker/schema.sql"
+  },
+  "devDependencies": {
+    "wrangler": "^3.0.0"
+  }
+}
