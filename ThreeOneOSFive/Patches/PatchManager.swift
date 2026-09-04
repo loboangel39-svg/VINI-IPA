@@ -56,14 +56,24 @@ final class PatchManager: ObservableObject {
                 }
             }
             
-            // 3. Limpiar archivos temporales
+            // 3. Eliminar patches locales que ya no están en el servidor
+            let remoteIds = Set(patches.map { $0.id })
+            let localIds = storage.localPatchIds()
+            for localId in localIds {
+                if !remoteIds.contains(localId) {
+                    print("[PatchManager] Removing revoked patch: \(localId)")
+                    storage.deletePatch(patchId: localId)
+                }
+            }
+            
+            // 4. Limpiar archivos temporales
             downloadService.cleanup()
             
             await MainActor.run {
                 self.isSyncing = false
             }
             
-            // 4. Notificar cambios
+            // 5. Notificar cambios
             NotificationCenter.default.post(name: .patchesDidChange, object: nil)
             
             print("[PatchManager] Sync complete — \(patches.count) patches available")
