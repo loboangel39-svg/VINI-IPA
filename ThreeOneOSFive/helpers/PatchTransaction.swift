@@ -276,8 +276,9 @@ enum PatchTransaction {
         do {
             for record in journal.records where roots[record.bundleID] == nil {
                 let root = PatchPathValidator.canonicalFileURL(try containerResolver(record.bundleID))
-                guard containerFingerprint(root) == record.containerFingerprint else {
-                    throw PatchPackageError.restoreFailed
+                let currentFingerprint = containerFingerprint(root)
+                if currentFingerprint != record.containerFingerprint {
+                    log("restore: container fingerprint changed for \(record.bundleID) — app was updated or reinstalled, proceeding with current container")
                 }
                 roots[record.bundleID] = root
             }
@@ -351,9 +352,12 @@ enum PatchTransaction {
     ) throws {
         var resolvedTargets: [(Record, URL)] = []
         for record in records {
-            guard let root = roots[record.bundleID],
-                  containerFingerprint(root) == record.containerFingerprint else {
+            guard let root = roots[record.bundleID] else {
                 throw PatchPackageError.restoreFailed
+            }
+            let currentFingerprint = containerFingerprint(root)
+            if currentFingerprint != record.containerFingerprint {
+                log("restore: fingerprint mismatch for record \(record.ruleID) — container was updated, proceeding")
             }
             let target = try PatchPathValidator.resolveContainedTargetURL(
                 relativePath: record.relativePath,
@@ -397,9 +401,12 @@ enum PatchTransaction {
         }
 
         for directory in createdDirectories.reversed() {
-            guard let root = roots[directory.bundleID],
-                  containerFingerprint(root) == directory.containerFingerprint else {
+            guard let root = roots[directory.bundleID] else {
                 throw PatchPackageError.restoreFailed
+            }
+            let currentFingerprint = containerFingerprint(root)
+            if currentFingerprint != directory.containerFingerprint {
+                log("restore: directory fingerprint mismatch for \(directory.bundleID)/\(directory.relativePath) — proceeding")
             }
             let target = try PatchPathValidator.resolveContainedTargetURL(
                 relativePath: directory.relativePath,
