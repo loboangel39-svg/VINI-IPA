@@ -29,7 +29,7 @@ final class PatchDownloadService {
             var request = URLRequest(url: url)
             request.timeoutInterval = downloadTimeout
             
-            if let token = UserDefaults.standard.string(forKey: "vini.authToken") {
+            if let token = KeychainManager.shared.loadAuthToken() {
                 request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
             }
             
