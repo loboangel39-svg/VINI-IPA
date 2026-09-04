@@ -826,7 +826,10 @@ async function handleUpdatePatch(id, request, env, headers) {
     fileKey = `patches/${id}/${file.name}`;
     const fileBuffer = await file.arrayBuffer();
     await env.R2.put(fileKey, fileBuffer);
-    if (patch.file_key) await env.R2.delete(patch.file_key);
+    // Delete old file in try/catch — old key may not exist in R2
+    if (patch.file_key) {
+      try { await env.R2.delete(patch.file_key); } catch (e) { /* old file may not exist */ }
+    }
 
     // Re-extraer content_key del nuevo archivo
     const extracted = extractContentKeyFrom3105(fileBuffer);
@@ -852,7 +855,10 @@ async function handleUpdatePatch(id, request, env, headers) {
 
 async function handleDeletePatch(id, env, headers) {
   const patch = await env.DB.prepare('SELECT file_key FROM patches WHERE id = ?').bind(id).first();
-  if (patch?.file_key) await env.R2.delete(patch.file_key);
+  // R2 delete wrapped in try/catch — if file doesn't exist, we still want to clean up DB
+  if (patch?.file_key) {
+    try { await env.R2.delete(patch.file_key); } catch (e) { /* file may not exist in R2 */ }
+  }
   await env.DB.prepare('DELETE FROM user_patches WHERE patch_id = ?').bind(id).run();
   await env.DB.prepare('DELETE FROM patches WHERE id = ?').bind(id).run();
   await logActivity(env, 'patch_deleted', `Patch ${id} deleted`);
