@@ -11,7 +11,7 @@ private enum PatchPackagePickerPolicy {
 struct PatchProjectsView: View {
     @Environment(\.appLanguage) private var language
     @EnvironmentObject private var draftCoordinator: PatchDraftCoordinator
-    @StateObject private var store = PatchProjectStore()
+    @EnvironmentObject private var store: PatchProjectStore
     @State private var showCreate = false
     @State private var showImporter = false
     @State private var searchText = ""
