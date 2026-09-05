@@ -230,6 +230,12 @@ struct ThreeOneOSFiveApp: App {
             checkSessionValidity()
             if isLoggedIn && !showOnboarding {
                 appState.detectSupport()
+                // Sync patches cuando la app vuelve a primer plano
+                // para detectar patches revocados
+                Task {
+                    await patchManager.syncPatches()
+                    await patchStore.loadAssignedPatches()
+                }
             }
         }
         .onOpenURL { url in
