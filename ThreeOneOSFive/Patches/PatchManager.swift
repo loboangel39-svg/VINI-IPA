@@ -33,17 +33,20 @@ final class PatchManager: ObservableObject {
     func syncPatches() async {
         guard !isSyncing else { return }
         isSyncing = true
-        
+
         do {
             // 1. Obtener lista de patches disponibles
             let patches = try await remoteService.fetchAvailablePatches()
-            
+
             await MainActor.run {
                 self.availablePatches = patches
                 self.lastSyncDate = Date()
             }
-            
-            // 2. Para cada patch, verificar si necesita descarga
+
+            // 2. Limpiar patches locales que ya no están asignados
+            await cleanupUnassignedPatches(serverPatches: patches)
+
+            // 3. Para cada patch, verificar si necesita descarga
             for patch in patches {
                 print("[PatchManager] Checking patch: \(patch.name) (id: \(patch.id))")
                 let exists = storage.patchExists(patchId: patch.id)
@@ -55,32 +58,94 @@ final class PatchManager: ObservableObject {
                     await downloadIfNeeded(patch)
                 }
             }
-            
-            // 3. Eliminar patches locales que ya no están en el servidor
-            let remoteIds = Set(patches.map { $0.id })
-            let localIds = storage.localPatchIds()
-            for localId in localIds {
-                if !remoteIds.contains(localId) {
-                    print("[PatchManager] Removing revoked patch: \(localId)")
-                    storage.deletePatch(patchId: localId)
-                }
-            }
-            
+
             // 4. Limpiar archivos temporales
             downloadService.cleanup()
-            
+
             await MainActor.run {
                 self.isSyncing = false
             }
-            
+
             // 5. Notificar cambios
             NotificationCenter.default.post(name: .patchesDidChange, object: nil)
-            
+
             print("[PatchManager] Sync complete — \(patches.count) patches available")
         } catch {
             await MainActor.run { self.isSyncing = false }
             print("[PatchManager] Sync failed: \(error.localizedDescription)")
         }
+    }
+
+    /// Elimina patches locales que ya no están asignados en el servidor
+    private func cleanupUnassignedPatches(serverPatches: [RemotePatchInfo]) async {
+        let localPatchIds = storage.localPatchIds()
+        let serverPatchIds = Set(serverPatches.map { $0.id })
+
+        for localId in localPatchIds {
+            if !serverPatchIds.contains(localId) {
+                print("[PatchManager] Removing unassigned patch: \(localId)")
+                storage.deletePatch(patchId: localId)
+
+                // También eliminar de la ubicación local (Application Support)
+                await removeLocalPatchFile(patchId: localId)
+            }
+        }
+    }
+
+    /// Elimina el archivo del patch de la ubicación local (Application Support/PatchProjects)
+    private func removeLocalPatchFile(patchId: String) async {
+        await Task.detached {
+            do {
+                let appSupport = try FileManager.default.url(
+                    for: .applicationSupportDirectory,
+                    in: .userDomainMask,
+                    appropriateFor: nil,
+                    create: false
+                )
+                let patchProjectsDir = appSupport.appendingPathComponent("PatchProjects", isDirectory: true)
+
+                if FileManager.default.fileExists(atPath: patchProjectsDir.path) {
+                    let files = try FileManager.default.contentsOfDirectory(at: patchProjectsDir, includingPropertiesForKeys: nil)
+                    for file in files {
+                        // Buscar archivos que contengan el patchId en el nombre
+                        if file.lastPathComponent.contains(patchId) {
+                            try FileManager.default.removeItem(at: file)
+                            print("[PatchManager] Removed local patch file: \(file.lastPathComponent)")
+                        }
+                    }
+                }
+            } catch {
+                print("[PatchManager] Error removing local patch file: \(error.localizedDescription)")
+            }
+        }.value
+    }
+
+    /// Copia el patch descargado a la ubicación local (Application Support/PatchProjects)
+    /// para que aparezca en la pestaña de Patches
+    private func copyToLocalPatchesDirectory(patchId: String, patchName: String) throws {
+        guard let patchData = storage.readPatchData(patchId: patchId) else {
+            throw NSError(domain: "PatchManager", code: -1, userInfo: [NSLocalizedDescriptionKey: "Patch data not found"])
+        }
+
+        let appSupport = try FileManager.default.url(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask,
+            appropriateFor: nil,
+            create: true
+        )
+        let patchProjectsDir = appSupport.appendingPathComponent("PatchProjects", isDirectory: true)
+
+        // Crear directorio si no existe
+        try FileManager.default.createDirectory(at: patchProjectsDir, withIntermediateDirectories: true)
+
+        // Crear nombre de archivo seguro
+        let safeName = patchName.replacingOccurrences(of: "[^a-zA-Z0-9-_]", with: "-", options: .regularExpression)
+        let fileName = "\(safeName)-\(patchId.prefix(8)).3105"
+        let destinationURL = patchProjectsDir.appendingPathComponent(fileName)
+
+        // Escribir archivo
+        try patchData.write(to: destinationURL, options: .atomic)
+        print("[PatchManager] Copied patch to local directory: \(fileName)")
     }
     
     // MARK: - Download Decision
@@ -150,11 +215,8 @@ final class PatchManager: ObservableObject {
                     expectedSize: result.fileSize
                 )
                 
-                // 3. Si el servidor envió el content_key, guardarlo en Keychain
-                //    para que PatchProjectLibrary pueda decodificar el .3105
-                if let contentKey = result.contentKey {
-                    storeContentKey(contentKey, patchId: patch.id)
-                }
+                // 3. Copiar a la ubicación de patches locales para que aparezca en la UI
+                try copyToLocalPatchesDirectory(patchId: patch.id, patchName: patch.name)
                 
                 await MainActor.run {
                     self.downloadProgress[patch.id] = "Complete"
@@ -225,26 +287,5 @@ final class PatchManager: ObservableObject {
     /// Notifica que los patches cambiaron
     func notifyPatchesChanged() {
         NotificationCenter.default.post(name: .patchesDidChange, object: nil)
-    }
-    
-    // MARK: - Content Key Storage
-    
-    /// Guarda el content_key recibido del servidor en el Keychain.
-    /// Esto permite que PatchProjectLibrary.load() decodifique el .3105
-    /// sin necesidad de password (el archivo sigue cifrado en disco).
-    private func storeContentKey(_ contentKey: Data, patchId: String) {
-        let patchURL = storage.patchFileURL(patchId: patchId)
-        guard let data = try? Data(contentsOf: patchURL),
-              let summary = try? PatchPackageCodec.inspect(data) else {
-            print("[PatchManager] Cannot inspect patch \(patchId) for key storage")
-            return
-        }
-        
-        do {
-            try PatchKeyStore.store(contentKey, for: summary)
-            print("[PatchManager] Content key stored in Keychain for patch \(patchId)")
-        } catch {
-            print("[PatchManager] Failed to store content key for \(patchId): \(error.localizedDescription)")
-        }
     }
 }
