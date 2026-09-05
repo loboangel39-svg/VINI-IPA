@@ -43,7 +43,18 @@ final class PatchManager: ObservableObject {
                 self.lastSyncDate = Date()
             }
             
-            // 2. Para cada patch, verificar si necesita descarga
+            // 2. Limpiar patches locales a los que ya no tiene acceso el usuario
+            //    (cuando se revoca acceso desde el admin panel)
+            let serverPatchIds = Set(patches.map { $0.id })
+            let localIds = storage.localPatchIds()
+            for localId in localIds {
+                if !serverPatchIds.contains(localId) {
+                    print("[PatchManager] Removing local patch no longer available: \(localId)")
+                    storage.deletePatch(patchId: localId)
+                }
+            }
+            
+            // 3. Para cada patch, verificar si necesita descarga
             for patch in patches {
                 print("[PatchManager] Checking patch: \(patch.name) (id: \(patch.id))")
                 let exists = storage.patchExists(patchId: patch.id)
@@ -56,14 +67,14 @@ final class PatchManager: ObservableObject {
                 }
             }
             
-            // 3. Limpiar archivos temporales
+            // 4. Limpiar archivos temporales
             downloadService.cleanup()
             
             await MainActor.run {
                 self.isSyncing = false
             }
             
-            // 4. Notificar cambios
+            // 5. Notificar cambios
             NotificationCenter.default.post(name: .patchesDidChange, object: nil)
             
             print("[PatchManager] Sync complete — \(patches.count) patches available")
