@@ -225,16 +225,17 @@ enum PatchProjectLibrary {
     // Copia los archivos .3105 descargados por PatchManager/PatchStorage
     // (Documents/RemotePatches/) al directorio que escanea este módulo
     // (Application Support/PatchProjects/).
+    // También elimina de PatchProjects/ los patches remotos que ya no están asignados.
     private static func bridgeDownloadedPatches(fileManager: FileManager) {
         let patchManager = PatchManager.shared
         let localIds = patchManager.localPatchIds()
-        guard !localIds.isEmpty else { return }
 
         guard let libraryRoot = try? packageRootURL(fileManager: fileManager) else {
             log("patch: bridge failed — cannot resolve PatchProjects directory")
             return
         }
 
+        // 1. Copiar patches que sí están asignados
         var copied = 0
         for patchId in localIds {
             guard let data = patchManager.patchData(patchId) else { continue }
@@ -254,6 +255,41 @@ enum PatchProjectLibrary {
         }
         if copied > 0 {
             log("patch: bridged \(copied) patches from RemotePatches to PatchProjects")
+        }
+
+        // 2. Eliminar de PatchProjects/ los patches remotos que ya no están asignados
+        //    Solo eliminamos archivos con formato "patch-<uuid>.3105" (patches remotos)
+        //    No tocamos patches creados/importados localmente por el usuario
+        guard let existingFiles = try? fileManager.contentsOfDirectory(
+            at: libraryRoot,
+            includingPropertiesForKeys: nil,
+            options: [.skipsHiddenFiles]
+        ) else { return }
+
+        let remotePatchIds = Set(localIds)
+        var removed = 0
+
+        for file in existingFiles where file.pathExtension.lowercased() == "3105" {
+            let name = file.deletingPathExtension().lastPathComponent
+            // Solo procesar archivos con formato "patch-<id>"
+            guard name.hasPrefix("patch-") else { continue }
+
+            let patchId = String(name.dropFirst("patch-".count))
+
+            // Si este patch remoto ya no está en RemotePatches, eliminarlo
+            if !remotePatchIds.contains(patchId) {
+                do {
+                    try fileManager.removeItem(at: file)
+                    removed += 1
+                    log("patch: removed orphaned remote patch from PatchProjects: \(patchId)")
+                } catch {
+                    log("patch: failed to remove orphaned patch \(patchId) — \(error.localizedDescription)")
+                }
+            }
+        }
+
+        if removed > 0 {
+            log("patch: removed \(removed) orphaned remote patches from PatchProjects")
         }
     }
 }

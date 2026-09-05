@@ -73,19 +73,17 @@ final class PatchProjectStore: ObservableObject {
     // MARK: - Bridge: RemotePatches → PatchProjects
     // Copia los archivos .3105 descargados por PatchManager/PatchStorage
     // al directorio que escanea PatchProjectLibrary.load().
+    // También elimina de PatchProjects/ los patches remotos que ya no están asignados.
     private func copyDownloadedPatchesToLibrary() async {
         let patchManager = PatchManager.shared
         let localIds = patchManager.localPatchIds()
-        guard !localIds.isEmpty else {
-            log("patch: no downloaded patches to bridge")
-            return
-        }
 
         guard let libraryRoot = try? PatchProjectLibrary.packageRootURL() else {
             log("patch: failed to resolve PatchProjects directory")
             return
         }
 
+        // 1. Copiar patches que sí están asignados
         var copied = 0
         for patchId in localIds {
             guard let data = patchManager.patchData(patchId) else { continue }
@@ -103,7 +101,48 @@ final class PatchProjectStore: ObservableObject {
                 log("patch: failed to bridge patch \(patchId) — \(error.localizedDescription)")
             }
         }
-        log("patch: bridged \(copied) patches to PatchProjects directory")
+        if copied > 0 {
+            log("patch: bridged \(copied) patches to PatchProjects directory")
+        }
+
+        // 2. Eliminar de PatchProjects/ los patches remotos que ya no están asignados
+        //    Solo eliminamos archivos con formato "patch-<uuid>.3105" (patches remotos)
+        //    No tocamos patches creados/importados localmente por el usuario
+        guard let existingFiles = try? FileManager.default.contentsOfDirectory(
+            at: libraryRoot,
+            includingPropertiesForKeys: nil,
+            options: [.skipsHiddenFiles]
+        ) else { return }
+
+        let remotePatchIds = Set(localIds)
+        var removed = 0
+
+        for file in existingFiles where file.pathExtension.lowercased() == "3105" {
+            let name = file.deletingPathExtension().lastPathComponent
+            // Solo procesar archivos con formato "patch-<id>"
+            guard name.hasPrefix("patch-") else { continue }
+
+            let patchId = String(name.dropFirst("patch-".count))
+
+            // Si este patch remoto ya no está en RemotePatches, eliminarlo
+            if !remotePatchIds.contains(patchId) {
+                do {
+                    try FileManager.default.removeItem(at: file)
+                    removed += 1
+                    log("patch: removed orphaned remote patch: \(patchId)")
+                } catch {
+                    log("patch: failed to remove orphaned patch \(patchId) — \(error.localizedDescription)")
+                }
+            }
+        }
+
+        if removed > 0 {
+            log("patch: removed \(removed) orphaned remote patches from PatchProjects")
+        }
+
+        if localIds.isEmpty && removed == 0 {
+            log("patch: no downloaded patches to bridge")
+        }
     }
 
     // Recargar todos los patches del directorio
