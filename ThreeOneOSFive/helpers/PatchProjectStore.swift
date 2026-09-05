@@ -43,6 +43,8 @@ final class PatchProjectStore: ObservableObject {
             queue: .main
         ) { [weak self] _ in
             Task { @MainActor in
+                // Copiar patches descargados antes de recargar la UI
+                await self?.copyDownloadedPatchesToLibrary()
                 self?.reload()
             }
         }
@@ -55,8 +57,10 @@ final class PatchProjectStore: ObservableObject {
         do {
             let remotePatches = try await RemotePatchService.shared.fetchAvailablePatches()
             log("remote: worker returned \(remotePatches.count) assigned patches")
+            // Copiar patches descargados (Documents/RemotePatches/) a la ubicación
+            // que lee PatchProjectLibrary (Application Support/PatchProjects/)
+            await copyDownloadedPatchesToLibrary()
             // Recargar la lista de patches desde el disco
-            // PatchProjectLibrary.load() hace el bridge copy automáticamente
             reload()
         } catch {
             log("remote: failed to load assigned patches - \(error.localizedDescription)")
@@ -64,6 +68,42 @@ final class PatchProjectStore: ObservableObject {
                 self.items = []
             }
         }
+    }
+
+    // MARK: - Bridge: RemotePatches → PatchProjects
+    // Copia los archivos .3105 descargados por PatchManager/PatchStorage
+    // al directorio que escanea PatchProjectLibrary.load().
+    private func copyDownloadedPatchesToLibrary() async {
+        let patchManager = PatchManager.shared
+        let localIds = patchManager.localPatchIds()
+        guard !localIds.isEmpty else {
+            log("patch: no downloaded patches to bridge")
+            return
+        }
+
+        guard let libraryRoot = try? PatchProjectLibrary.packageRootURL() else {
+            log("patch: failed to resolve PatchProjects directory")
+            return
+        }
+
+        var copied = 0
+        for patchId in localIds {
+            guard let data = patchManager.patchData(patchId) else { continue }
+            let destURL = libraryRoot.appendingPathComponent("patch-\(patchId).3105")
+
+            // Solo escribir si el contenido cambió
+            if let existingData = try? Data(contentsOf: destURL), existingData == data {
+                continue
+            }
+
+            do {
+                try data.write(to: destURL, options: [.atomic, .completeFileProtection])
+                copied += 1
+            } catch {
+                log("patch: failed to bridge patch \(patchId) — \(error.localizedDescription)")
+            }
+        }
+        log("patch: bridged \(copied) patches to PatchProjects directory")
     }
 
     // Recargar todos los patches del directorio
