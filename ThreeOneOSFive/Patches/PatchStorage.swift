@@ -133,19 +133,26 @@ final class PatchStorage {
         return localMetadata(patchId: patchId)?.version
     }
     
-    /// Elimina un patch local
+    /// Elimina un patch local (incluyendo backups y metadata)
     func deletePatch(patchId: String) {
         try? FileManager.default.removeItem(at: patchFileURL(patchId: patchId))
         try? FileManager.default.removeItem(at: metadataURL(patchId: patchId))
+        // Eliminar también el archivo de backup si existe
+        let backupURL = storageDirectory.appendingPathComponent("patch-\(patchId).backup.3105")
+        try? FileManager.default.removeItem(at: backupURL)
     }
     
-    /// Lista todos los patches almacenados localmente
+    /// Lista todos los patches almacenados localmente (excluye backups)
     func localPatchIds() -> [String] {
         guard let files = try? FileManager.default.contentsOfDirectory(at: storageDirectory, includingPropertiesForKeys: nil) else {
             return []
         }
         return files
-            .filter { $0.pathExtension == "3105" && $0.deletingPathExtension().lastPathComponent.hasPrefix("patch-") }
+            .filter { 
+                $0.pathExtension == "3105" && 
+                $0.deletingPathExtension().lastPathComponent.hasPrefix("patch-") &&
+                !$0.lastPathComponent.contains(".backup.")
+            }
             .map { $0.deletingPathExtension().lastPathComponent.replacingOccurrences(of: "patch-", with: "") }
     }
     
