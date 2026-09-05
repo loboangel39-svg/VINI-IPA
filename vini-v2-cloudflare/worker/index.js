@@ -770,8 +770,12 @@ async function handleToggleBlock(id, env, headers) {
 
 async function handleGetPatches(env, headers, url) {
   const type = url.searchParams.get('type') || '';
+  const active = url.searchParams.get('active') || '';
   let query = 'SELECT * FROM patches';
-  if (type) query += ` WHERE type = '${type}'`;
+  const conditions = [];
+  if (type) conditions.push(`type = '${type}'`);
+  if (active === '1') conditions.push('active = 1');
+  if (conditions.length > 0) query += ' WHERE ' + conditions.join(' AND ');
   query += ' ORDER BY created_at DESC';
   const result = await env.DB.prepare(query).all();
   return Response.json(result.results, { headers });
@@ -859,6 +863,7 @@ async function handleDeletePatch(id, env, headers) {
   if (patch?.file_key) {
     try { await env.R2.delete(patch.file_key); } catch (e) { /* file may not exist in R2 */ }
   }
+await env.DB.prepare('DELETE FROM downloads WHERE patch_id = ?').bind(id).run();
   await env.DB.prepare('DELETE FROM user_patches WHERE patch_id = ?').bind(id).run();
   await env.DB.prepare('DELETE FROM patches WHERE id = ?').bind(id).run();
   await logActivity(env, 'patch_deleted', `Patch ${id} deleted`);
