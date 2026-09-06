@@ -4,8 +4,22 @@ enum AppTheme {
     static let accent = Color(
         uiColor: UIColor { traits in
             traits.userInterfaceStyle == .dark
-                ? UIColor(red: 0.45, green: 0.72, blue: 0.98, alpha: 1.00) // Azul celeste suave y brillante para fondo oscuro
-                : UIColor(red: 0.20, green: 0.50, blue: 0.85, alpha: 1.00) // Azul pastel equilibrado para fondo claro
+                ? UIColor(red: 0.91, green: 0.91, blue: 0.91, alpha: 1.00) // Plata metálica brillante (#E8E8E8) para fondo oscuro
+                : UIColor(red: 0.25, green: 0.25, blue: 0.25, alpha: 1.00) // Gris oscuro sólido (#404040) para fondo claro
+        }
+    )
+    static let accentSecondary = Color(
+        uiColor: UIColor { traits in
+            traits.userInterfaceStyle == .dark
+                ? UIColor(red: 0.75, green: 0.75, blue: 0.75, alpha: 1.00) // Gris medio (#C0C0C0)
+                : UIColor(red: 0.38, green: 0.38, blue: 0.38, alpha: 1.00) // Gris oscuro medio (#616161)
+        }
+    )
+    static let chromeHighlight = Color(
+        uiColor: UIColor { traits in
+            traits.userInterfaceStyle == .dark
+                ? UIColor(red: 1.0, green: 1.0, blue: 1.0, alpha: 1.00) // Blanco puro para highlights
+                : UIColor(red: 0.13, green: 0.13, blue: 0.13, alpha: 1.00) // Casi negro (#222222)
         }
     )
     static let pageBackground = Color(uiColor: .systemBackground)

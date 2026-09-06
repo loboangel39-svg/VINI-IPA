@@ -26,7 +26,7 @@ struct OnboardingView: View {
                 controls
             }
         }
-        .tint(.blue)
+        .tint(AppTheme.accent)
         .animation(.spring(response: 0.38, dampingFraction: 0.84), value: step)
         .animation(.spring(response: 0.38, dampingFraction: 0.84), value: languageCode)
     }
@@ -104,7 +104,7 @@ struct OnboardingView: View {
                                 Text(option.displayName)
                                     .font(.body.weight(.semibold))
                                     .foregroundStyle(.primary)
-                                Text(option.rawValue == "en" ? "English" : option.rawValue == "vi" ? "Tiếng Việt" : "简体中文")
+                                Text(option.nativeName)
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
