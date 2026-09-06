@@ -513,3 +513,28 @@
 "wallpaper.error.install" = "Cài đặt thất bại và mọi descriptor đã thêm trong lần thử này đã được rollback.";
 "wallpaper.error.restore" = "3105 không thể xóa an toàn toàn bộ descriptor của lần cài này.";
 "wallpaper.error.unknown" = "Đã xảy ra lỗi không mong muốn. Hãy kiểm tra Nhật ký phiên để biết chi tiết.";
+
+"messages.title" = "Tin nhắn";
+"messages.loading" = "Đang tải tin nhắn...";
+"messages.empty_title" = "Không có tin nhắn";
+"messages.empty_message" = "Tin nhắn từ quản trị viên sẽ xuất hiện ở đây.";
+
+"config.title" = "Cấu hình";
+"config.server" = "Máy chủ";
+"config.server_status" = "Trạng thái máy chủ";
+"config.maintenance_mode" = "Chế độ bảo trì";
+"config.active" = "Đang hoạt động";
+"config.inactive" = "Không hoạt động";
+"config.features" = "Tính năng";
+"config.patches" = "Bản vá";
+"config.messages" = "Tin nhắn";
+"config.enabled" = "Đã bật";
+"config.disabled" = "Đã tắt";
+"config.limits" = "Giới hạn";
+"config.max_downloads" = "Tải xuống tối đa/ngày";
+"config.min_version" = "Phiên bản tối thiểu";
+"config.session" = "Phiên";
+"config.logged_in_as" = "Đăng nhập với";
+"config.hwid" = "HWID";
+"config.simulator" = "Trình mô phỏng";
+"config.unknown" = "Không xác định";

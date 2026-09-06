@@ -513,3 +513,28 @@
 "wallpaper.error.install" = "Installation failed and any descriptors added during this attempt were rolled back.";
 "wallpaper.error.restore" = "3105 could not safely remove every descriptor from this installation.";
 "wallpaper.error.unknown" = "An unexpected error occurred. Review Session Logs for details.";
+
+"messages.title" = "Messages";
+"messages.loading" = "Loading messages...";
+"messages.empty_title" = "No messages";
+"messages.empty_message" = "Messages from the admin will appear here.";
+
+"config.title" = "Config";
+"config.server" = "Server";
+"config.server_status" = "Server Status";
+"config.maintenance_mode" = "Maintenance Mode";
+"config.active" = "Active";
+"config.inactive" = "Inactive";
+"config.features" = "Features";
+"config.patches" = "Patches";
+"config.messages" = "Messages";
+"config.enabled" = "Enabled";
+"config.disabled" = "Disabled";
+"config.limits" = "Limits";
+"config.max_downloads" = "Max Downloads/Day";
+"config.min_version" = "Min Version";
+"config.session" = "Session";
+"config.logged_in_as" = "Logged in as";
+"config.hwid" = "HWID";
+"config.simulator" = "Simulator";
+"config.unknown" = "Unknown";

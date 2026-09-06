@@ -513,3 +513,28 @@
 "wallpaper.error.install" = "安装失败，本次尝试添加的描述符已回滚。";
 "wallpaper.error.restore" = "3105 无法安全移除此安装中的全部描述符。";
 "wallpaper.error.unknown" = "发生意外错误。请查看会话日志了解详情。";
+
+"messages.title" = "消息";
+"messages.loading" = "正在加载消息...";
+"messages.empty_title" = "没有消息";
+"messages.empty_message" = "来自管理员的消息将显示在这里。";
+
+"config.title" = "配置";
+"config.server" = "服务器";
+"config.server_status" = "服务器状态";
+"config.maintenance_mode" = "维护模式";
+"config.active" = "活跃";
+"config.inactive" = "未活跃";
+"config.features" = "功能";
+"config.patches" = "补丁";
+"config.messages" = "消息";
+"config.enabled" = "已启用";
+"config.disabled" = "已禁用";
+"config.limits" = "限制";
+"config.max_downloads" = "每日最大下载量";
+"config.min_version" = "最低版本";
+"config.session" = "会话";
+"config.logged_in_as" = "登录为";
+"config.hwid" = "硬件ID";
+"config.simulator" = "模拟器";
+"config.unknown" = "未知";

@@ -514,3 +514,28 @@
 "wallpaper.error.install" = "La instalación falló y cualquier descriptor añadido durante este intento fue revertido.";
 "wallpaper.error.restore" = "3105 no pudo eliminar de forma segura todos los descriptores de esta instalación.";
 "wallpaper.error.unknown" = "Ocurrió un error inesperado. Revisa los Registros de sesión para más detalles.";
+
+"messages.title" = "Mensajes";
+"messages.loading" = "Cargando mensajes...";
+"messages.empty_title" = "Sin mensajes";
+"messages.empty_message" = "Los mensajes del administrador aparecerán aquí.";
+
+"config.title" = "Configuración";
+"config.server" = "Servidor";
+"config.server_status" = "Estado del servidor";
+"config.maintenance_mode" = "Modo mantenimiento";
+"config.active" = "Activo";
+"config.inactive" = "Inactivo";
+"config.features" = "Funciones";
+"config.patches" = "Parches";
+"config.messages" = "Mensajes";
+"config.enabled" = "Activado";
+"config.disabled" = "Desactivado";
+"config.limits" = "Límites";
+"config.max_downloads" = "Descargas máximas/día";
+"config.min_version" = "Versión mínima";
+"config.session" = "Sesión";
+"config.logged_in_as" = "Conectado como";
+"config.hwid" = "HWID";
+"config.simulator" = "Simulador";
+"config.unknown" = "Desconocido";

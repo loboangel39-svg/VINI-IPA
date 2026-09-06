@@ -4,13 +4,16 @@ import SwiftUI
 // Muestra mensajes del servidor (info, warnings, updates, etc.)
 
 struct MessagesView: View {
+    @AppStorage(AppLanguage.storageKey) private var languageCode = AppLanguage.english.rawValue
     @StateObject private var messageService = MessageService.shared
+    
+    private var language: AppLanguage { AppLanguage(rawValue: languageCode) ?? .english }
     
     var body: some View {
         NavigationStack {
             Group {
                 if messageService.isLoading && messageService.messages.isEmpty {
-                    ProgressView("Loading messages...")
+                    ProgressView(language.text("messages.loading"))
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else if messageService.messages.isEmpty {
                     emptyState
@@ -18,7 +21,7 @@ struct MessagesView: View {
                     messagesList
                 }
             }
-            .navigationTitle("Messages")
+            .navigationTitle(language.text("messages.title"))
             .navigationBarTitleDisplayMode(.inline)
             .task {
                 await messageService.fetchMessages()
@@ -48,10 +51,10 @@ struct MessagesView: View {
             Image(systemName: "tray")
                 .font(.system(size: 48))
                 .foregroundStyle(.secondary)
-            Text("No messages")
+            Text(language.text("messages.empty_title"))
                 .font(.headline)
                 .foregroundStyle(.secondary)
-            Text("Messages from the admin will appear here.")
+            Text(language.text("messages.empty_message"))
                 .font(.subheadline)
                 .foregroundStyle(.tertiary)
         }

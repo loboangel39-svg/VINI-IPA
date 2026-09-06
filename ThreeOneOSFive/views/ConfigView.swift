@@ -4,7 +4,10 @@ import SwiftUI
 // Muestra la configuración remota obtenida del servidor.
 
 struct ConfigView: View {
+    @AppStorage(AppLanguage.storageKey) private var languageCode = AppLanguage.english.rawValue
     @StateObject private var configService = RemoteConfigService.shared
+    
+    private var language: AppLanguage { AppLanguage(rawValue: languageCode) ?? .english }
     
     var body: some View {
         NavigationStack {
@@ -13,54 +16,54 @@ struct ConfigView: View {
                 Section {
                     configRow(
                         icon: "server.rack",
-                        title: "Server",
+                        title: language.text("config.server"),
                         value: configService.config.appName,
                         color: .blue
                     )
                     configRow(
                         icon: configService.config.maintenanceMode ? "exclamationmark.triangle.fill" : "checkmark.circle.fill",
-                        title: "Maintenance Mode",
-                        value: configService.config.maintenanceMode ? "Active" : "Inactive",
+                        title: language.text("config.maintenance_mode"),
+                        value: configService.config.maintenanceMode ? language.text("config.active") : language.text("config.inactive"),
                         color: configService.config.maintenanceMode ? .orange : .green
                     )
                 } header: {
-                    Text("Server Status")
+                    Text(language.text("config.server_status"))
                 }
                 
                 // Features Section
                 Section {
                     configRow(
                         icon: "shippingbox.fill",
-                        title: "Patches",
-                        value: configService.config.patchesEnabled ? "Enabled" : "Disabled",
+                        title: language.text("config.patches"),
+                        value: configService.config.patchesEnabled ? language.text("config.enabled") : language.text("config.disabled"),
                         color: configService.config.patchesEnabled ? .green : .red
                     )
                     configRow(
                         icon: "bubble.left.fill",
-                        title: "Messages",
-                        value: configService.config.messagesEnabled ? "Enabled" : "Disabled",
+                        title: language.text("config.messages"),
+                        value: configService.config.messagesEnabled ? language.text("config.enabled") : language.text("config.disabled"),
                         color: configService.config.messagesEnabled ? .green : .red
                     )
                 } header: {
-                    Text("Features")
+                    Text(language.text("config.features"))
                 }
                 
                 // Limits Section
                 Section {
                     configRow(
                         icon: "arrow.down.circle.fill",
-                        title: "Max Downloads/Day",
+                        title: language.text("config.max_downloads"),
                         value: "\(configService.config.maxDownloadsPerDay)",
                         color: .purple
                     )
                     configRow(
                         icon: "tag.fill",
-                        title: "Min Version",
+                        title: language.text("config.min_version"),
                         value: configService.config.minimumVersion,
                         color: .gray
                     )
                 } header: {
-                    Text("Limits")
+                    Text(language.text("config.limits"))
                 }
                 
                 // Session Section
@@ -68,23 +71,23 @@ struct ConfigView: View {
                     if let username = UserDefaults.standard.string(forKey: "vini.username") {
                         configRow(
                             icon: "person.fill",
-                            title: "Logged in as",
+                            title: language.text("config.logged_in_as"),
                             value: username,
                             color: .blue
                         )
                     }
                     configRow(
                         icon: "key.fill",
-                        title: "HWID",
+                        title: language.text("config.hwid"),
                         value: hwidDisplay,
                         color: .gray
                     )
                 } header: {
-                    Text("Session")
+                    Text(language.text("config.session"))
                 }
             }
             .listStyle(.insetGrouped)
-            .navigationTitle("Config")
+            .navigationTitle(language.text("config.title"))
             .navigationBarTitleDisplayMode(.inline)
             .task {
                 await configService.fetchConfig()
@@ -97,9 +100,9 @@ struct ConfigView: View {
     
     private var hwidDisplay: String {
         #if targetEnvironment(simulator)
-        return "Simulator"
+        return language.text("config.simulator")
         #else
-        let hwid = UIDevice.current.identifierForVendor?.uuidString ?? "Unknown"
+        let hwid = UIDevice.current.identifierForVendor?.uuidString ?? language.text("config.unknown")
         // Mostrar solo los primeros 8 caracteres
         return String(hwid.prefix(8)) + "..."
         #endif
