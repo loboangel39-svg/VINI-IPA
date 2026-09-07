@@ -553,6 +553,18 @@
       }).join('');
     }
 
+    function generateLicenseKey() {
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+      let key = 'VINI-';
+      for (let i = 0; i < 3; i++) {
+        if (i > 0) key += '-';
+        for (let j = 0; j < 4; j++) {
+          key += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+      }
+      return key;
+    }
+
     function showCreateUserModal() {
       showModal(`
         <h2>Nuevo Usuario</h2>
@@ -563,7 +575,10 @@
           </div>
           <div class="form-group">
             <label>Licencia Key</label>
-            <input type="text" name="licenseKey" value="${crypto.randomUUID()}">
+            <div style="display:flex;gap:8px;">
+              <input type="text" name="licenseKey" id="licenseKeyInput" value="${generateLicenseKey()}" readonly style="font-family:monospace;flex:1;">
+              <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('licenseKeyInput').value=generateLicenseKey()" style="white-space:nowrap;">Regenerar</button>
+            </div>
           </div>
           <div class="form-group">
             <label>Duración de Licencia</label>
