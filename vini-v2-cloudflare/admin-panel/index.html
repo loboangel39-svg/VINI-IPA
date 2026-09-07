@@ -101,11 +101,304 @@
     .empty-state svg { width: 60px; height: 60px; margin-bottom: 20px; opacity: 0.5; }
     .empty-state h3 { font-size: 18px; margin-bottom: 10px; color: #999; }
     
-    /* === RESPONSIVE === */
+    /* === RESPONSIVE - iPhone/iOS Mobile === */
     @media (max-width: 768px) {
-      .sidebar { width: 100%; height: auto; position: relative; }
-      .main { margin-left: 0; }
-      .app { flex-direction: column; }
+      /* Hide sidebar on mobile */
+      .sidebar {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        top: auto;
+        width: 100%;
+        height: auto;
+        z-index: 100;
+        border-right: none;
+        border-top: 1px solid #1e1e2e;
+        padding: 0;
+        background: #12121a;
+      }
+      
+      .sidebar .logo { display: none; }
+      .sidebar .nav-section { padding: 0; margin: 0; }
+      .sidebar .nav-section-title { display: none; }
+      
+      /* Bottom navigation bar */
+      .sidebar .nav-section:last-child {
+        display: flex;
+        justify-content: space-around;
+        padding: 8px 0;
+        padding-bottom: max(8px, env(safe-area-inset-bottom));
+      }
+      
+      .sidebar .nav-section:last-child .nav-item {
+        flex-direction: column;
+        gap: 4px;
+        padding: 8px 12px;
+        font-size: 10px;
+        min-width: 60px;
+      }
+      
+      .sidebar .nav-section:last-child .nav-item svg {
+        width: 22px;
+        height: 22px;
+      }
+      
+      /* Hide extra nav items on mobile - show only main 4 */
+      .sidebar .nav-section:nth-child(1),
+      .sidebar .nav-section:nth-child(2) {
+        display: none;
+      }
+      
+      .sidebar .nav-section:nth-child(3) .nav-item:nth-child(n+5) {
+        display: none;
+      }
+      
+      /* Main content */
+      .main {
+        margin-left: 0;
+        padding: 16px;
+        padding-bottom: 100px; /* Space for bottom nav */
+      }
+      
+      /* Page header */
+      .page-header {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+        margin-bottom: 20px;
+      }
+      
+      .page-title {
+        font-size: 24px;
+      }
+      
+      /* Stats grid - single column on mobile */
+      .stats-grid {
+        grid-template-columns: 1fr;
+        gap: 12px;
+      }
+      
+      .stat-card {
+        padding: 16px;
+      }
+      
+      .stat-card .value {
+        font-size: 28px;
+      }
+      
+      /* Tables become cards on mobile */
+      .table-container {
+        background: transparent;
+        border: none;
+        border-radius: 0;
+      }
+      
+      table {
+        display: block;
+      }
+      
+      thead {
+        display: none;
+      }
+      
+      tbody {
+        display: block;
+      }
+      
+      tbody tr {
+        display: block;
+        background: #12121a;
+        border: 1px solid #1e1e2e;
+        border-radius: 12px;
+        margin-bottom: 12px;
+        padding: 16px;
+      }
+      
+      tbody tr:hover {
+        background: #12121a;
+      }
+      
+      tbody td {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 8px 0;
+        border-bottom: 1px solid #1e1e2e;
+        font-size: 14px;
+      }
+      
+      tbody td:last-child {
+        border-bottom: none;
+        padding-top: 12px;
+        margin-top: 8px;
+        border-top: 1px solid #1e1e2e;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      
+      tbody td::before {
+        content: attr(data-label);
+        font-weight: 600;
+        color: #888;
+        font-size: 12px;
+        text-transform: uppercase;
+        margin-right: 12px;
+      }
+      
+      tbody td:last-child::before {
+        display: none;
+      }
+      
+      /* Buttons in mobile */
+      .btn-sm {
+        padding: 8px 14px;
+        font-size: 13px;
+        flex: 1;
+        min-width: 80px;
+      }
+      
+      tbody td:last-child .btn-sm {
+        flex: 1 1 calc(50% - 4px);
+      }
+      
+      /* Search bar */
+      .search-bar {
+        margin-bottom: 16px;
+      }
+      
+      .search-bar input {
+        font-size: 16px; /* Prevent zoom on iOS */
+        padding: 14px 16px;
+      }
+      
+      /* Modal - full screen on mobile */
+      .modal {
+        width: 100%;
+        max-width: 100%;
+        height: 100%;
+        max-height: 100%;
+        border-radius: 0;
+        padding: 20px;
+        padding-bottom: max(20px, env(safe-area-inset-bottom));
+      }
+      
+      .modal h2 {
+        font-size: 22px;
+        margin-bottom: 16px;
+      }
+      
+      .form-group {
+        margin-bottom: 16px;
+      }
+      
+      .form-group input,
+      .form-group select,
+      .form-group textarea {
+        font-size: 16px; /* Prevent zoom on iOS */
+        padding: 14px;
+      }
+      
+      .form-actions {
+        flex-direction: column-reverse;
+        gap: 8px;
+        margin-top: 20px;
+      }
+      
+      .form-actions .btn {
+        width: 100%;
+        padding: 14px;
+        font-size: 16px;
+      }
+      
+      /* Login screen */
+      .login-box {
+        width: 100%;
+        max-width: 100%;
+        border-radius: 0;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        padding: 30px;
+      }
+      
+      /* Activity log */
+      .activity-item {
+        padding: 12px 0;
+      }
+      
+      .activity-icon {
+        width: 36px;
+        height: 36px;
+        font-size: 16px;
+      }
+      
+      .activity-content .title {
+        font-size: 14px;
+      }
+      
+      .activity-content .time {
+        font-size: 12px;
+      }
+      
+      /* Badges */
+      .badge {
+        padding: 5px 10px;
+        font-size: 11px;
+      }
+      
+      /* Empty state */
+      .empty-state {
+        padding: 40px 20px;
+      }
+      
+      .empty-state h3 {
+        font-size: 16px;
+      }
+      
+      /* License key display */
+      .license-key-display {
+        font-size: 13px !important;
+        word-break: break-all;
+      }
+    }
+    
+    /* Extra small screens (iPhone SE, etc) */
+    @media (max-width: 375px) {
+      .main {
+        padding: 12px;
+        padding-bottom: 90px;
+      }
+      
+      .page-title {
+        font-size: 20px;
+      }
+      
+      .stat-card .value {
+        font-size: 24px;
+      }
+      
+      tbody tr {
+        padding: 12px;
+      }
+      
+      .btn-sm {
+        padding: 7px 12px;
+        font-size: 12px;
+      }
+    }
+    
+    /* Landscape mode optimization */
+    @media (max-height: 500px) and (orientation: landscape) {
+      .modal {
+        max-height: 90vh;
+        overflow-y: auto;
+      }
+      
+      .sidebar .nav-section:last-child .nav-item {
+        padding: 6px 10px;
+      }
     }
   </style>
 </head>
@@ -530,12 +823,12 @@
         
         return `
         <tr>
-          <td><strong>${u.username}</strong></td>
-          <td style="font-family:monospace; font-size:12px;">${u.hwid || '-'}</td>
-          <td style="font-family:monospace; font-size:12px;">${u.license_key || '-'}</td>
-          <td>${expiresDisplay}</td>
-          <td>${u.is_premium ? '<span class="badge badge-premium">Premium</span>' : '<span class="badge badge-free">Free</span>'}</td>
-          <td>
+          <td data-label="Usuario"><strong>${u.username}</strong></td>
+          <td data-label="HWID" style="font-family:monospace; font-size:12px;">${u.hwid || '-'}</td>
+          <td data-label="Licencia" style="font-family:monospace; font-size:12px;" class="license-key-display">${u.license_key || '-'}</td>
+          <td data-label="Expira">${expiresDisplay}</td>
+          <td data-label="Tipo">${u.is_premium ? '<span class="badge badge-premium">Premium</span>' : '<span class="badge badge-free">Free</span>'}</td>
+          <td data-label="Estado">
             ${u.is_blocked ? '<span class="badge badge-blocked">Bloqueado</span>' : 
               u.is_paused ? '<span class="badge badge-paused">Pausado</span>' : 
               '<span class="badge badge-active">Activo</span>'}
@@ -742,14 +1035,14 @@
 
       tbody.innerHTML = patches.map(p => `
         <tr>
-          <td><strong>${p.name}</strong><br><small style="color:#666;">${p.description || ''}</small></td>
-          <td>${p.version}</td>
-          <td>
+          <td data-label="Nombre"><strong>${p.name}</strong><br><small style="color:#666;">${p.description || ''}</small></td>
+          <td data-label="Versión">${p.version}</td>
+          <td data-label="Tipo">
             ${p.type === 'premium' ? '<span class="badge badge-premium">Premium</span>' : 
               p.type === 'exclusive' ? '<span class="badge badge-blocked">Exclusivo</span>' : 
               '<span class="badge badge-free">Free</span>'}
           </td>
-          <td>${p.active ? '<span class="badge badge-active">Activo</span>' : '<span class="badge badge-inactive">Inactivo</span>'}</td>
+          <td data-label="Estado">${p.active ? '<span class="badge badge-active">Activo</span>' : '<span class="badge badge-inactive">Inactivo</span>'}</td>
           <td>
             <button class="btn btn-secondary btn-sm" onclick="editPatch('${p.id}')">Editar</button>
             <button class="btn btn-secondary btn-sm" onclick="togglePatch('${p.id}')">${p.active ? 'Desactivar' : 'Activar'}</button>
@@ -872,9 +1165,9 @@
 
       tbody.innerHTML = access.map(a => `
         <tr>
-          <td>${a.username}</td>
-          <td>${a.patch_name}</td>
-          <td>${formatDate(a.created_at)}</td>
+          <td data-label="Usuario">${a.username}</td>
+          <td data-label="Patch">${a.patch_name}</td>
+          <td data-label="Fecha">${formatDate(a.created_at)}</td>
           <td>
             <button class="btn btn-danger btn-sm" onclick="revokeAccess('${a.user_id}', '${a.patch_id}')">Revocar</button>
           </td>
@@ -942,10 +1235,10 @@
 
       tbody.innerHTML = messages.map(m => `
         <tr>
-          <td><strong>${m.title}</strong><br><small style="color:#666;">${m.content.substring(0, 50)}...</small></td>
-          <td><span class="badge badge-${m.type === 'warning' ? 'paused' : m.type === 'error' ? 'blocked' : 'active'}">${m.type}</span></td>
-          <td>${m.target_hwid || 'Todos'}</td>
-          <td>${m.active ? '<span class="badge badge-active">Activo</span>' : '<span class="badge badge-inactive">Inactivo</span>'}</td>
+          <td data-label="Título"><strong>${m.title}</strong><br><small style="color:#666;">${m.content.substring(0, 50)}...</small></td>
+          <td data-label="Tipo"><span class="badge badge-${m.type === 'warning' ? 'paused' : m.type === 'error' ? 'blocked' : 'active'}">${m.type}</span></td>
+          <td data-label="Destino">${m.target_hwid || 'Todos'}</td>
+          <td data-label="Estado">${m.active ? '<span class="badge badge-active">Activo</span>' : '<span class="badge badge-inactive">Inactivo</span>'}</td>
           <td>
             <button class="btn btn-secondary btn-sm" onclick="toggleMessage('${m.id}')">${m.active ? 'Desactivar' : 'Activar'}</button>
             <button class="btn btn-danger btn-sm" onclick="deleteMessage('${m.id}')">Eliminar</button>
