@@ -236,6 +236,7 @@
                 <th>Usuario</th>
                 <th>HWID</th>
                 <th>Licencia</th>
+                <th>Expira</th>
                 <th>Tipo</th>
                 <th>Estado</th>
                 <th>Acciones</th>
@@ -505,15 +506,34 @@
       const tbody = document.getElementById('usersTable');
       
       if (users.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:40px; color:#666;">No hay usuarios</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:40px; color:#666;">No hay usuarios</td></tr>';
         return;
       }
 
-      tbody.innerHTML = users.map(u => `
+      tbody.innerHTML = users.map(u => {
+        // Format expiration date
+        let expiresDisplay = '<span style="color:#666;">Sin fecha</span>';
+        if (u.license_expires_at) {
+          const expDate = new Date(u.license_expires_at);
+          const now = new Date();
+          const isExpired = expDate < now;
+          const daysLeft = Math.ceil((expDate - now) / (1000 * 60 * 60 * 24));
+          
+          if (isExpired) {
+            expiresDisplay = `<span class="badge badge-inactive">Expirada</span><br><small style="color:#666;">${formatDate(u.license_expires_at)}</small>`;
+          } else if (daysLeft <= 7) {
+            expiresDisplay = `<span class="badge badge-paused">${daysLeft}d</span><br><small style="color:#666;">${formatDate(u.license_expires_at)}</small>`;
+          } else {
+            expiresDisplay = `<span class="badge badge-active">${daysLeft}d</span><br><small style="color:#666;">${formatDate(u.license_expires_at)}</small>`;
+          }
+        }
+        
+        return `
         <tr>
           <td><strong>${u.username}</strong></td>
           <td style="font-family:monospace; font-size:12px;">${u.hwid || '-'}</td>
           <td style="font-family:monospace; font-size:12px;">${u.license_key || '-'}</td>
+          <td>${expiresDisplay}</td>
           <td>${u.is_premium ? '<span class="badge badge-premium">Premium</span>' : '<span class="badge badge-free">Free</span>'}</td>
           <td>
             ${u.is_blocked ? '<span class="badge badge-blocked">Bloqueado</span>' : 
@@ -522,15 +542,22 @@
           </td>
           <td>
             <button class="btn btn-secondary btn-sm" onclick="editUser('${u.id}')">Editar</button>
+            <button class="btn btn-primary btn-sm" onclick="showRenewModal('${u.id}', '${u.username}')">Renovar</button>
             <button class="btn btn-secondary btn-sm" onclick="togglePause('${u.id}')">${u.is_paused ? 'Reactivar' : 'Pausar'}</button>
             <button class="btn btn-secondary btn-sm" onclick="resetHWID('${u.id}')">Reset HWID</button>
             <button class="btn btn-${u.is_blocked ? 'primary' : 'danger'} btn-sm" onclick="toggleBlock('${u.id}')">${u.is_blocked ? 'Desbloquear' : 'Bloquear'}</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteUser('${u.id}', '${u.username}')">Eliminar</button>
           </td>
         </tr>
-      `).join('');
+        `;
+      }).join('');
     }
 
     function showCreateUserModal() {
+      // Default expiration: 30 days from now
+      const defaultExp = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+      const defaultExpStr = defaultExp.toISOString().split('T')[0];
+      
       showModal(`
         <h2>Nuevo Usuario</h2>
         <form id="createUserForm">
@@ -541,6 +568,11 @@
           <div class="form-group">
             <label>Licencia Key</label>
             <input type="text" name="licenseKey" value="${crypto.randomUUID()}">
+          </div>
+          <div class="form-group">
+            <label>Fecha de Expiración</label>
+            <input type="date" name="licenseExpiresAt" value="${defaultExpStr}">
+            <small style="color:#666;">Dejar vacío para sin expiración</small>
           </div>
           <div class="form-group">
             <label>Tipo</label>
@@ -558,12 +590,14 @@
       document.getElementById('createUserForm').addEventListener('submit', async (e) => {
         e.preventDefault();
         const fd = new FormData(e.target);
+        const expDate = fd.get('licenseExpiresAt');
         await api('/api/users', {
           method: 'POST',
           body: JSON.stringify({
             username: fd.get('username'),
             licenseKey: fd.get('licenseKey'),
             isPremium: fd.get('isPremium') === '1',
+            licenseExpiresAt: expDate ? new Date(expDate).toISOString() : null,
           }),
         });
         closeModal();
@@ -624,6 +658,56 @@
     async function togglePause(id) { await api(`/api/users/${id}/pause`, { method: 'POST' }); loadUsers(); }
     async function resetHWID(id) { if (confirm('¿Resetear HWID?')) { await api(`/api/users/${id}/hwid`, { method: 'POST' }); loadUsers(); } }
     async function toggleBlock(id) { await api(`/api/users/${id}/block`, { method: 'POST' }); loadUsers(); }
+
+    function showRenewModal(id, username) {
+      showModal(`
+        <h2>Renovar Licencia</h2>
+        <p style="color:#888; margin-bottom:20px;">Usuario: <strong>${username}</strong></p>
+        <form id="renewForm">
+          <div class="form-group">
+            <label>Días a agregar</label>
+            <select name="days" required>
+              <option value="7">7 días</option>
+              <option value="14">14 días</option>
+              <option value="30" selected>30 días</option>
+              <option value="60">60 días</option>
+              <option value="90">90 días</option>
+              <option value="180">180 días</option>
+              <option value="365">365 días (1 año)</option>
+            </select>
+          </div>
+          <div class="form-actions">
+            <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+            <button type="submit" class="btn btn-primary">Renovar</button>
+          </div>
+        </form>
+      `);
+      document.getElementById('renewForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const fd = new FormData(e.target);
+        const result = await api(`/api/users/${id}/renew`, {
+          method: 'POST',
+          body: JSON.stringify({ days: fd.get('days') }),
+        });
+        if (result.success) {
+          alert(`Licencia renovada. Nueva fecha de expiración: ${formatDate(result.license_expires_at)}`);
+        }
+        closeModal();
+        loadUsers();
+      });
+    }
+
+    async function deleteUser(id, username) {
+      if (confirm(`¿Eliminar permanentemente al usuario "${username}"?\n\nEsta acción eliminará:\n- El usuario\n- Todos sus accesos a patches\n- Historial de descargas\n\nEsta acción NO se puede deshacer.`)) {
+        const result = await api(`/api/users/${id}`, { method: 'DELETE' });
+        if (result.success) {
+          alert(`Usuario "${username}" eliminado correctamente`);
+        } else {
+          alert(`Error: ${result.error}`);
+        }
+        loadUsers();
+      }
+    }
 
     // === PATCHES ===
     async function loadPatches() {

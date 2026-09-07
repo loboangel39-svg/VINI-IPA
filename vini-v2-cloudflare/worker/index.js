@@ -7,29 +7,33 @@
 // Formato: https://opensource.apple.com/source/CF/CF-550/CFBinaryPList.c
 // ============================================================
 
-function parseBinaryPlist(buffer) {
+function parseBinaryPlist(buffer, baseOffset = 0) {
+  // buffer es el archivo completo, baseOffset es donde empieza el bplist
   const data = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
   const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
 
-  // Trailer: últimos 32 bytes
+  // Trailer: últimos 32 bytes del archivo
   const trailerOffset = data.length - 32;
   const offsetSize = view.getUint8(trailerOffset + 6);
   const objectRefSize = view.getUint8(trailerOffset + 7);
   const objectCount = Number(view.getBigUint64(trailerOffset + 8));
+  const topObject = Number(view.getBigUint64(trailerOffset + 16));
   const offsetTableOffset = Number(view.getBigUint64(trailerOffset + 24));
 
   // Leer offset table
+  // IMPORTANTE: offsetTableOffset está calculado desde el inicio del bplist
   const offsets = [];
   for (let i = 0; i < objectCount; i++) {
     let off = 0;
     for (let j = 0; j < offsetSize; j++) {
-      off = off * 256 + view.getUint8(offsetTableOffset + i * offsetSize + j);
+      off = off * 256 + view.getUint8(offsetTableOffset + baseOffset + i * offsetSize + j);
     }
     offsets.push(off);
   }
 
   function readObject(objIndex) {
-    const offset = offsets[objIndex];
+    // Los offsets están calculados desde el inicio del bplist, hay que sumar baseOffset
+    const offset = offsets[objIndex] + baseOffset;
     const marker = view.getUint8(offset);
     const type = (marker >> 4) & 0x0F;
     const size = marker & 0x0F;
@@ -56,9 +60,18 @@ function parseBinaryPlist(buffer) {
         let len = size;
         let dataOff = offset + 1;
         if (len === 0x0F) {
+          // Extended length: next byte is an int marker
           const extMarker = view.getUint8(dataOff);
-          len = 1 << (extMarker & 0x0F);
-          dataOff++;
+          const extType = (extMarker >> 4) & 0x0F;
+          const extSize = extMarker & 0x0F;
+          if (extType === 0x01) { // int
+            const byteCount = 1 << extSize;
+            len = 0;
+            for (let i = 0; i < byteCount; i++) {
+              len = len * 256 + view.getUint8(dataOff + 1 + i);
+            }
+            dataOff += 1 + byteCount;
+          }
         }
         return data.slice(dataOff, dataOff + len);
       }
@@ -66,9 +79,18 @@ function parseBinaryPlist(buffer) {
         let len = size;
         let strOff = offset + 1;
         if (len === 0x0F) {
+          // Extended length: next byte is an int marker
           const extMarker = view.getUint8(strOff);
-          len = 1 << (extMarker & 0x0F);
-          strOff++;
+          const extType = (extMarker >> 4) & 0x0F;
+          const extSize = extMarker & 0x0F;
+          if (extType === 0x01) { // int
+            const byteCount = 1 << extSize;
+            len = 0;
+            for (let i = 0; i < byteCount; i++) {
+              len = len * 256 + view.getUint8(strOff + 1 + i);
+            }
+            strOff += 1 + byteCount;
+          }
         }
         let s = '';
         for (let i = 0; i < len; i++) s += String.fromCharCode(view.getUint8(strOff + i));
@@ -78,9 +100,18 @@ function parseBinaryPlist(buffer) {
         let len = size;
         let strOff = offset + 1;
         if (len === 0x0F) {
+          // Extended length: next byte is an int marker
           const extMarker = view.getUint8(strOff);
-          len = 1 << (extMarker & 0x0F);
-          strOff++;
+          const extType = (extMarker >> 4) & 0x0F;
+          const extSize = extMarker & 0x0F;
+          if (extType === 0x01) { // int
+            const byteCount = 1 << extSize;
+            len = 0;
+            for (let i = 0; i < byteCount; i++) {
+              len = len * 256 + view.getUint8(strOff + 1 + i);
+            }
+            strOff += 1 + byteCount;
+          }
         }
         let s = '';
         for (let i = 0; i < len; i++) {
@@ -121,13 +152,18 @@ function parseBinaryPlist(buffer) {
           dictOff++;
         }
         const dict = {};
+        // En binary plist, las keys y values están en DOS ARRAYS SEPARADOS:
+        // Primero todas las keys: keyRef[0], keyRef[1], ..., keyRef[len-1]
+        // Luego todos los values: valRef[0], valRef[1], ..., valRef[len-1]
         for (let i = 0; i < len; i++) {
           let keyRef = 0, valRef = 0;
+          // Leer key reference
           for (let j = 0; j < objectRefSize; j++) {
-            keyRef = keyRef * 256 + view.getUint8(dictOff + i * objectRefSize * 2 + j);
+            keyRef = keyRef * 256 + view.getUint8(dictOff + i * objectRefSize + j);
           }
+          // Leer value reference (después de todas las keys)
           for (let j = 0; j < objectRefSize; j++) {
-            valRef = valRef * 256 + view.getUint8(dictOff + i * objectRefSize * 2 + objectRefSize + j);
+            valRef = valRef * 256 + view.getUint8(dictOff + len * objectRefSize + i * objectRefSize + j);
           }
           const key = readObject(keyRef);
           dict[key] = readObject(valRef);
@@ -139,13 +175,34 @@ function parseBinaryPlist(buffer) {
     }
   }
 
-  // Root es siempre el último objeto (index = objectCount - 1)
-  return readObject(objectCount - 1);
+  // Root es el objeto indicado por topObject en el trailer
+  return readObject(topObject);
 }
 
-// Extraer publicContentKey de un archivo .3105 (solo patches sin password)
-// Retorna Uint8Array de 32 bytes o null si está protegido por password
-function extractContentKeyFrom3105(fileData) {
+// Convertir packageID a string UUID
+// Puede venir como string, Uint8Array (16 bytes binarios), o UID
+function packageIDToString(packageID) {
+  if (typeof packageID === 'string') return packageID;
+  
+  if (packageID instanceof Uint8Array) {
+    // UUID binario de 16 bytes → string formateado
+    if (packageID.length === 16) {
+      const hex = toHex(packageID);
+      return `${hex.slice(0,8)}-${hex.slice(8,12)}-${hex.slice(12,16)}-${hex.slice(16,20)}-${hex.slice(20,32)}`.toUpperCase();
+    }
+    // Si no es 16 bytes, convertir a hex
+    return toHex(packageID);
+  }
+  
+  // UID (número)
+  return String(packageID);
+}
+
+// Extraer publicContentKey de un archivo .3105
+// Si el patch no está protegido, extrae directamente publicContentKey
+// Si está protegido y se proporciona password, deriva la key y desbloquea wrappedContentKey
+// Retorna Uint8Array de 32 bytes o null si falla
+async function extractContentKeyFrom3105(fileData, password = null) {
   const magic = new TextEncoder().encode('3105PATCH\0');
   const bytes = new Uint8Array(fileData);
 
@@ -155,26 +212,224 @@ function extractContentKeyFrom3105(fileData) {
     if (bytes[i] !== magic[i]) return null;
   }
 
-  // Parsear el binary plist después del magic
-  const plistData = bytes.slice(magic.length);
+  // Parsear el binary plist
+  // IMPORTANTE: Los offsets en el trailer están calculados desde el inicio del bplist,
+  // no desde el inicio del archivo. Hay que pasar baseOffset para ajustar.
   let envelope;
   try {
-    envelope = parseBinaryPlist(plistData);
+    envelope = parseBinaryPlist(bytes, magic.length);
   } catch {
     return null;
   }
 
-  // Solo extraer si NO está protegido por password
-  if (envelope.isPasswordProtected) return null;
+  // Si NO está protegido por password, extraer directamente
+  if (!envelope.isPasswordProtected) {
+    const key = envelope.publicContentKey;
+    if (key instanceof Uint8Array && key.length === 32) return key;
+    return null;
+  }
 
-  const key = envelope.publicContentKey;
-  if (key instanceof Uint8Array && key.length === 32) return key;
-  return null;
+  // Si está protegido pero no hay password, no podemos extraer
+  if (!password || password.length === 0) return null;
+
+  // Derivar la wrapping key desde la password
+  try {
+    const salt = envelope.kdfSalt;
+    const iterations = envelope.kdfIterations || 100000;
+    const wrappedKey = envelope.wrappedContentKey;
+
+    if (!(salt instanceof Uint8Array) || !(wrappedKey instanceof Uint8Array)) return null;
+
+    // Derivar key usando PBKDF2
+    const derivedKey = await deriveKeyFromPassword(password, salt, iterations);
+
+    // Desbloquear wrappedContentKey usando AES-GCM
+    // El wrappedKey tiene el formato combinado: nonce (12 bytes) + ciphertext + tag (16 bytes)
+    if (wrappedKey.length < 28) return null; // 12 nonce + 16 tag mínimo
+
+    const nonce = wrappedKey.slice(0, 12);
+    const ciphertext = wrappedKey.slice(12);
+
+    // Calcular el AAD (Additional Authenticated Data) — debe coincidir con el usado por Swift
+    // Swift: Data("3105PATCH/v\(version)/key/\(packageID.uuidString)".utf8)
+    const packageID = envelope.packageID;
+    const aadVersion = envelope.keyAADVersion || envelope.schemaVersion;
+    if (!packageID || !aadVersion) return null;
+
+    // Convertir packageID a string UUID correctamente
+    const packageIDStr = packageIDToString(packageID);
+    const aadString = `3105PATCH/v${aadVersion}/key/${packageIDStr}`;
+    const keyAAD = new TextEncoder().encode(aadString);
+
+    const unlockedKey = await aesGcmDecrypt(derivedKey, nonce, ciphertext, keyAAD);
+    if (unlockedKey && unlockedKey.length === 32) return unlockedKey;
+
+    return null;
+  } catch (e) {
+    console.error('Failed to extract content key with password:', e);
+    return null;
+  }
+}
+
+// Implementación manual de PBKDF2-SHA256 para soportar >100k iteraciones
+// Cloudflare Workers limita crypto.subtle.deriveBits a 100,000 iteraciones
+async function deriveKeyFromPassword(password, salt, iterations) {
+  const encoder = new TextEncoder();
+  const passwordBuffer = encoder.encode(password);
+
+  // Importar password como HMAC key
+  const hmacKey = await crypto.subtle.importKey(
+    'raw',
+    passwordBuffer,
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  );
+
+  // PBKDF2: DK = T1 || T2 || ... donde Ti = U1 ^ U2 ^ ... ^ Uc
+  // U1 = HMAC(password, salt || INT_32_BE(i))
+  // Uj = HMAC(password, Uj-1)
+  
+  // Para 32 bytes necesitamos solo 1 bloque (T1)
+  const blockIndex = new Uint8Array(4);
+  blockIndex[3] = 1; // INT_32_BE(1)
+  
+  // Concatenar salt + blockIndex
+  const saltWithIndex = new Uint8Array(salt.length + 4);
+  saltWithIndex.set(salt, 0);
+  saltWithIndex.set(blockIndex, salt.length);
+  
+  // U1 = HMAC(password, salt || INT_32_BE(1))
+  let u = await crypto.subtle.sign('HMAC', hmacKey, saltWithIndex);
+  let result = new Uint8Array(u);
+  
+  // Iteraciones restantes: U2, U3, ..., Uc
+  for (let i = 1; i < iterations; i++) {
+    u = await crypto.subtle.sign('HMAC', hmacKey, u);
+    const uArray = new Uint8Array(u);
+    // XOR: result = result ^ u
+    for (let j = 0; j < result.length; j++) {
+      result[j] ^= uArray[j];
+    }
+  }
+  
+  return result;
+}
+
+// Desbloquear datos usando AES-GCM
+// aad = Additional Authenticated Data (debe coincidir con el usado al cifrar)
+async function aesGcmDecrypt(key, nonce, ciphertextWithTag, aad = new Uint8Array(0)) {
+  try {
+    // Importar key para AES-GCM
+    const cryptoKey = await crypto.subtle.importKey(
+      'raw',
+      key,
+      { name: 'AES-GCM' },
+      false,
+      ['decrypt']
+    );
+
+    // Decrypt (AES-GCM decrypt también verifica el tag)
+    const decrypted = await crypto.subtle.decrypt(
+      {
+        name: 'AES-GCM',
+        iv: nonce,
+        tagLength: 128, // 16 bytes = 128 bits
+        additionalData: aad
+      },
+      cryptoKey,
+      ciphertextWithTag
+    );
+
+    return new Uint8Array(decrypted);
+  } catch (e) {
+    return null;
+  }
 }
 
 // Convertir Uint8Array a hex string
 function toHex(uint8Array) {
   return Array.from(uint8Array).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+// Formatear bytes a formato legible
+function formatBytes(bytes) {
+  if (bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
+}
+
+// Limpiar archivos duplicados/orfanos de R2
+async function cleanupR2Files(env, dryRun = true) {
+  const results = {
+    totalFiles: 0,
+    validFiles: 0,
+    orphanFiles: [],
+    deletedFiles: []
+  };
+
+  // Obtener todos los archivos de R2
+  const listed = await env.R2.list({ limit: 1000 });
+  results.totalFiles = listed.objects.length;
+
+  // Obtener todos los file_keys válidos de la base de datos
+  const patches = await env.DB.prepare('SELECT id, file_key FROM patches').all();
+  const validFileKeys = new Set(patches.results.map(p => p.file_key).filter(fk => fk));
+
+  // Identificar archivos duplicados y orfanos
+  const seenIds = new Map(); // id -> file_key
+  
+  for (const obj of listed.objects) {
+    const key = obj.key;
+    
+    // Extraer ID del nombre del archivo (formato: {id}.3105 o patches/{id}/{filename})
+    let patchId = null;
+    if (key.includes('.3105')) {
+      patchId = key.replace('.3105', '');
+    } else if (key.startsWith('patches/')) {
+      const parts = key.split('/');
+      if (parts.length >= 2) {
+        patchId = parts[1];
+      }
+    }
+
+    if (patchId) {
+      if (seenIds.has(patchId)) {
+        // Es un duplicado
+        results.orphanFiles.push({
+          key: key,
+          size: obj.size,
+          reason: 'duplicate',
+          originalKey: seenIds.get(patchId)
+        });
+        
+        if (!dryRun) {
+          await env.R2.delete(key);
+          results.deletedFiles.push(key);
+        }
+      } else if (!validFileKeys.has(key)) {
+        // Es un archivo orfano (no está en la DB)
+        results.orphanFiles.push({
+          key: key,
+          size: obj.size,
+          reason: 'orphan'
+        });
+        
+        if (!dryRun) {
+          await env.R2.delete(key);
+          results.deletedFiles.push(key);
+        }
+      } else {
+        // Archivo válido
+        seenIds.set(patchId, key);
+        results.validFiles++;
+      }
+    }
+  }
+
+  return results;
 }
 
 export default {
@@ -187,6 +442,759 @@ export default {
     if (path === '/debug/storage' && method === 'GET') {
       const db = await env.DB.prepare('SELECT 1 AS test').first();
       return Response.json({ worker: 'OK', d1: db?.test === 1 ? 'OK' : 'ERROR' });
+    }
+
+    // === LIST R2 FILES ===
+    if (path === '/debug/r2/list' && method === 'GET') {
+      const listed = await env.R2.list({ limit: 1000 });
+      
+      // Obtener file_keys válidos de la DB
+      const patches = await env.DB.prepare('SELECT id, name, file_key FROM patches').all();
+      const validFileKeys = new Set(patches.results.map(p => p.file_key).filter(fk => fk));
+      
+      const files = listed.objects.map(obj => ({
+        key: obj.key,
+        size: obj.size,
+        sizeFormatted: formatBytes(obj.size),
+        isValid: validFileKeys.has(obj.key),
+        uploaded: obj.uploaded.toISOString()
+      }));
+
+      return Response.json({
+        totalFiles: files.length,
+        validFiles: files.filter(f => f.isValid).length,
+        orphanFiles: files.filter(f => !f.isValid).length,
+        truncated: listed.truncated,
+        files: files
+      });
+    }
+
+    // === COUNT R2 FILES (fast) ===
+    if (path === '/debug/r2/count' && method === 'GET') {
+      let count = 0;
+      let cursor = null;
+      
+      do {
+        const listed = await env.R2.list({ limit: 1000, cursor });
+        count += listed.objects.length;
+        cursor = listed.truncated ? listed.cursor : null;
+      } while (cursor);
+      
+      return Response.json({
+        totalFiles: count
+      });
+    }
+
+    // === CLEANUP R2 FILES (dry run) ===
+    if (path === '/debug/r2/cleanup' && method === 'GET') {
+      const results = await cleanupR2Files(env, true);
+      return Response.json({
+        message: 'Dry run - no files were deleted',
+        ...results,
+        orphanFiles: results.orphanFiles.map(f => ({
+          key: f.key,
+          size: f.size,
+          sizeFormatted: formatBytes(f.size),
+          reason: f.reason,
+          originalKey: f.originalKey
+        }))
+      });
+    }
+
+    // === CLEANUP R2 FILES (actual delete) ===
+    if (path === '/debug/r2/cleanup' && method === 'POST') {
+      const results = await cleanupR2Files(env, false);
+      return Response.json({
+        message: 'Cleanup completed - orphan/duplicate files deleted',
+        ...results
+      });
+    }
+
+    // === DELETE ALL R2 FILES (nuke) ===
+    if (path === '/debug/r2/nuke' && method === 'POST') {
+      let deletedCount = 0;
+      let cursor = null;
+      
+      do {
+        const listed = await env.R2.list({ limit: 1000, cursor });
+        
+        // Borrar en lotes
+        const deletePromises = listed.objects.map(obj => env.R2.delete(obj.key));
+        await Promise.all(deletePromises);
+        
+        deletedCount += listed.objects.length;
+        cursor = listed.truncated ? listed.cursor : null;
+      } while (cursor);
+      
+      return Response.json({
+        message: `Deleted ${deletedCount} files from R2`,
+        deletedCount
+      });
+    }
+
+    // === FIND DUPLICATE PATCHES ===
+    if (path === '/debug/patches/duplicates' && method === 'GET') {
+      const patches = await env.DB.prepare('SELECT id, name, created_at FROM patches ORDER BY name, created_at').all();
+      
+      const byName = {};
+      for (const p of patches.results) {
+        if (!byName[p.name]) byName[p.name] = [];
+        byName[p.name].push(p);
+      }
+      
+      const duplicates = [];
+      for (const [name, list] of Object.entries(byName)) {
+        if (list.length > 1) {
+          duplicates.push({
+            name,
+            count: list.length,
+            patches: list.map((p, i) => ({
+              id: p.id,
+              created_at: p.created_at,
+              keep: i === 0 // Mantener el más antiguo
+            }))
+          });
+        }
+      }
+      
+      return Response.json({
+        totalPatches: patches.results.length,
+        duplicateGroups: duplicates.length,
+        duplicates
+      });
+    }
+
+    // === DELETE DUPLICATE PATCHES ===
+    if (path === '/debug/patches/duplicates' && method === 'POST') {
+      const patches = await env.DB.prepare('SELECT id, name, file_key, created_at FROM patches ORDER BY name, created_at').all();
+      
+      const byName = {};
+      for (const p of patches.results) {
+        if (!byName[p.name]) byName[p.name] = [];
+        byName[p.name].push(p);
+      }
+      
+      let deletedCount = 0;
+      const deletedIds = [];
+      
+      for (const [name, list] of Object.entries(byName)) {
+        if (list.length > 1) {
+          // Mantener el primero (más antiguo), borrar el resto
+          for (let i = 1; i < list.length; i++) {
+            const p = list[i];
+            
+            // Borrar archivo de R2
+            if (p.file_key) {
+              try { await env.R2.delete(p.file_key); } catch (e) {}
+            }
+            
+            // Borrar de la DB
+            await env.DB.prepare('DELETE FROM patches WHERE id = ?').bind(p.id).run();
+            await env.DB.prepare('DELETE FROM user_patches WHERE patch_id = ?').bind(p.id).run();
+            await env.DB.prepare('DELETE FROM downloads WHERE patch_id = ?').bind(p.id).run();
+            
+            deletedCount++;
+            deletedIds.push(p.id);
+          }
+        }
+      }
+      
+      return Response.json({
+        message: `Deleted ${deletedCount} duplicate patches`,
+        deletedCount,
+        deletedIds
+      });
+    }
+
+    // === DEBUG HEX DUMP ===
+    if (path.startsWith('/debug/patch/') && path.endsWith('/hexdump') && method === 'GET') {
+      const patchId = path.split('/')[3];
+      const patch = await env.DB.prepare('SELECT file_key FROM patches WHERE id = ?').bind(patchId).first();
+      if (!patch || !patch.file_key) {
+        return Response.json({ error: 'Patch or file not found' }, { status: 404 });
+      }
+
+      const object = await env.R2.get(patch.file_key);
+      if (!object) {
+        return Response.json({ error: 'File not found in R2' });
+      }
+
+      const buffer = await object.arrayBuffer();
+      const bytes = new Uint8Array(buffer);
+      
+      // Dump first 512 bytes as hex
+      const hexDump = [];
+      const limit = Math.min(512, bytes.length);
+      for (let i = 0; i < limit; i += 16) {
+        const hex = [];
+        const ascii = [];
+        for (let j = 0; j < 16 && i + j < bytes.length; j++) {
+          const byte = bytes[i + j];
+          hex.push(byte.toString(16).padStart(2, '0'));
+          ascii.push(byte >= 32 && byte < 127 ? String.fromCharCode(byte) : '.');
+        }
+        hexDump.push(`${i.toString(16).padStart(4, '0')}: ${hex.join(' ')}  ${ascii.join('')}`);
+      }
+
+      // Parse trailer
+      const trailerOffset = bytes.length - 32;
+      const view = new DataView(buffer);
+      const offsetSize = view.getUint8(trailerOffset + 6);
+      const objectRefSize = view.getUint8(trailerOffset + 7);
+      const objectCount = Number(view.getBigUint64(trailerOffset + 8));
+      const topObject = Number(view.getBigUint64(trailerOffset + 16));
+      const offsetTableOffset = Number(view.getBigUint64(trailerOffset + 24));
+
+      return Response.json({
+        fileSize: bytes.length,
+        magic: new TextDecoder().decode(bytes.slice(0, 10)),
+        trailer: {
+          offsetSize,
+          objectRefSize,
+          objectCount,
+          topObject,
+          offsetTableOffset
+        },
+        hexDump: hexDump.join('\n')
+      });
+    }
+
+    // === TEST EXTRACTION WITH SPECIFIC PASSWORD ===
+    if (path.startsWith('/debug/patch/') && path.endsWith('/test-extract') && method === 'GET') {
+      const patchId = path.split('/')[3];
+      const testPassword = url.searchParams.get('password') || '';
+      
+      const patch = await env.DB.prepare('SELECT * FROM patches WHERE id = ?').bind(patchId).first();
+      if (!patch) {
+        return Response.json({ error: 'Patch not found' }, { status: 404 });
+      }
+
+      const debugInfo = {
+        patchId: patch.id,
+        name: patch.name,
+        dbPassword: patch.password || '(empty)',
+        dbPasswordHex: patch.password ? toHex(new TextEncoder().encode(patch.password)) : '(empty)',
+        dbPasswordLength: patch.password ? patch.password.length : 0,
+        testPassword: testPassword,
+        testPasswordHex: toHex(new TextEncoder().encode(testPassword)),
+        testPasswordLength: testPassword.length,
+      };
+
+      if (!patch.file_key) {
+        return Response.json({ ...debugInfo, error: 'No file uploaded' });
+      }
+
+      try {
+        const object = await env.R2.get(patch.file_key);
+        if (!object) {
+          return Response.json({ ...debugInfo, error: 'File not found in R2' });
+        }
+
+        const fileBuffer = await object.arrayBuffer();
+        
+        // Test with DB password
+        const extractedWithDb = await extractContentKeyFrom3105(fileBuffer, patch.password || null);
+        debugInfo.extractedWithDbPassword = extractedWithDb ? toHex(extractedWithDb) : 'FAILED';
+
+        // Test with provided password
+        if (testPassword) {
+          const extractedWithTest = await extractContentKeyFrom3105(fileBuffer, testPassword);
+          debugInfo.extractedWithTestPassword = extractedWithTest ? toHex(extractedWithTest) : 'FAILED';
+        }
+
+        // Detailed step-by-step with test password
+        const password = testPassword || patch.password;
+        if (password) {
+          const magic = new TextEncoder().encode('3105PATCH\0');
+          const bytes = new Uint8Array(fileBuffer);
+          const envelope = parseBinaryPlist(bytes, magic.length);
+          
+          const salt = envelope.kdfSalt;
+          const iterations = envelope.kdfIterations || 100000;
+          const wrappedKey = envelope.wrappedContentKey;
+          
+          debugInfo.step1_saltHex = toHex(salt);
+          debugInfo.step2_iterations = iterations;
+          debugInfo.step3_wrappedKeyHex = toHex(wrappedKey);
+          
+          // Derive key usando implementación manual (soporta >100k iteraciones)
+          const passwordBuffer = new TextEncoder().encode(password);
+          debugInfo.step4_passwordBufferHex = toHex(passwordBuffer);
+          
+          const derivedKey = await deriveKeyFromPassword(password, salt, iterations);
+          debugInfo.step5_derivedKeyHex = toHex(derivedKey);
+          
+          // Decrypt
+          const nonce = wrappedKey.slice(0, 12);
+          const ciphertext = wrappedKey.slice(12);
+          
+          debugInfo.step6_nonceHex = toHex(nonce);
+          debugInfo.step7_ciphertextLength = ciphertext.length;
+          
+          const packageID = envelope.packageID;
+          const aadVersion = envelope.keyAADVersion || envelope.schemaVersion;
+          const aadString = `3105PATCH/v${aadVersion}/key/${packageID}`;
+          debugInfo.step8_aadString = aadString;
+          
+          const keyAAD = new TextEncoder().encode(aadString);
+          debugInfo.step9_aadHex = toHex(keyAAD);
+          
+          try {
+            const cryptoKey = await crypto.subtle.importKey(
+              'raw',
+              derivedKey,
+              { name: 'AES-GCM' },
+              false,
+              ['decrypt']
+            );
+            
+            const decrypted = await crypto.subtle.decrypt(
+              {
+                name: 'AES-GCM',
+                iv: nonce,
+                tagLength: 128,
+                additionalData: keyAAD
+              },
+              cryptoKey,
+              ciphertext
+            );
+            
+            const unlockedKey = new Uint8Array(decrypted);
+            debugInfo.step10_decryptionSuccess = true;
+            debugInfo.step11_contentKeyHex = toHex(unlockedKey);
+            debugInfo.success = true;
+          } catch (decryptError) {
+            debugInfo.step10_decryptionSuccess = false;
+            debugInfo.step10_decryptError = decryptError.message;
+          }
+        }
+
+        return Response.json(debugInfo);
+      } catch (e) {
+        return Response.json({ ...debugInfo, error: 'Exception: ' + e.message, stack: e.stack });
+      }
+    }
+
+    // === DEBUG ALL PATCHES ===
+    if (path === '/debug/patches' && method === 'GET') {
+      const patches = await env.DB.prepare('SELECT id, name, password, content_key, file_key, created_at FROM patches ORDER BY created_at DESC').all();
+      const results = [];
+      
+      for (const patch of patches.results) {
+        const info = {
+          id: patch.id,
+          name: patch.name,
+          hasPassword: !!patch.password && patch.password.length > 0,
+          passwordLength: patch.password ? patch.password.length : 0,
+          hasContentKey: !!patch.content_key && patch.content_key.length > 0,
+          contentKey: patch.content_key || '(empty)',
+          hasFile: !!patch.file_key,
+          created_at: patch.created_at,
+        };
+        
+        if (patch.file_key) {
+          try {
+            const object = await env.R2.get(patch.file_key);
+            if (!object) {
+              info.error = 'File not found in R2';
+            } else {
+              const fileBuffer = await object.arrayBuffer();
+              info.fileSize = fileBuffer.byteLength;
+              
+              const magic = new TextEncoder().encode('3105PATCH\0');
+              const bytes = new Uint8Array(fileBuffer);
+              
+              if (bytes.length < magic.length + 20) {
+                info.error = 'File too small';
+              } else {
+                let magicOk = true;
+                for (let i = 0; i < magic.length; i++) {
+                  if (bytes[i] !== magic[i]) { magicOk = false; break; }
+                }
+                if (!magicOk) {
+                  info.error = 'Invalid magic header';
+                } else {
+                  try {
+                    const plistData = bytes.slice(magic.length);
+                    const envelope = parseBinaryPlist(plistData);
+                    info.envelopeKeys = Object.keys(envelope);
+                    info.isPasswordProtected = envelope.isPasswordProtected;
+                    info.packageID = envelope.packageID;
+                    info.packageIDType = typeof envelope.packageID;
+                    info.schemaVersion = envelope.schemaVersion;
+                    info.keyAADVersion = envelope.keyAADVersion;
+                    info.hasKdfSalt = envelope.kdfSalt instanceof Uint8Array;
+                    info.kdfSaltLength = envelope.kdfSalt ? envelope.kdfSalt.length : 0;
+                    info.hasWrappedKey = envelope.wrappedContentKey instanceof Uint8Array;
+                    info.wrappedKeyLength = envelope.wrappedContentKey ? envelope.wrappedContentKey.length : 0;
+                    info.hasPublicKey = envelope.publicContentKey instanceof Uint8Array;
+                    info.kdfIterations = envelope.kdfIterations;
+                  } catch (e) {
+                    info.error = 'Parse error: ' + e.message;
+                  }
+                }
+              }
+            }
+          } catch (e) {
+            info.error = 'Exception: ' + e.message;
+          }
+        }
+        
+        results.push(info);
+      }
+      
+      return Response.json({ patches: results });
+    }
+
+    // === DEBUG PATCH EXTRACTION ===
+    if (path.startsWith('/debug/patch/') && method === 'GET') {
+      const patchId = path.split('/')[3];
+      const patch = await env.DB.prepare('SELECT * FROM patches WHERE id = ?').bind(patchId).first();
+      if (!patch) {
+        return Response.json({ error: 'Patch not found' }, { status: 404 });
+      }
+
+      const debugInfo = {
+        patchId: patch.id,
+        name: patch.name,
+        hasPassword: !!patch.password && patch.password.length > 0,
+        passwordLength: patch.password ? patch.password.length : 0,
+        currentContentKey: patch.content_key || '(empty)',
+        fileKey: patch.file_key || '(no file)',
+      };
+
+      if (!patch.file_key) {
+        return Response.json({ ...debugInfo, error: 'No file uploaded' });
+      }
+
+      try {
+        const object = await env.R2.get(patch.file_key);
+        if (!object) {
+          return Response.json({ ...debugInfo, error: 'File not found in R2' });
+        }
+
+        const fileBuffer = await object.arrayBuffer();
+        debugInfo.fileSize = fileBuffer.byteLength;
+
+        // Intentar extraer content_key
+        const extracted = await extractContentKeyFrom3105(fileBuffer, patch.password || null);
+        
+        if (extracted) {
+          debugInfo.success = true;
+          debugInfo.extractedContentKey = toHex(extracted);
+          debugInfo.contentKeyLength = extracted.length;
+        } else {
+          debugInfo.success = false;
+          debugInfo.error = 'Failed to extract content_key';
+          
+          // Diagnosticar por qué falló
+          const magic = new TextEncoder().encode('3105PATCH\0');
+          const bytes = new Uint8Array(fileBuffer);
+          
+          if (bytes.length < magic.length + 20) {
+            debugInfo.diagnostic = 'File too small';
+          } else {
+            // Verificar magic
+            let magicOk = true;
+            for (let i = 0; i < magic.length; i++) {
+              if (bytes[i] !== magic[i]) { magicOk = false; break; }
+            }
+            if (!magicOk) {
+              debugInfo.diagnostic = 'Invalid magic header (not a .3105 file)';
+            } else {
+              // Intentar parsear el plist
+              try {
+                const plistData = bytes.slice(magic.length);
+                const envelope = parseBinaryPlist(plistData);
+                debugInfo.diagnostic = 'Parsed envelope successfully';
+                debugInfo.envelopeKeys = Object.keys(envelope);
+                debugInfo.isPasswordProtected = envelope.isPasswordProtected;
+                debugInfo.packageID = envelope.packageID;
+                debugInfo.schemaVersion = envelope.schemaVersion;
+                debugInfo.keyAADVersion = envelope.keyAADVersion;
+                debugInfo.hasKdfSalt = envelope.kdfSalt instanceof Uint8Array;
+                debugInfo.hasWrappedKey = envelope.wrappedContentKey instanceof Uint8Array;
+                debugInfo.hasPublicKey = envelope.publicContentKey instanceof Uint8Array;
+                
+                if (envelope.isPasswordProtected) {
+                  if (!patch.password || patch.password.length === 0) {
+                    debugInfo.diagnostic += ' — Password protected but no password in DB';
+                  } else {
+                    debugInfo.diagnostic += ' — Password provided but extraction failed (wrong password?)';
+                  }
+                }
+              } catch (e) {
+                debugInfo.diagnostic = 'Failed to parse binary plist: ' + e.message;
+              }
+            }
+          }
+        }
+      } catch (e) {
+        debugInfo.error = 'Exception: ' + e.message;
+      }
+
+      return Response.json(debugInfo);
+    }
+
+    // === FORCE RE-EXTRACT CONTENT KEY ===
+    if (path.startsWith('/debug/patch/') && path.endsWith('/extract') && method === 'POST') {
+      const patchId = path.split('/')[3];
+      const patch = await env.DB.prepare('SELECT * FROM patches WHERE id = ?').bind(patchId).first();
+      if (!patch) {
+        return Response.json({ error: 'Patch not found' }, { status: 404 });
+      }
+
+      if (!patch.file_key) {
+        return Response.json({ error: 'No file uploaded' });
+      }
+
+      try {
+        const object = await env.R2.get(patch.file_key);
+        if (!object) {
+          return Response.json({ error: 'File not found in R2' });
+        }
+
+        const fileBuffer = await object.arrayBuffer();
+        const extracted = await extractContentKeyFrom3105(fileBuffer, patch.password || null);
+        
+        if (extracted) {
+          const contentKeyHex = toHex(extracted);
+          await env.DB.prepare('UPDATE patches SET content_key = ? WHERE id = ?')
+            .bind(contentKeyHex, patchId).run();
+          
+          return Response.json({ 
+            success: true, 
+            contentKey: contentKeyHex,
+            message: 'Content key extracted and saved'
+          });
+        } else {
+          return Response.json({ 
+            success: false, 
+            error: 'Failed to extract content_key. Check password.'
+          });
+        }
+      } catch (e) {
+        return Response.json({ error: 'Exception: ' + e.message });
+      }
+    }
+
+    // === DETAILED DEBUG EXTRACTION ===
+    if (path.startsWith('/debug/patch/') && path.endsWith('/extract-debug') && method === 'GET') {
+      const patchId = path.split('/')[3];
+      const patch = await env.DB.prepare('SELECT * FROM patches WHERE id = ?').bind(patchId).first();
+      if (!patch) {
+        return Response.json({ error: 'Patch not found' }, { status: 404 });
+      }
+
+      if (!patch.file_key) {
+        return Response.json({ error: 'No file uploaded' });
+      }
+
+      const debugInfo = {
+        patchId: patch.id,
+        name: patch.name,
+        password: patch.password || '(empty)',
+        passwordLength: patch.password ? patch.password.length : 0,
+      };
+
+      try {
+        const object = await env.R2.get(patch.file_key);
+        if (!object) {
+          return Response.json({ ...debugInfo, error: 'File not found in R2' });
+        }
+
+        const fileBuffer = await object.arrayBuffer();
+        const bytes = new Uint8Array(fileBuffer);
+        debugInfo.fileSize = bytes.length;
+
+        // Verificar magic
+        const magic = new TextEncoder().encode('3105PATCH\0');
+        debugInfo.magicHex = toHex(bytes.slice(0, 10));
+        debugInfo.magicExpected = toHex(magic);
+        
+        let magicOk = true;
+        for (let i = 0; i < magic.length; i++) {
+          if (bytes[i] !== magic[i]) { magicOk = false; break; }
+        }
+        debugInfo.magicValid = magicOk;
+        
+        if (!magicOk) {
+          return Response.json({ ...debugInfo, error: 'Invalid magic header' });
+        }
+
+        // Parsear binary plist
+        let envelope;
+        try {
+          envelope = parseBinaryPlist(bytes, magic.length);
+          debugInfo.envelopeParsed = true;
+          debugInfo.envelopeKeys = Object.keys(envelope);
+        } catch (e) {
+          return Response.json({ ...debugInfo, error: 'Failed to parse binary plist: ' + e.message });
+        }
+
+        // Mostrar valores del envelope
+        debugInfo.isPasswordProtected = envelope.isPasswordProtected;
+        debugInfo.isPasswordProtectedType = typeof envelope.isPasswordProtected;
+        
+        debugInfo.packageID = envelope.packageID;
+        debugInfo.packageIDType = typeof envelope.packageID;
+        if (envelope.packageID instanceof Uint8Array) {
+          debugInfo.packageIDHex = toHex(envelope.packageID);
+          debugInfo.packageIDLength = envelope.packageID.length;
+        }
+        
+        debugInfo.schemaVersion = envelope.schemaVersion;
+        debugInfo.keyAADVersion = envelope.keyAADVersion;
+        debugInfo.kdfIterations = envelope.kdfIterations;
+        
+        if (envelope.kdfSalt instanceof Uint8Array) {
+          debugInfo.kdfSaltHex = toHex(envelope.kdfSalt);
+          debugInfo.kdfSaltLength = envelope.kdfSalt.length;
+        } else {
+          debugInfo.kdfSaltType = typeof envelope.kdfSalt;
+        }
+        
+        if (envelope.wrappedContentKey instanceof Uint8Array) {
+          debugInfo.wrappedKeyHex = toHex(envelope.wrappedContentKey);
+          debugInfo.wrappedKeyLength = envelope.wrappedContentKey.length;
+        } else {
+          debugInfo.wrappedKeyType = typeof envelope.wrappedContentKey;
+        }
+        
+        if (envelope.publicContentKey instanceof Uint8Array) {
+          debugInfo.publicKeyHex = toHex(envelope.publicContentKey);
+          debugInfo.publicKeyLength = envelope.publicContentKey.length;
+        }
+
+        // Si no está protegido, intentar extraer directamente
+        if (!envelope.isPasswordProtected) {
+          if (envelope.publicContentKey instanceof Uint8Array && envelope.publicContentKey.length === 32) {
+            debugInfo.success = true;
+            debugInfo.extractedKeyHex = toHex(envelope.publicContentKey);
+            debugInfo.method = 'direct (no password)';
+          } else {
+            debugInfo.error = 'Not password protected but publicContentKey invalid';
+          }
+          return Response.json(debugInfo);
+        }
+
+        // Si está protegido, intentar con contraseña
+        if (!patch.password || patch.password.length === 0) {
+          debugInfo.error = 'Password protected but no password in DB';
+          return Response.json(debugInfo);
+        }
+
+        // Derivar key usando implementación manual (soporta >100k iteraciones)
+        debugInfo.derivationStep = 'Starting PBKDF2';
+        const salt = envelope.kdfSalt;
+        const iterations = envelope.kdfIterations || 100000;
+        
+        try {
+          const passwordBuffer = new TextEncoder().encode(patch.password);
+          
+          debugInfo.derivationStep = 'Deriving bits';
+          const derivedKey = await deriveKeyFromPassword(patch.password, salt, iterations);
+          debugInfo.derivedKeyHex = toHex(derivedKey);
+          debugInfo.derivationStep = 'Key derived successfully';
+
+          // Desbloquear wrapped key
+          const wrappedKey = envelope.wrappedContentKey;
+          if (wrappedKey.length < 28) {
+            debugInfo.error = 'Wrapped key too short: ' + wrappedKey.length;
+            return Response.json(debugInfo);
+          }
+
+          const nonce = wrappedKey.slice(0, 12);
+          const ciphertext = wrappedKey.slice(12);
+          debugInfo.nonceHex = toHex(nonce);
+          debugInfo.ciphertextLength = ciphertext.length;
+
+          // Construir AAD
+          const packageID = envelope.packageID;
+          const aadVersion = envelope.keyAADVersion || envelope.schemaVersion;
+          
+          let packageIDString;
+          if (typeof packageID === 'string') {
+            packageIDString = packageID;
+          } else if (packageID instanceof Uint8Array) {
+            // Convertir UUID binario a string
+            const hex = toHex(packageID);
+            packageIDString = `${hex.slice(0,8)}-${hex.slice(8,12)}-${hex.slice(12,16)}-${hex.slice(16,20)}-${hex.slice(20,32)}`.toUpperCase();
+          } else {
+            packageIDString = String(packageID);
+          }
+          
+          debugInfo.packageIDString = packageIDString;
+          const aadString = `3105PATCH/v${aadVersion}/key/${packageIDString}`;
+          debugInfo.aadString = aadString;
+          const keyAAD = new TextEncoder().encode(aadString);
+          debugInfo.aadHex = toHex(keyAAD);
+
+          // Decrypt
+          debugInfo.derivationStep = 'Decrypting wrapped key';
+          const cryptoKey = await crypto.subtle.importKey(
+            'raw',
+            derivedKey,
+            { name: 'AES-GCM' },
+            false,
+            ['decrypt']
+          );
+
+          try {
+            const decrypted = await crypto.subtle.decrypt(
+              {
+                name: 'AES-GCM',
+                iv: nonce,
+                tagLength: 128,
+                additionalData: keyAAD
+              },
+              cryptoKey,
+              ciphertext
+            );
+
+            const unlockedKey = new Uint8Array(decrypted);
+            debugInfo.derivationStep = 'Decryption successful';
+            
+            if (unlockedKey.length === 32) {
+              debugInfo.success = true;
+              debugInfo.extractedKeyHex = toHex(unlockedKey);
+              debugInfo.method = 'password-derived';
+            } else {
+              debugInfo.error = 'Decrypted key wrong length: ' + unlockedKey.length;
+            }
+          } catch (decryptError) {
+            debugInfo.derivationStep = 'Decryption failed';
+            debugInfo.decryptError = decryptError.message;
+            debugInfo.error = 'AES-GCM decrypt failed. Wrong password or AAD mismatch.';
+          }
+        } catch (deriveError) {
+          debugInfo.derivationStep = 'Key derivation failed';
+          debugInfo.deriveError = deriveError.message;
+          debugInfo.error = 'PBKDF2 derivation failed: ' + deriveError.message;
+        }
+
+        return Response.json(debugInfo);
+      } catch (e) {
+        return Response.json({ ...debugInfo, error: 'Exception: ' + e.message, stack: e.stack });
+      }
+    }
+
+    // === ADMIN PANEL ===
+    if ((path === '/admin' || path === '/admin.html' || path === '/admin/') && method === 'GET') {
+      try {
+        const adminHtml = await env.R2.get('admin-panel/index.html');
+        if (adminHtml) {
+          return new Response(adminHtml.body, {
+            headers: {
+              'Content-Type': 'text/html; charset=utf-8',
+              'Cache-Control': 'no-cache'
+            }
+          });
+        }
+        return new Response('Admin panel not found', { status: 404 });
+      } catch (e) {
+        return new Response('Error loading admin panel: ' + e.message, { status: 500 });
+      }
     }
 
     // CORS
@@ -305,6 +1313,14 @@ export default {
       if (path.match(/^\/api\/users\/[^/]+\/block$/) && method === 'POST') {
         const id = path.split('/')[3];
         return handleToggleBlock(id, env, corsHeaders);
+      }
+      if (path.match(/^\/api\/users\/[^/]+\/renew$/) && method === 'POST') {
+        const id = path.split('/')[3];
+        return handleRenewLicense(id, request, env, corsHeaders);
+      }
+      if (path.match(/^\/api\/users\/[^/]+$/) && method === 'DELETE') {
+        const id = path.split('/')[3];
+        return handleDeleteUser(id, env, corsHeaders);
       }
 
       // === PATCHES ===
@@ -445,6 +1461,18 @@ async function handleAppValidateLicense(request, env, headers) {
     return Response.json({ valid: false, error: 'Account paused' }, { status: 403, headers });
   }
 
+  // Verificar expiración de licencia
+  if (user.license_expires_at) {
+    const expiresAt = new Date(user.license_expires_at);
+    if (expiresAt < new Date()) {
+      return Response.json({ 
+        valid: false, 
+        error: 'License expired',
+        expiredAt: user.license_expires_at 
+      }, { status: 403, headers });
+    }
+  }
+
   // Verificar HWID
   if (user.hwid && user.hwid !== '' && user.hwid !== hwid) {
     return Response.json({ valid: false, error: 'HWID mismatch. Contact admin to reset.' }, { status: 403, headers });
@@ -468,6 +1496,7 @@ async function handleAppValidateLicense(request, env, headers) {
     expiresAt: new Date(exp).toISOString(),
     username: user.username,
     isPremium: !!user.is_premium,
+    licenseExpiresAt: user.license_expires_at || null,
   }, { headers });
 }
 
@@ -483,7 +1512,7 @@ async function handleAppGetConfig(env, headers) {
 async function handleAppGetPatches(env, headers, appAuth) {
   // Obtener patches activos a los que el usuario tiene acceso
   const result = await env.DB.prepare(`
-    SELECT p.id, p.name, p.description, p.version, p.type, p.file_key, p.created_at, p.updated_at
+    SELECT p.id, p.name, p.description, p.version, p.type, p.file_key, p.password, p.content_key, p.created_at, p.updated_at
     FROM patches p
     INNER JOIN user_patches up ON up.patch_id = p.id
     WHERE p.active = 1
@@ -498,6 +1527,8 @@ async function handleAppGetPatches(env, headers, appAuth) {
     version: p.version,
     type: p.type,
     status: 'available',
+    password: p.password || null,
+    content_key: p.content_key || null,
     created_at: p.created_at,
     updated_at: p.updated_at,
   }));
@@ -525,6 +1556,8 @@ async function handleAppGetPatchDetail(id, env, headers, appAuth) {
     type: patch.type,
     status: 'available',
     file_size: patch.file_key ? 'unknown' : 0,
+    password: patch.password || null,
+    content_key: patch.content_key || null,
     created_at: patch.created_at,
     updated_at: patch.updated_at,
   }, { headers });
@@ -575,6 +1608,11 @@ async function handleAppDownloadPatch(id, env, headers, appAuth) {
   // Enviar content_key si está disponible (para desbloqueo automático en el cliente)
   if (patch.content_key && patch.content_key !== '') {
     responseHeaders['X-Content-Key'] = patch.content_key;
+  }
+
+  // Enviar contraseña si el patch está protegido (para decodificación en el cliente)
+  if (patch.password && patch.password !== '') {
+    responseHeaders['X-Patch-Password'] = patch.password;
   }
 
   return new Response(object.body, { headers: responseHeaders });
@@ -717,11 +1755,11 @@ async function handleCreateUser(request, env, headers) {
   const now = new Date().toISOString();
 
   await env.DB.prepare(
-    `INSERT INTO users (id, username, hwid, license_key, is_premium, is_active, is_paused, is_blocked, permissions, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, 1, 0, 0, ?, ?, ?)`
+    `INSERT INTO users (id, username, hwid, license_key, is_premium, is_active, is_paused, is_blocked, permissions, license_expires_at, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, 1, 0, 0, ?, ?, ?, ?)`
   ).bind(
     id, data.username, data.hwid || '', data.licenseKey || '',
-    data.isPremium ? 1 : 0, data.permissions || '{}', now, now
+    data.isPremium ? 1 : 0, data.permissions || '{}', data.licenseExpiresAt || null, now, now
   ).run();
 
   await logActivity(env, 'user_created', `User ${data.username} created`);
@@ -764,14 +1802,68 @@ async function handleToggleBlock(id, env, headers) {
   return Response.json({ is_blocked: newState }, { headers });
 }
 
+async function handleRenewLicense(id, request, env, headers) {
+  const data = await request.json();
+  const days = parseInt(data.days) || 30;
+  const user = await env.DB.prepare('SELECT username, license_expires_at FROM users WHERE id = ?').bind(id).first();
+  
+  if (!user) {
+    return Response.json({ error: 'User not found' }, { status: 404, headers });
+  }
+
+  // Calculate new expiration date
+  let newExpiresAt;
+  if (user.license_expires_at) {
+    // If there's an existing expiration date, extend from that date (or from now if expired)
+    const existingDate = new Date(user.license_expires_at);
+    const now = new Date();
+    const baseDate = existingDate > now ? existingDate : now;
+    newExpiresAt = new Date(baseDate.getTime() + (days * 24 * 60 * 60 * 1000)).toISOString();
+  } else {
+    // If no expiration date, set from now
+    newExpiresAt = new Date(Date.now() + (days * 24 * 60 * 60 * 1000)).toISOString();
+  }
+
+  const now = new Date().toISOString();
+  await env.DB.prepare('UPDATE users SET license_expires_at = ?, updated_at = ? WHERE id = ?')
+    .bind(newExpiresAt, now, id).run();
+  
+  await logActivity(env, 'license_renewed', `User ${user.username} license renewed for ${days} days (expires: ${newExpiresAt})`);
+  return Response.json({ 
+    success: true, 
+    license_expires_at: newExpiresAt,
+    days_added: days
+  }, { headers });
+}
+
+async function handleDeleteUser(id, env, headers) {
+  const user = await env.DB.prepare('SELECT username FROM users WHERE id = ?').bind(id).first();
+  
+  if (!user) {
+    return Response.json({ error: 'User not found' }, { status: 404, headers });
+  }
+
+  // Delete all related data
+  await env.DB.prepare('DELETE FROM downloads WHERE user_id = ?').bind(id).run();
+  await env.DB.prepare('DELETE FROM user_patches WHERE user_id = ?').bind(id).run();
+  await env.DB.prepare('DELETE FROM users WHERE id = ?').bind(id).run();
+  
+  await logActivity(env, 'user_deleted', `User ${user.username} (${id}) deleted`);
+  return Response.json({ success: true }, { headers });
+}
+
 // ============================================================
 // ADMIN PATCHES
 // ============================================================
 
 async function handleGetPatches(env, headers, url) {
   const type = url.searchParams.get('type') || '';
+  const active = url.searchParams.get('active') || '';
   let query = 'SELECT * FROM patches';
-  if (type) query += ` WHERE type = '${type}'`;
+  const conditions = [];
+  if (type) conditions.push(`type = '${type}'`);
+  if (active === '1') conditions.push('active = 1');
+  if (conditions.length > 0) query += ' WHERE ' + conditions.join(' AND ');
   query += ' ORDER BY created_at DESC';
   const result = await env.DB.prepare(query).all();
   return Response.json(result.results, { headers });
@@ -784,30 +1876,52 @@ async function handleCreatePatch(request, env, headers) {
   const description = formData.get('description') || '';
   const version = formData.get('version') || '1.0.0';
   const type = formData.get('type') || 'free';
+  const password = formData.get('password') || '';
   const file = formData.get('file');
 
   let fileKey = '';
-  let contentKey = '';
+
+  // 1. Subir archivo a R2
   if (file && file.size > 0) {
-    fileKey = `patches/${id}/${file.name}`;
+    fileKey = `${id}.3105`;
     const fileBuffer = await file.arrayBuffer();
     await env.R2.put(fileKey, fileBuffer);
-
-    // Extraer content_key del .3105 (solo si no está protegido por password)
-    const extracted = extractContentKeyFrom3105(fileBuffer);
-    if (extracted) {
-      contentKey = toHex(extracted);
-    }
   }
 
-  const now = new Date().toISOString();
-  await env.DB.prepare(
-    `INSERT INTO patches (id, name, description, version, type, file_key, content_key, active, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`
-  ).bind(id, name, description, version, type, fileKey, contentKey, now, now).run();
+  // 2. Insertar en base de datos
+  try {
+    const now = new Date().toISOString();
+    await env.DB.prepare(
+      `INSERT INTO patches (id, name, description, version, type, file_key, content_key, password, active, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`
+    ).bind(id, name, description, version, type, fileKey, '', password, now, now).run();
+  } catch (dbError) {
+    // Si el INSERT falla, borrar el archivo de R2 para no dejar huérfanos
+    if (fileKey) {
+      try { await env.R2.delete(fileKey); } catch (e) { /* ignore */ }
+    }
+    console.error('Failed to insert patch in DB:', dbError);
+    return Response.json({ 
+      error: 'Error al guardar en base de datos: ' + dbError.message 
+    }, { status: 500, headers });
+  }
 
-  await logActivity(env, 'patch_created', `Patch "${name}" created`);
-  return Response.json({ id, name, version, type, hasContentKey: !!contentKey }, { headers });
+  // 3. Log de actividad (no crítico, no falla si hay error)
+  try {
+    await logActivity(env, 'patch_created', `Patch "${name}" created`);
+  } catch (e) {
+    console.error('Failed to log activity:', e);
+  }
+
+  return Response.json({ 
+    id, 
+    name, 
+    version, 
+    type, 
+    hasContentKey: false,
+    contentKeyExtracted: false,
+    passwordSaved: !!password
+  }, { headers });
 }
 
 async function handleUpdatePatch(id, request, env, headers) {
@@ -816,46 +1930,88 @@ async function handleUpdatePatch(id, request, env, headers) {
   const description = formData.get('description') || '';
   const version = formData.get('version') || '1.0.0';
   const type = formData.get('type') || 'free';
+  const password = formData.get('password');
   const file = formData.get('file');
 
-  let patch = await env.DB.prepare('SELECT file_key FROM patches WHERE id = ?').bind(id).first();
+  let patch = await env.DB.prepare('SELECT file_key, password FROM patches WHERE id = ?').bind(id).first();
 
   let fileKey = patch?.file_key || '';
-  let contentKey = null;
+  let newFileKey = '';
+  // Usar la password del formulario si se proporciona, sino usar la existente
+  const effectivePassword = password !== null ? password : (patch?.password || '');
+
+  // 1. Subir nuevo archivo si existe
   if (file && file.size > 0) {
-    fileKey = `patches/${id}/${file.name}`;
+    newFileKey = `${id}.3105`;
     const fileBuffer = await file.arrayBuffer();
-    await env.R2.put(fileKey, fileBuffer);
-    if (patch.file_key) await env.R2.delete(patch.file_key);
+    await env.R2.put(newFileKey, fileBuffer);
+    fileKey = newFileKey;
+  }
 
-    // Re-extraer content_key del nuevo archivo
-    const extracted = extractContentKeyFrom3105(fileBuffer);
-    if (extracted) {
-      contentKey = toHex(extracted);
+  // 2. Actualizar base de datos
+  try {
+    const now = new Date().toISOString();
+    await env.DB.prepare(
+      `UPDATE patches SET name = ?, description = ?, version = ?, type = ?, file_key = ?, password = ?, updated_at = ? WHERE id = ?`
+    ).bind(name, description, version, type, fileKey, effectivePassword, now, id).run();
+  } catch (dbError) {
+    // Si el UPDATE falla, borrar el nuevo archivo de R2
+    if (newFileKey) {
+      try { await env.R2.delete(newFileKey); } catch (e) { /* ignore */ }
     }
+    console.error('Failed to update patch in DB:', dbError);
+    return Response.json({ 
+      error: 'Error al actualizar en base de datos: ' + dbError.message 
+    }, { status: 500, headers });
   }
 
-  const now = new Date().toISOString();
-  if (contentKey !== null) {
-    await env.DB.prepare(
-      `UPDATE patches SET name = ?, description = ?, version = ?, type = ?, file_key = ?, content_key = ?, updated_at = ? WHERE id = ?`
-    ).bind(name, description, version, type, fileKey, contentKey, now, id).run();
-  } else {
-    await env.DB.prepare(
-      `UPDATE patches SET name = ?, description = ?, version = ?, type = ?, file_key = ?, updated_at = ? WHERE id = ?`
-    ).bind(name, description, version, type, fileKey, now, id).run();
+  // 3. Borrar archivo viejo solo si el UPDATE fue exitoso
+  if (newFileKey && patch.file_key && patch.file_key !== newFileKey) {
+    try { await env.R2.delete(patch.file_key); } catch (e) { /* ignore */ }
   }
 
-  await logActivity(env, 'patch_updated', `Patch ${id} updated`);
-  return Response.json({ success: true }, { headers });
+  // 4. Log de actividad
+  try {
+    await logActivity(env, 'patch_updated', `Patch ${id} updated`);
+  } catch (e) {
+    console.error('Failed to log activity:', e);
+  }
+
+  return Response.json({ 
+    success: true,
+    hasContentKey: false,
+    contentKeyExtracted: false,
+    passwordSaved: !!effectivePassword
+  }, { headers });
 }
 
 async function handleDeletePatch(id, env, headers) {
-  const patch = await env.DB.prepare('SELECT file_key FROM patches WHERE id = ?').bind(id).first();
-  if (patch?.file_key) await env.R2.delete(patch.file_key);
-  await env.DB.prepare('DELETE FROM user_patches WHERE patch_id = ?').bind(id).run();
-  await env.DB.prepare('DELETE FROM patches WHERE id = ?').bind(id).run();
-  await logActivity(env, 'patch_deleted', `Patch ${id} deleted`);
+  const patch = await env.DB.prepare('SELECT file_key, name FROM patches WHERE id = ?').bind(id).first();
+  
+  // 1. Borrar de base de datos primero
+  try {
+    await env.DB.prepare('DELETE FROM downloads WHERE patch_id = ?').bind(id).run();
+    await env.DB.prepare('DELETE FROM user_patches WHERE patch_id = ?').bind(id).run();
+    await env.DB.prepare('DELETE FROM patches WHERE id = ?').bind(id).run();
+  } catch (dbError) {
+    console.error('Failed to delete patch from DB:', dbError);
+    return Response.json({ 
+      error: 'Error al eliminar de base de datos: ' + dbError.message 
+    }, { status: 500, headers });
+  }
+
+  // 2. Solo si el DELETE fue exitoso, borrar archivo de R2
+  if (patch?.file_key) {
+    try { await env.R2.delete(patch.file_key); } catch (e) { /* file may not exist in R2 */ }
+  }
+
+  // 3. Log de actividad
+  try {
+    await logActivity(env, 'patch_deleted', `Patch "${patch?.name || id}" deleted`);
+  } catch (e) {
+    console.error('Failed to log activity:', e);
+  }
+
   return Response.json({ success: true }, { headers });
 }
 
