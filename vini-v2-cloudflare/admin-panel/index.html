@@ -554,10 +554,6 @@
     }
 
     function showCreateUserModal() {
-      // Default expiration: 30 days from now
-      const defaultExp = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-      const defaultExpStr = defaultExp.toISOString().split('T')[0];
-      
       showModal(`
         <h2>Nuevo Usuario</h2>
         <form id="createUserForm">
@@ -570,9 +566,17 @@
             <input type="text" name="licenseKey" value="${crypto.randomUUID()}">
           </div>
           <div class="form-group">
-            <label>Fecha de Expiración</label>
-            <input type="date" name="licenseExpiresAt" value="${defaultExpStr}">
-            <small style="color:#666;">Dejar vacío para sin expiración</small>
+            <label>Duración de Licencia</label>
+            <select name="licenseDays">
+              <option value="0">Sin expiración</option>
+              <option value="7">7 días</option>
+              <option value="14">14 días</option>
+              <option value="30" selected>30 días</option>
+              <option value="60">60 días</option>
+              <option value="90">90 días</option>
+              <option value="180">180 días</option>
+              <option value="365">365 días (1 año)</option>
+            </select>
           </div>
           <div class="form-group">
             <label>Tipo</label>
@@ -590,14 +594,16 @@
       document.getElementById('createUserForm').addEventListener('submit', async (e) => {
         e.preventDefault();
         const fd = new FormData(e.target);
-        const expDate = fd.get('licenseExpiresAt');
+        const days = parseInt(fd.get('licenseDays'));
+        // Calculate expiration date from days
+        const licenseExpiresAt = days > 0 ? new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString() : null;
         await api('/api/users', {
           method: 'POST',
           body: JSON.stringify({
             username: fd.get('username'),
             licenseKey: fd.get('licenseKey'),
             isPremium: fd.get('isPremium') === '1',
-            licenseExpiresAt: expDate ? new Date(expDate).toISOString() : null,
+            licenseExpiresAt: licenseExpiresAt,
           }),
         });
         closeModal();
