@@ -28,8 +28,15 @@ final class MessageService: ObservableObject {
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
             
-            guard let httpResponse = response as? HTTPURLResponse,
-                  (200..<300).contains(httpResponse.statusCode) else {
+            guard let httpResponse = response as? HTTPURLResponse else {
+                await MainActor.run { self.isLoading = false }
+                return
+            }
+            
+            // AUTO-REFRESH: Si el servidor envía un nuevo token, actualizarlo
+            TokenRefreshManager.shared.handleTokenRefresh(from: httpResponse)
+            
+            guard (200..<300).contains(httpResponse.statusCode) else {
                 await MainActor.run { self.isLoading = false }
                 return
             }
@@ -59,8 +66,13 @@ final class MessageService: ObservableObject {
         
         do {
             let (_, response) = try await URLSession.shared.data(for: request)
-            if let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) {
-                print("[MessageService] ACK sent for message \(messageId)")
+            if let http = response as? HTTPURLResponse {
+                // AUTO-REFRESH: Si el servidor envía un nuevo token, actualizarlo
+                TokenRefreshManager.shared.handleTokenRefresh(from: http)
+                
+                if (200..<300).contains(http.statusCode) {
+                    print("[MessageService] ACK sent for message \(messageId)")
+                }
             }
         } catch {
             print("[MessageService] ACK failed: \(error.localizedDescription)")

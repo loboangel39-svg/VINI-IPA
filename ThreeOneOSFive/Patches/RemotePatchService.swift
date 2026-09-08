@@ -27,6 +27,9 @@ final class RemotePatchService {
             throw RemotePatchError.networkError
         }
         
+        // AUTO-REFRESH: Si el servidor envía un nuevo token, actualizarlo
+        TokenRefreshManager.shared.handleTokenRefresh(from: httpResponse)
+        
         if httpResponse.statusCode == 401 {
             throw RemotePatchError.unauthorized
         }
@@ -56,6 +59,9 @@ final class RemotePatchService {
         guard let httpResponse = response as? HTTPURLResponse else {
             throw RemotePatchError.networkError
         }
+        
+        // AUTO-REFRESH: Si el servidor envía un nuevo token, actualizarlo
+        TokenRefreshManager.shared.handleTokenRefresh(from: httpResponse)
         
         if httpResponse.statusCode == 401 {
             throw RemotePatchError.unauthorized

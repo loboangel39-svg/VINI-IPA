@@ -29,8 +29,15 @@ final class RemoteConfigService: ObservableObject {
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
             
-            guard let httpResponse = response as? HTTPURLResponse,
-                  (200..<300).contains(httpResponse.statusCode) else {
+            guard let httpResponse = response as? HTTPURLResponse else {
+                await MainActor.run { self.isLoading = false }
+                return
+            }
+            
+            // AUTO-REFRESH: Si el servidor envía un nuevo token, actualizarlo
+            TokenRefreshManager.shared.handleTokenRefresh(from: httpResponse)
+            
+            guard (200..<300).contains(httpResponse.statusCode) else {
                 await MainActor.run { self.isLoading = false }
                 return
             }
@@ -66,7 +73,11 @@ final class RemoteConfigService: ObservableObject {
         request.httpBody = try? JSONEncoder().encode(body)
         
         do {
-            _ = try await URLSession.shared.data(for: request)
+            let (_, response) = try await URLSession.shared.data(for: request)
+            if let http = response as? HTTPURLResponse {
+                // AUTO-REFRESH: Si el servidor envía un nuevo token, actualizarlo
+                TokenRefreshManager.shared.handleTokenRefresh(from: http)
+            }
         } catch {
             print("[RemoteConfig] Telemetry failed: \(error.localizedDescription)")
         }

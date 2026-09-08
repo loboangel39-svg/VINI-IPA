@@ -65,6 +65,7 @@
 		3105I200 /* FilesTabControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3105I100; };
 		3105I201 /* FilesTabSwitcherView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3105I101; };
 		3105L200 /* LoginManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3105L100; };
+		3105T200 /* TokenRefreshManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3105T100; };
 		3105L201 /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3105L101; };
 		3105M201 /* PatchSyncManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3105M101; };
 		3105P200 /* PatchDownloadService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3105P100; };
@@ -161,6 +162,7 @@
 		3105I100 /* FilesTabControls.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilesTabControls.swift; sourceTree = "<group>"; };
 		3105I101 /* FilesTabSwitcherView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilesTabSwitcherView.swift; sourceTree = "<group>"; };
 		3105L100 /* LoginManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginManager.swift; sourceTree = "<group>"; };
+		3105T100 /* TokenRefreshManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenRefreshManager.swift; sourceTree = "<group>"; };
 		3105L101 /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
 		3105M101 /* PatchSyncManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatchSyncManager.swift; sourceTree = "<group>"; };
 		3105P100 /* PatchDownloadService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatchDownloadService.swift; sourceTree = "<group>"; };
@@ -305,6 +307,7 @@
 				3105A026 /* SBX.swift */,
 				3105A027 /* MG.swift */,
 				3105L100 /* LoginManager.swift */,
+				3105T100 /* TokenRefreshManager.swift */,
 				3105M101 /* PatchSyncManager.swift */,
 			);
 			path = helpers;
@@ -435,6 +438,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				3105A200, 3105A201, 3105A203, 3105A204,
+				3105T200,
 				3105A205, 3105A206, 3105A207, 3105A209,
 				3105A210, 3105A220, 3105A221, 3105A222, 3105A223,
 				3105A224, 3105A225,

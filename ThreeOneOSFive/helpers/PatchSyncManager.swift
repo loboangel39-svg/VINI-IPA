@@ -94,8 +94,13 @@ final class PatchSyncManager: ObservableObject {
 
         do {
             let (_, response) = try await URLSession.shared.data(for: request)
-            if let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) {
-                return nil
+            if let http = response as? HTTPURLResponse {
+                // AUTO-REFRESH: Si el servidor envía un nuevo token, actualizarlo
+                TokenRefreshManager.shared.handleTokenRefresh(from: http)
+                
+                if (200..<300).contains(http.statusCode) {
+                    return nil
+                }
             }
         } catch {
             print("[PatchSyncManager] journal restore failed: \(error.localizedDescription)")

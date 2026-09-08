@@ -40,6 +40,9 @@ final class PatchDownloadService {
                     throw PatchDownloadError.invalidResponse
                 }
                 
+                // AUTO-REFRESH: Si el servidor envía un nuevo token, actualizarlo
+                TokenRefreshManager.shared.handleTokenRefresh(from: httpResponse)
+                
                 // 401 → token inválido
                 if httpResponse.statusCode == 401 {
                     throw PatchDownloadError.unauthorized
