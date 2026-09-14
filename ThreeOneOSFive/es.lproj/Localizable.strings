@@ -445,6 +445,7 @@
 "tab.wallpapers" = "Fondos de pantalla";
 "tab.messages" = "Mensajes";
 "tab.config" = "Config";
+"tab.rewards" = "Rewards";
 "wallpaper.title" = "Laboratorio de fondos";
 "wallpaper.access" = "Acceso a PosterBoard";
 "wallpaper.access_ready" = "Listo para instalar";

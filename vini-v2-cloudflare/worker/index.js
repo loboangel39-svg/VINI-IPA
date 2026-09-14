@@ -1272,6 +1272,38 @@ export default {
         if (path === '/api/app/telemetry' && method === 'POST') {
           return handleAppTelemetry(request, env, corsHeaders, appAuth);
         }
+
+        // === VINI REWARDS ENDPOINTS ===
+
+        // GET /api/app/rewards - Get user rewards summary
+        if (path === '/api/app/rewards' && method === 'GET') {
+          return handleGetRewards(env, corsHeaders, appAuth);
+        }
+
+        // GET /api/app/rewards/history - Get rewards transaction history
+        if (path === '/api/app/rewards/history' && method === 'GET') {
+          return handleGetRewardsHistory(env, corsHeaders, appAuth);
+        }
+
+        // POST /api/app/rewards/status - Submit daily patch status
+        if (path === '/api/app/rewards/status' && method === 'POST') {
+          return handleSubmitDailyStatus(request, env, corsHeaders, appAuth);
+        }
+
+        // GET /api/app/referral - Get referral info
+        if (path === '/api/app/referral' && method === 'GET') {
+          return handleGetReferralInfo(env, corsHeaders, appAuth);
+        }
+
+        // GET /api/app/trust - Get trust index
+        if (path === '/api/app/trust' && method === 'GET') {
+          return handleGetTrustIndex(env, corsHeaders);
+        }
+
+        // GET /api/app/trust/patches - Get all patches with trust status
+        if (path === '/api/app/trust/patches' && method === 'GET') {
+          return handleGetTrustPatches(env, corsHeaders, appAuth);
+        }
       }
 
       // ============================================================
@@ -1395,6 +1427,20 @@ export default {
       }
       if (path === '/api/config' && method === 'PUT') {
         return handleUpdateConfig(request, env, corsHeaders);
+      }
+
+      // === REWARDS ADMIN ===
+      if (path === '/api/rewards/stats' && method === 'GET') {
+        return handleAdminRewardsStats(env, corsHeaders);
+      }
+      if (path === '/api/rewards/transactions' && method === 'GET') {
+        return handleAdminRewardsTransactions(env, corsHeaders, url);
+      }
+      if (path === '/api/rewards/daily-status' && method === 'GET') {
+        return handleAdminDailyStatus(env, corsHeaders, url);
+      }
+      if (path === '/api/rewards/referrals' && method === 'GET') {
+        return handleAdminReferrals(env, corsHeaders);
       }
 
       return Response.json({ error: 'Not found' }, { status: 404, headers: corsHeaders });
@@ -1676,6 +1722,269 @@ async function handleAppTelemetry(request, env, headers, appAuth) {
 }
 
 // ============================================================
+// VINI REWARDS HANDLERS
+// ============================================================
+
+// GET /api/app/rewards - Get user rewards summary
+async function handleGetRewards(env, headers, appAuth) {
+  const user = await env.DB.prepare('SELECT points, created_at FROM users WHERE id = ?').bind(appAuth.userId).first();
+  
+  if (!user) {
+    return Response.json({ error: 'User not found' }, { status: 404, headers });
+  }
+
+  // Calculate permanence
+  const createdAt = new Date(user.created_at);
+  const now = new Date();
+  const diffTime = Math.abs(now - createdAt);
+  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+  const months = Math.floor(diffDays / 30);
+  const days = diffDays % 30;
+
+  // Check if 3-month milestone reward should be granted
+  if (months >= 3) {
+    const existingReward = await env.DB.prepare(
+      'SELECT id FROM permanence_rewards WHERE user_id = ? AND milestone_months = 3'
+    ).bind(appAuth.userId).first();
+    
+    if (!existingReward) {
+      // Grant 14 days reward
+      const rewardId = crypto.randomUUID();
+      const txId = crypto.randomUUID();
+      const user = await env.DB.prepare('SELECT license_expires_at FROM users WHERE id = ?').bind(appAuth.userId).first();
+      
+      let newExpiresAt;
+      if (user.license_expires_at) {
+        const existingDate = new Date(user.license_expires_at);
+        const baseDate = existingDate > now ? existingDate : now;
+        newExpiresAt = new Date(baseDate.getTime() + (14 * 24 * 60 * 60 * 1000)).toISOString();
+      } else {
+        newExpiresAt = new Date(now.getTime() + (14 * 24 * 60 * 60 * 1000)).toISOString();
+      }
+      
+      await env.DB.prepare(
+        'INSERT INTO permanence_rewards (id, user_id, milestone_months, reward_granted, created_at) VALUES (?, ?, 3, 1, ?)'
+      ).bind(rewardId, appAuth.userId, now.toISOString()).run();
+      
+      await env.DB.prepare(
+        'INSERT INTO rewards_transactions (id, user_id, type, days_added, description, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+      ).bind(txId, appAuth.userId, 'permanence_3months', 14, '3 meses con VINI - 14 días gratis', now.toISOString()).run();
+      
+      await env.DB.prepare('UPDATE users SET license_expires_at = ? WHERE id = ?').bind(newExpiresAt, appAuth.userId).run();
+    }
+  }
+
+  // Get next reward info
+  const points = user.points || 0;
+  const nextReward = points < 500 ? { target: 500, reward: '5 días gratis' } :
+                     points < 1500 ? { target: 1500, reward: '15 días gratis' } :
+                     points < 3000 ? { target: 3000, reward: '30 días gratis' } :
+                     { target: null, reward: 'Nivel máximo alcanzado' };
+
+  return Response.json({
+    points,
+    permanence: { months, days, totalDays: diffDays },
+    nextReward
+  }, { headers });
+}
+
+// GET /api/app/rewards/history - Get rewards transaction history
+async function handleGetRewardsHistory(env, headers, appAuth) {
+  const result = await env.DB.prepare(`
+    SELECT type, points, days_added, description, created_at
+    FROM rewards_transactions
+    WHERE user_id = ?
+    ORDER BY created_at DESC
+    LIMIT 50
+  `).bind(appAuth.userId).all();
+
+  return Response.json({ transactions: result.results }, { headers });
+}
+
+// POST /api/app/rewards/status - Submit daily patch status
+async function handleSubmitDailyStatus(request, env, headers, appAuth) {
+  const { patchId, status } = await request.json();
+  
+  if (!patchId || !status) {
+    return Response.json({ error: 'Missing patchId or status' }, { status: 400, headers });
+  }
+
+  const validStatuses = ['safe', 'caution', 'medium_risk', 'high_risk', 'not_recommended'];
+  if (!validStatuses.includes(status)) {
+    return Response.json({ error: 'Invalid status' }, { status: 400, headers });
+  }
+
+  const today = new Date().toISOString().split('T')[0];
+  const now = new Date().toISOString();
+
+  // Check if already reported today for this patch
+  const existing = await env.DB.prepare(
+    'SELECT id FROM daily_status WHERE user_id = ? AND patch_id = ? AND report_date = ?'
+  ).bind(appAuth.userId, patchId, today).first();
+
+  if (existing) {
+    return Response.json({ error: 'Already reported today for this patch', alreadyReported: true }, { status: 409, headers });
+  }
+
+  // Insert status report
+  const statusId = crypto.randomUUID();
+  await env.DB.prepare(
+    'INSERT INTO daily_status (id, user_id, patch_id, status, report_date, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+  ).bind(statusId, appAuth.userId, patchId, status, today, now).run();
+
+  // Award 5 points
+  await env.DB.prepare('UPDATE users SET points = points + 5 WHERE id = ?').bind(appAuth.userId).run();
+
+  // Record transaction
+  const txId = crypto.randomUUID();
+  await env.DB.prepare(
+    'INSERT INTO rewards_transactions (id, user_id, type, points, description, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+  ).bind(txId, appAuth.userId, 'daily_status', 5, 'Estado diario registrado', now).run();
+
+  // Get updated points
+  const user = await env.DB.prepare('SELECT points FROM users WHERE id = ?').bind(appAuth.userId).first();
+
+  return Response.json({
+    success: true,
+    pointsAwarded: 5,
+    newPoints: user.points,
+    message: '+5 VINI Points'
+  }, { headers });
+}
+
+// GET /api/app/referral - Get referral info
+async function handleGetReferralInfo(env, headers, appAuth) {
+  const user = await env.DB.prepare('SELECT referral_code, referred_by FROM users WHERE id = ?').bind(appAuth.userId).first();
+  
+  if (!user) {
+    return Response.json({ error: 'User not found' }, { status: 404, headers });
+  }
+
+  // Generate referral code if not exists
+  let referralCode = user.referral_code;
+  if (!referralCode) {
+    referralCode = 'VINI-' + crypto.randomUUID().substring(0, 6).toUpperCase();
+    await env.DB.prepare('UPDATE users SET referral_code = ? WHERE id = ?').bind(referralCode, appAuth.userId).run();
+  }
+
+  // Get referral stats
+  const referralsMade = await env.DB.prepare(
+    'SELECT COUNT(*) as count FROM referrals WHERE referrer_id = ?'
+  ).bind(appAuth.userId).first();
+
+  const referralsConfirmed = await env.DB.prepare(
+    'SELECT COUNT(*) as count FROM referrals WHERE referrer_id = ? AND confirmed = 1'
+  ).bind(appAuth.userId).first();
+
+  const daysEarned = await env.DB.prepare(
+    'SELECT COALESCE(SUM(days_added), 0) as total FROM rewards_transactions WHERE user_id = ? AND type = ?'
+  ).bind(appAuth.userId, 'referral_reward').first();
+
+  return Response.json({
+    referralCode,
+    referredBy: user.referred_by || null,
+    referralsMade: referralsMade.count,
+    referralsConfirmed: referralsConfirmed.count,
+    daysEarned: daysEarned.total
+  }, { headers });
+}
+
+// GET /api/app/trust - Get global trust index
+async function handleGetTrustIndex(env, headers) {
+  // Get all status reports
+  const result = await env.DB.prepare(`
+    SELECT status, COUNT(*) as count
+    FROM daily_status
+    GROUP BY status
+  `).all();
+
+  const counts = {
+    safe: 0,
+    caution: 0,
+    medium_risk: 0,
+    high_risk: 0,
+    not_recommended: 0
+  };
+
+  let total = 0;
+  for (const row of result.results) {
+    counts[row.status] = row.count;
+    total += row.count;
+  }
+
+  // Calculate trust percentage (safe and caution are "good")
+  const trustedCount = counts.safe + counts.caution;
+  const trustPercentage = total > 0 ? Math.round((trustedCount / total) * 100) : 100;
+
+  let trustLevel;
+  if (trustPercentage >= 90) trustLevel = 'CONFIABLE';
+  else if (trustPercentage >= 70) trustLevel = 'PRECAUCIÓN';
+  else if (trustPercentage >= 50) trustLevel = 'RIESGO MEDIO';
+  else if (trustPercentage >= 30) trustLevel = 'ALTO RIESGO';
+  else trustLevel = 'NO RECOMENDADO';
+
+  return Response.json({
+    trustPercentage,
+    trustLevel,
+    distribution: counts,
+    totalReports: total
+  }, { headers });
+}
+
+// GET /api/app/trust/patches - Get all patches with trust status
+async function handleGetTrustPatches(env, headers, appAuth) {
+  // Get patches user has access to
+  const patches = await env.DB.prepare(`
+    SELECT p.id, p.name, p.description
+    FROM patches p
+    INNER JOIN user_patches up ON up.patch_id = p.id
+    WHERE p.active = 1 AND up.user_id = ?
+    ORDER BY p.name
+  `).bind(appAuth.userId).all();
+
+  const today = new Date().toISOString().split('T')[0];
+
+  const patchStats = [];
+  for (const patch of patches.results) {
+    // Get trust status for this patch
+    const statusResult = await env.DB.prepare(`
+      SELECT status, COUNT(*) as count
+      FROM daily_status
+      WHERE patch_id = ?
+      GROUP BY status
+    `).bind(patch.id).all();
+
+    const counts = { safe: 0, caution: 0, medium_risk: 0, high_risk: 0, not_recommended: 0 };
+    let total = 0;
+    for (const row of statusResult.results) {
+      counts[row.status] = row.count;
+      total += row.count;
+    }
+
+    // Calculate patch trust
+    const trustedCount = counts.safe + counts.caution;
+    const trustPercentage = total > 0 ? Math.round((trustedCount / total) * 100) : 100;
+
+    // Check if user already reported today
+    const alreadyReported = await env.DB.prepare(
+      'SELECT id FROM daily_status WHERE user_id = ? AND patch_id = ? AND report_date = ?'
+    ).bind(appAuth.userId, patch.id, today).first();
+
+    patchStats.push({
+      id: patch.id,
+      name: patch.name,
+      description: patch.description,
+      trustPercentage,
+      distribution: counts,
+      totalReports: total,
+      alreadyReportedToday: !!alreadyReported
+    });
+  }
+
+  return Response.json({ patches: patchStats }, { headers });
+}
+
+// ============================================================
 // ADMIN AUTH HELPERS
 // ============================================================
 
@@ -1781,17 +2090,62 @@ async function handleCreateUser(request, env, headers) {
   const data = await request.json();
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
+  
+  // Generate referral code
+  const referralCode = 'VINI-' + crypto.randomUUID().substring(0, 6).toUpperCase();
+  
+  // Check if referred by someone
+  let referredBy = data.referredBy || '';
+  let referrerId = null;
+  
+  if (referredBy) {
+    // Find the referrer
+    const referrer = await env.DB.prepare('SELECT id FROM users WHERE referral_code = ?').bind(referredBy).first();
+    if (referrer) {
+      referrerId = referrer.id;
+    }
+  }
 
   await env.DB.prepare(
-    `INSERT INTO users (id, username, hwid, license_key, is_premium, is_active, is_paused, is_blocked, permissions, license_expires_at, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, 1, 0, 0, ?, ?, ?, ?)`
+    `INSERT INTO users (id, username, hwid, license_key, is_premium, is_active, is_paused, is_blocked, permissions, license_expires_at, referral_code, points, referred_by, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, 1, 0, 0, ?, ?, ?, 0, ?, ?, ?)`
   ).bind(
     id, data.username, data.hwid || '', data.licenseKey || '',
-    data.isPremium ? 1 : 0, data.permissions || '{}', data.licenseExpiresAt || null, now, now
+    data.isPremium ? 1 : 0, data.permissions || '{}', data.licenseExpiresAt || null, referralCode, referredBy, now, now
   ).run();
 
-  await logActivity(env, 'user_created', `User ${data.username} created`);
-  return Response.json({ id, ...data }, { headers });
+  // Create referral record if referred
+  if (referrerId) {
+    const referralId = crypto.randomUUID();
+    await env.DB.prepare(
+      'INSERT INTO referrals (id, referrer_id, referred_id, confirmed, reward_granted, created_at) VALUES (?, ?, ?, 0, 0, ?)'
+    ).bind(referralId, referrerId, id, now).run();
+    
+    // Grant 7 days to referrer
+    const referrer = await env.DB.prepare('SELECT license_expires_at FROM users WHERE id = ?').bind(referrerId).first();
+    let newExpiresAt;
+    if (referrer.license_expires_at) {
+      const existingDate = new Date(referrer.license_expires_at);
+      const baseDate = existingDate > new Date() ? existingDate : new Date();
+      newExpiresAt = new Date(baseDate.getTime() + (7 * 24 * 60 * 60 * 1000)).toISOString();
+    } else {
+      newExpiresAt = new Date(Date.now() + (7 * 24 * 60 * 60 * 1000)).toISOString();
+    }
+    
+    await env.DB.prepare('UPDATE users SET license_expires_at = ? WHERE id = ?').bind(newExpiresAt, referrerId).run();
+    
+    // Record transaction
+    const txId = crypto.randomUUID();
+    await env.DB.prepare(
+      'INSERT INTO rewards_transactions (id, user_id, type, days_added, description, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+    ).bind(txId, referrerId, 'referral_reward', 7, `Referido confirmado: ${data.username}`, now).run();
+    
+    // Mark referral as confirmed
+    await env.DB.prepare('UPDATE referrals SET confirmed = 1, reward_granted = 1, confirmed_at = ? WHERE id = ?').bind(now, referralId).run();
+  }
+
+  await logActivity(env, 'user_created', `User ${data.username} created${referrerId ? ' (referred)' : ''}`);
+  return Response.json({ id, referralCode, ...data }, { headers });
 }
 
 async function handleUpdateUser(id, request, env, headers) {
@@ -2212,4 +2566,85 @@ async function handleUpdateConfig(request, env, headers) {
 
   await logActivity(env, 'config_updated', 'Configuration updated');
   return Response.json({ success: true }, { headers });
+}
+
+// ============================================================
+// ADMIN REWARDS
+// ============================================================
+
+async function handleAdminRewardsStats(env, headers) {
+  const totalPoints = await env.DB.prepare('SELECT COALESCE(SUM(points), 0) as total FROM users').first();
+  const totalTransactions = await env.DB.prepare('SELECT COUNT(*) as count FROM rewards_transactions').first();
+  const totalStatusReports = await env.DB.prepare('SELECT COUNT(*) as count FROM daily_status').first();
+  const totalReferrals = await env.DB.prepare('SELECT COUNT(*) as count FROM referrals WHERE confirmed = 1').first();
+  
+  const todayStatus = await env.DB.prepare(
+    "SELECT COUNT(*) as count FROM daily_status WHERE created_at >= date('now')"
+  ).first();
+
+  return Response.json({
+    totalPoints: totalPoints.total,
+    totalTransactions: totalTransactions.count,
+    totalStatusReports: totalStatusReports.count,
+    totalReferrals: totalReferrals.count,
+    todayStatusReports: todayStatus.count
+  }, { headers });
+}
+
+async function handleAdminRewardsTransactions(env, headers, url) {
+  const limit = parseInt(url.searchParams.get('limit') || '50');
+  const userId = url.searchParams.get('userId') || '';
+  
+  let query = `
+    SELECT rt.*, u.username 
+    FROM rewards_transactions rt
+    LEFT JOIN users u ON rt.user_id = u.id
+  `;
+  
+  if (userId) {
+    query += ' WHERE rt.user_id = ?';
+    const result = await env.DB.prepare(query + ' ORDER BY rt.created_at DESC LIMIT ?').bind(userId, limit).all();
+    return Response.json(result.results, { headers });
+  }
+  
+  query += ' ORDER BY rt.created_at DESC LIMIT ?';
+  const result = await env.DB.prepare(query).bind(limit).all();
+  return Response.json(result.results, { headers });
+}
+
+async function handleAdminDailyStatus(env, headers, url) {
+  const limit = parseInt(url.searchParams.get('limit') || '50');
+  const patchId = url.searchParams.get('patchId') || '';
+  
+  let query = `
+    SELECT ds.*, u.username, p.name as patch_name
+    FROM daily_status ds
+    LEFT JOIN users u ON ds.user_id = u.id
+    LEFT JOIN patches p ON ds.patch_id = p.id
+  `;
+  
+  if (patchId) {
+    query += ' WHERE ds.patch_id = ?';
+    const result = await env.DB.prepare(query + ' ORDER BY ds.created_at DESC LIMIT ?').bind(patchId, limit).all();
+    return Response.json(result.results, { headers });
+  }
+  
+  query += ' ORDER BY ds.created_at DESC LIMIT ?';
+  const result = await env.DB.prepare(query).bind(limit).all();
+  return Response.json(result.results, { headers });
+}
+
+async function handleAdminReferrals(env, headers) {
+  const result = await env.DB.prepare(`
+    SELECT r.*, 
+           u1.username as referrer_username,
+           u2.username as referred_username
+    FROM referrals r
+    LEFT JOIN users u1 ON r.referrer_id = u1.id
+    LEFT JOIN users u2 ON r.referred_id = u2.id
+    ORDER BY r.created_at DESC
+    LIMIT 100
+  `).all();
+  
+  return Response.json(result.results, { headers });
 }

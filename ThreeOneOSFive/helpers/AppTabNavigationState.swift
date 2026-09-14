@@ -5,24 +5,24 @@ enum AppSection: Int, CaseIterable, Identifiable {
     case files
     case patches
     case messages
-    case config
+    case rewards
 
     var id: Int { rawValue }
 }
 
 struct FeatureVisibility: Equatable {
     static let messagesStorageKey = "feature.messages.enabled"
-    static let configStorageKey = "feature.config.enabled"
+    static let rewardsStorageKey = "feature.rewards.enabled"
 
     let messagesEnabled: Bool
-    let configEnabled: Bool
+    let rewardsEnabled: Bool
 
     init(
         messagesEnabled: Bool = true,
-        configEnabled: Bool = true
+        rewardsEnabled: Bool = true
     ) {
         self.messagesEnabled = messagesEnabled
-        self.configEnabled = configEnabled
+        self.rewardsEnabled = rewardsEnabled
     }
 
     var visibleSections: [AppSection] {
@@ -33,8 +33,8 @@ struct FeatureVisibility: Equatable {
         switch section {
         case .messages:
             return messagesEnabled
-        case .config:
-            return configEnabled
+        case .rewards:
+            return rewardsEnabled
         case .home, .files, .patches:
             return true
         }

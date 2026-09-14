@@ -444,6 +444,7 @@
 "tab.wallpapers" = "Wallpapers";
 "tab.messages" = "Messages";
 "tab.config" = "Config";
+"tab.rewards" = "Rewards";
 "wallpaper.title" = "Wallpaper Lab";
 "wallpaper.access" = "PosterBoard Access";
 "wallpaper.access_ready" = "Ready to install";

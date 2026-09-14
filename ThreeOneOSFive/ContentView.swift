@@ -111,8 +111,8 @@ struct ContentView: View {
             PatchProjectsView()
         case .messages:
             MessagesView()
-        case .config:
-            ConfigView()
+        case .rewards:
+            ViniRewardsView()
         }
     }
 
@@ -169,7 +169,7 @@ private extension AppSection {
         case .files: return "tab.files"
         case .patches: return "tab.patches"
         case .messages: return "tab.messages"
-        case .config: return "tab.config"
+        case .rewards: return "tab.rewards"
         }
     }
 
@@ -179,7 +179,7 @@ private extension AppSection {
         case .files: return "folder.fill"
         case .patches: return "shippingbox.fill"
         case .messages: return "bubble.left.fill"
-        case .config: return "gearshape.fill"
+        case .rewards: return "trophy.fill"
         }
     }
 }

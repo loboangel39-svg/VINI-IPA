@@ -80,3 +80,60 @@ CREATE TABLE IF NOT EXISTS config (
 INSERT OR IGNORE INTO config (key, value, updated_at) VALUES ('app_name', 'VINI V2', datetime('now'));
 INSERT OR IGNORE INTO config (key, value, updated_at) VALUES ('maintenance_mode', '0', datetime('now'));
 INSERT OR IGNORE INTO config (key, value, updated_at) VALUES ('max_downloads_per_day', '100', datetime('now'));
+
+-- VINI Rewards System
+
+-- Add rewards columns to users table
+ALTER TABLE users ADD COLUMN points INTEGER DEFAULT 0;
+ALTER TABLE users ADD COLUMN referral_code TEXT DEFAULT '';
+ALTER TABLE users ADD COLUMN referred_by TEXT DEFAULT '';
+
+-- Daily status reports (trust system)
+CREATE TABLE IF NOT EXISTS daily_status (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  patch_id TEXT NOT NULL,
+  status TEXT NOT NULL,
+  report_date TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  FOREIGN KEY (user_id) REFERENCES users(id),
+  FOREIGN KEY (patch_id) REFERENCES patches(id),
+  UNIQUE(user_id, patch_id, report_date)
+);
+
+-- Referrals tracking
+CREATE TABLE IF NOT EXISTS referrals (
+  id TEXT PRIMARY KEY,
+  referrer_id TEXT NOT NULL,
+  referred_id TEXT NOT NULL,
+  confirmed INTEGER DEFAULT 0,
+  reward_granted INTEGER DEFAULT 0,
+  created_at TEXT NOT NULL,
+  confirmed_at TEXT,
+  FOREIGN KEY (referrer_id) REFERENCES users(id),
+  FOREIGN KEY (referred_id) REFERENCES users(id),
+  UNIQUE(referred_id)
+);
+
+-- Rewards transactions history
+CREATE TABLE IF NOT EXISTS rewards_transactions (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  type TEXT NOT NULL,
+  points INTEGER DEFAULT 0,
+  days_added INTEGER DEFAULT 0,
+  description TEXT DEFAULT '',
+  created_at TEXT NOT NULL,
+  FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+-- Permanence rewards tracking (3 months milestone)
+CREATE TABLE IF NOT EXISTS permanence_rewards (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  milestone_months INTEGER NOT NULL,
+  reward_granted INTEGER DEFAULT 0,
+  created_at TEXT NOT NULL,
+  FOREIGN KEY (user_id) REFERENCES users(id),
+  UNIQUE(user_id, milestone_months)
+);
