@@ -130,8 +130,8 @@ enum AppPaths {
 
 enum AppUpdateChecker {
     static let dismissedVersionKey = "update.dismissedVersion"
-    static let apiURL = URL(string: "https://api.github.com/repos/YangJiiii/3105/releases/latest")!
-    static let fallbackURL = URL(string: "https://github.com/YangJiiii/3105/releases/latest")!
+    static let apiURL = URL(string: "https://api.github.com/repos/loboangel39-svg/VINI-IPA/releases/latest")!
+    static let fallbackURL = URL(string: "https://github.com/loboangel39-svg/VINI-IPA/releases/latest")!
 
     struct Offer: Identifiable {
         let id = UUID()
@@ -152,7 +152,7 @@ enum AppUpdateChecker {
     static func check() async -> Offer? {
         var request = URLRequest(url: apiURL)
         request.timeoutInterval = 15
-        request.setValue("3105", forHTTPHeaderField: "User-Agent")
+        request.setValue("VINI-IPA", forHTTPHeaderField: "User-Agent")
         request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         do {
             let (data, response) = try await URLSession.shared.data(for: request)

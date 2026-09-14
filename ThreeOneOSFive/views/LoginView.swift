@@ -9,17 +9,9 @@ struct LoginView: View {
     @State private var errorMessage: String? = nil
     @State private var keyFieldHeight: CGFloat = 52
 
-    // MARK: - VINI Design Tokens
-    private let bgPrimary = Color.black
-    private let bgCard = Color(red: 0.11, green: 0.11, blue: 0.12)       // #1C1C1E
-    private let accentBlue = Color(red: 0.0, green: 0.62, blue: 1.0)     // #009EFF
-    private let textPrimary = Color.white
-    private let textSecondary = Color(red: 0.63, green: 0.63, blue: 0.65) // #A1A1A6
-    private let borderInactive = Color(red: 0.22, green: 0.22, blue: 0.24) // #38383A
-
     var body: some View {
         ZStack {
-            bgPrimary
+            AppTheme.pageBackground
                 .ignoresSafeArea()
 
             VStack(spacing: 0) {
@@ -28,9 +20,9 @@ struct LoginView: View {
                 // MARK: - Icono
                 Image(systemName: "key.fill")
                     .font(.system(size: 40, weight: .medium))
-                    .foregroundStyle(accentBlue)
+                    .foregroundStyle(AppTheme.accent)
                     .frame(width: 80, height: 80)
-                    .background(bgCard)
+                    .background(AppTheme.consoleBackground)
                     .clipShape(RoundedRectangle(cornerRadius: 16))
 
                 Spacer().frame(height: 28)
@@ -38,7 +30,7 @@ struct LoginView: View {
                 // MARK: - Título
                 Text("Ingresar licencia")
                     .font(.system(size: 28, weight: .bold))
-                    .foregroundStyle(textPrimary)
+                    .foregroundStyle(AppTheme.chromeHighlight)
                     .multilineTextAlignment(.center)
 
                 Spacer().frame(height: 10)
@@ -46,7 +38,7 @@ struct LoginView: View {
                 // MARK: - Subtítulo
                 Text("Activa tu cuenta con una clave de licencia")
                     .font(.system(size: 16, weight: .regular))
-                    .foregroundStyle(textSecondary)
+                    .foregroundStyle(AppTheme.accentSecondary)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 40)
 
@@ -56,21 +48,21 @@ struct LoginView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("CLAVE DE LICENCIA")
                         .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(textSecondary)
+                        .foregroundStyle(AppTheme.accentSecondary)
                         .tracking(0.8)
 
                     TextField("", text: $licenseKey)
                         .font(.system(size: 17, weight: .regular))
-                        .foregroundStyle(textPrimary)
+                        .foregroundStyle(AppTheme.chromeHighlight)
                         .textInputAutocapitalization(.characters)
                         .autocorrectionDisabled()
                         .padding(.horizontal, 16)
                         .frame(height: keyFieldHeight)
-                        .background(bgCard)
+                        .background(AppTheme.consoleBackground)
                         .clipShape(RoundedRectangle(cornerRadius: 12))
                         .overlay(
                             RoundedRectangle(cornerRadius: 12)
-                                .stroke(licenseKey.isEmpty ? borderInactive : accentBlue.opacity(0.6), lineWidth: 1)
+                                .stroke(licenseKey.isEmpty ? Color.secondary.opacity(0.3) : AppTheme.accent.opacity(0.6), lineWidth: 1)
                         )
                         .onChange(of: licenseKey) { _ in
                             errorMessage = nil
@@ -88,7 +80,7 @@ struct LoginView: View {
                         Text(errorMessage)
                             .font(.system(size: 14, weight: .regular))
                     }
-                    .foregroundStyle(Color(red: 1.0, green: 0.23, blue: 0.19)) // #FF3B30
+                    .foregroundStyle(Color.red)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 24)
                 }
@@ -111,8 +103,8 @@ struct LoginView: View {
                     }
                     .frame(maxWidth: .infinity)
                     .frame(height: 52)
-                    .background(canSubmit ? accentBlue : accentBlue.opacity(0.35))
-                    .foregroundStyle(.white)
+                    .background(canSubmit ? AppTheme.accent : AppTheme.accent.opacity(0.35))
+                    .foregroundStyle(AppTheme.pageBackground)
                     .clipShape(RoundedRectangle(cornerRadius: 26))
                 }
                 .disabled(!canSubmit || isLoading)
@@ -123,7 +115,7 @@ struct LoginView: View {
                 // MARK: - Hint
                 Text("Tu licencia se vincula a este dispositivo")
                     .font(.system(size: 13, weight: .regular))
-                    .foregroundStyle(textSecondary)
+                    .foregroundStyle(AppTheme.accentSecondary)
                     .multilineTextAlignment(.center)
 
                 Spacer()
