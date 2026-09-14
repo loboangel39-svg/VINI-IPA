@@ -2,10 +2,8 @@ import Foundation
 
 /// Checks maintenance mode status from the Cloudflare worker
 enum MaintenanceChecker {
-    /// Worker base URL - must match RemotePatchService
-    private static var workerBaseURL: String {
-        RemotePatchService.shared.workerURL.replacingOccurrences(of: "/api/app/patches", with: "")
-    }
+    /// Worker base URL
+    private static let workerBaseURL = "https://vini-v2-api.loboangel39.workers.dev"
     
     struct StatusResponse: Decodable {
         let maintenance: Bool
