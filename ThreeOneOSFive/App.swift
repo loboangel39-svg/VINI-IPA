@@ -16,6 +16,7 @@ struct ThreeOneOSFiveApp: App {
     @AppStorage("sessionExpiresAt") private var sessionExpiresAt: Double = 0
     @AppStorage("currentLicenseKey") private var currentLicenseKey: String = ""
     @State private var isCheckingAutoLogin = true
+    @State private var maintenanceStatus: MaintenanceChecker.StatusResponse?
     @Environment(\.scenePhase) private var scenePhase
 
     init() {
@@ -26,7 +27,10 @@ struct ThreeOneOSFiveApp: App {
     var body: some Scene {
         WindowGroup {
             Group {
-                if isCheckingAutoLogin {
+                // Priority 1: Maintenance mode (blocks everything)
+                if let status = maintenanceStatus, status.maintenance {
+                    MaintenanceView(message: status.message)
+                } else if isCheckingAutoLogin {
                     // Pantalla de carga mientras verifica auto-login
                     ProgressView("VINI V2")
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -50,12 +54,27 @@ struct ThreeOneOSFiveApp: App {
                 }
             }
             .task {
+                // Check maintenance mode first (before anything else)
+                await checkMaintenanceMode()
+                
                 // Intentar auto-login al iniciar
                 await attemptAutoLogin()
                 
                 if isLoggedIn {
                     await patchManager.syncPatches()
                     await patchStore.loadAssignedPatches()
+                }
+            }
+        }
+    }
+    
+    // MARK: - Maintenance Mode Check
+    private func checkMaintenanceMode() async {
+        if let status = await MaintenanceChecker.check() {
+            await MainActor.run {
+                self.maintenanceStatus = status
+                if status.maintenance {
+                    log("app: maintenance mode active")
                 }
             }
         }
@@ -227,6 +246,10 @@ struct ThreeOneOSFiveApp: App {
         }
         .onChange(of: scenePhase) { phase in
             guard phase == .active else { return }
+            // Check maintenance mode when app becomes active
+            Task {
+                await checkMaintenanceMode()
+            }
             checkSessionValidity()
             if isLoggedIn && !showOnboarding {
                 appState.detectSupport()

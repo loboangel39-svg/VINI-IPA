@@ -438,6 +438,11 @@ export default {
     const path = url.pathname;
     const method = request.method;
 
+    // === APP STATUS (no auth required - for maintenance mode check) ===
+    if (path === '/api/app/status' && method === 'GET') {
+      return handleAppStatus(env, corsHeaders);
+    }
+
     // === DEBUG STORAGE ===
     if (path === '/debug/storage' && method === 'GET') {
       const db = await env.DB.prepare('SELECT 1 AS test').first();
@@ -1506,6 +1511,29 @@ async function handleAppGetConfig(env, headers) {
   const config = {};
   result.results.forEach(r => { config[r.key] = r.value; });
   return Response.json(config, { headers });
+}
+
+// GET /api/app/status — Returns maintenance mode status (no auth required)
+async function handleAppStatus(env, headers) {
+  try {
+    const maintenance = await env.DB.prepare("SELECT value FROM config WHERE key = 'maintenance_mode'").first();
+    const maintenanceMessage = await env.DB.prepare("SELECT value FROM config WHERE key = 'maintenance_message'").first();
+    
+    const isMaintenance = maintenance?.value === 'true' || maintenance?.value === '1';
+    
+    return Response.json({
+      maintenance: isMaintenance,
+      message: maintenanceMessage?.value || 'We are performing scheduled maintenance. Please check back later.',
+      timestamp: new Date().toISOString()
+    }, { headers });
+  } catch (e) {
+    // If config table doesn't exist or query fails, assume no maintenance
+    return Response.json({
+      maintenance: false,
+      message: '',
+      timestamp: new Date().toISOString()
+    }, { headers });
+  }
 }
 
 // GET /api/app/patches — lista de patches disponibles para el usuario
