@@ -12,6 +12,8 @@ enum AppTheme {
     static let consoleBackground = Color(uiColor: .secondarySystemBackground)
     static let border = Color(uiColor: .separator)
     static let textMuted = Color.secondary
+    static let chromeHighlight = Color(uiColor: .tertiaryLabel)
+    static let bgTertiary = Color(uiColor: .tertiarySystemBackground)
     static let pageInset: CGFloat = 16
     static let rowIconSize: CGFloat = 17
     static let rowIconFrame: CGFloat = 28
