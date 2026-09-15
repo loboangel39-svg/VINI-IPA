@@ -8,6 +8,13 @@ enum AppTheme {
                 : UIColor(red: 0.20, green: 0.50, blue: 0.85, alpha: 1.00) // Azul pastel equilibrado para fondo claro
         }
     )
+    static let accentSecondary = Color(
+        uiColor: UIColor { traits in
+            traits.userInterfaceStyle == .dark
+                ? UIColor(red: 0.55, green: 0.78, blue: 0.95, alpha: 0.70) // Azul celeste más claro y translúcido para dark mode
+                : UIColor(red: 0.30, green: 0.60, blue: 0.90, alpha: 0.60) // Azul pastel más suave para light mode
+        }
+    )
     static let pageBackground = Color(uiColor: .systemBackground)
     static let consoleBackground = Color(uiColor: .secondarySystemBackground)
     static let border = Color(uiColor: .separator)
