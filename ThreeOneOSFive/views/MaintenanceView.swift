@@ -1,10 +1,17 @@
 import SwiftUI
 
+/// Maintenance mode screen with animated gears design
 struct MaintenanceView: View {
     let message: String
+    let eta: String?
     
-    @State private var opacity: Double = 0
-    @State private var iconScale: CGFloat = 0.8
+    @State private var rotation1: Double = 0
+    @State private var rotation2: Double = 0
+    
+    init(message: String, eta: String? = nil) {
+        self.message = message
+        self.eta = eta
+    }
     
     var body: some View {
         ZStack {
@@ -14,64 +21,85 @@ struct MaintenanceView: View {
             VStack(spacing: 0) {
                 Spacer()
                 
-                // Icon
+                // Animated gears container
                 ZStack {
+                    // Outer gear - dashed circle
                     Circle()
-                        .fill(AppTheme.accent.opacity(0.1))
+                        .stroke(AppTheme.accent, style: StrokeStyle(lineWidth: 4, dash: [8, 6]))
                         .frame(width: 120, height: 120)
+                        .rotationEffect(.degrees(rotation1))
                     
-                    Image(systemName: "wrench.and.screwdriver.fill")
-                        .font(.system(size: 50, weight: .medium))
-                        .foregroundStyle(AppTheme.accent)
-                        .scaleEffect(iconScale)
+                    // Inner gear - dotted circle
+                    Circle()
+                        .stroke(AppTheme.accent, style: StrokeStyle(lineWidth: 4, dash: [2, 4]))
+                        .frame(width: 80, height: 80)
+                        .rotationEffect(.degrees(rotation2))
+                    
+                    // Center circle with icon
+                    Circle()
+                        .fill(AppTheme.accent)
+                        .frame(width: 40, height: 40)
+                        .overlay(
+                            Image(systemName: "bolt.fill")
+                                .font(.system(size: 18, weight: .bold))
+                                .foregroundStyle(AppTheme.pageBackground)
+                        )
                 }
+                .frame(width: 120, height: 120)
                 
                 Spacer().frame(height: 32)
                 
                 // Title
-                Text("maintenance.title")
-                    .font(.system(size: 28, weight: .bold))
+                Text("VINI PRIVATE")
+                    .font(.system(size: 24, weight: .bold))
                     .foregroundStyle(AppTheme.chromeHighlight)
-                    .multilineTextAlignment(.center)
                 
-                Spacer().frame(height: 12)
+                Spacer().frame(height: 8)
+                
+                // Subtitle
+                Text("maintenance.updating")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(AppTheme.accent)
+                
+                Spacer().frame(height: 16)
                 
                 // Message
                 Text(message)
-                    .font(.system(size: 16, weight: .regular))
+                    .font(.system(size: 14))
                     .foregroundStyle(AppTheme.accentSecondary)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 40)
                 
-                Spacer().frame(height: 40)
+                // Divider
+                Rectangle()
+                    .fill(AppTheme.border)
+                    .frame(width: 60, height: 2)
+                    .padding(.vertical, 20)
                 
-                // Subtle indicator
-                HStack(spacing: 8) {
-                    Circle()
-                        .fill(Color.orange)
-                        .frame(width: 8, height: 8)
-                    Text("maintenance.status")
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(AppTheme.accentSecondary)
+                // ETA
+                if let eta = eta {
+                    Text(eta)
+                        .font(.system(size: 12))
+                        .foregroundStyle(AppTheme.textMuted)
                 }
                 
                 Spacer()
             }
-            .opacity(opacity)
         }
         .onAppear {
-            withAnimation(.easeOut(duration: 0.5)) {
-                opacity = 1
+            withAnimation(.linear(duration: 10).repeatForever(autoreverses: false)) {
+                rotation1 = 360
             }
-            withAnimation(.easeInOut(duration: 2).repeatForever(autoreverses: true)) {
-                iconScale = 1.05
+            withAnimation(.linear(duration: 7).repeatForever(autoreverses: false)) {
+                rotation2 = -360
             }
         }
     }
 }
 
-struct MaintenanceView_Previews: PreviewProvider {
-    static var previews: some View {
-        MaintenanceView(message: "We are performing scheduled maintenance. Please check back later.")
-    }
+#Preview {
+    MaintenanceView(
+        message: "Nuevas funciones y mejoras están en camino.",
+        eta: "Tiempo estimado: 30 minutos"
+    )
 }

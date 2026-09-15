@@ -539,3 +539,18 @@
 "config.hwid" = "硬件ID";
 "config.simulator" = "模拟器";
 "config.unknown" = "未知";
+
+// MARK: - Maintenance
+"maintenance.updating" = "系统更新中";
+"maintenance.estimated_time" = "预计时间：%@";
+
+// MARK: - Rewards
+"rewards.next_reward" = "下一个奖励";
+"rewards.points_remaining" = "还差 %d 积分可获得:";
+"rewards.streak_days" = "连续天数";
+"rewards.trust" = "信任度";
+"rewards.reports" = "报告";
+"rewards.referrals" = "推荐";
+"rewards.invite_friends" = "邀请好友获得奖励";
+"rewards.share_code" = "分享代码";
+"rewards.share_text" = "使用我的代码加入 VINI：%@";

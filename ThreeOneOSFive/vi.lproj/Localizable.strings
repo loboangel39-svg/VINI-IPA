@@ -539,3 +539,18 @@
 "config.hwid" = "HWID";
 "config.simulator" = "Trình mô phỏng";
 "config.unknown" = "Không xác định";
+
+// MARK: - Maintenance
+"maintenance.updating" = "Hệ thống đang cập nhật";
+"maintenance.estimated_time" = "Thời gian ước tính: %@";
+
+// MARK: - Rewards
+"rewards.next_reward" = "Phần thưởng tiếp theo";
+"rewards.points_remaining" = "Còn %d điểm để:";
+"rewards.streak_days" = "Ngày liên tiếp";
+"rewards.trust" = "Tin cậy";
+"rewards.reports" = "Báo cáo";
+"rewards.referrals" = "Giới thiệu";
+"rewards.invite_friends" = "Mời bạn bè và nhận thưởng";
+"rewards.share_code" = "Chia sẻ mã";
+"rewards.share_text" = "Tham gia VINI với mã của tôi: %@";

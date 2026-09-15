@@ -29,7 +29,7 @@ struct ThreeOneOSFiveApp: App {
             Group {
                 // Priority 1: Maintenance mode (blocks everything)
                 if let status = maintenanceStatus, status.maintenance {
-                    MaintenanceView(message: status.message)
+                    MaintenanceView(message: status.message, eta: status.eta)
                 } else if isCheckingAutoLogin {
                     // Pantalla de carga mientras verifica auto-login
                     ProgressView("VINI V2")

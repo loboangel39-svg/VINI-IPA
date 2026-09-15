@@ -539,3 +539,18 @@
 "config.hwid" = "HWID";
 "config.simulator" = "Simulator";
 "config.unknown" = "Unknown";
+
+// MARK: - Maintenance
+"maintenance.updating" = "System updating";
+"maintenance.estimated_time" = "Estimated time: %@";
+
+// MARK: - Rewards
+"rewards.next_reward" = "Next reward";
+"rewards.points_remaining" = "%d points remaining for:";
+"rewards.streak_days" = "Streak days";
+"rewards.trust" = "Trust";
+"rewards.reports" = "Reports";
+"rewards.referrals" = "Referrals";
+"rewards.invite_friends" = "Invite friends and earn";
+"rewards.share_code" = "Share code";
+"rewards.share_text" = "Join VINI using my code: %@";

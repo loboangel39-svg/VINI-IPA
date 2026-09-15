@@ -12,6 +12,9 @@ final class RewardsService {
     
     struct RewardsSummary: Codable {
         let points: Int
+        let streakDays: Int?
+        let nextRewardTarget: Int?
+        let nextRewardName: String?
         let permanence: Permanence
         let nextReward: NextReward?
         

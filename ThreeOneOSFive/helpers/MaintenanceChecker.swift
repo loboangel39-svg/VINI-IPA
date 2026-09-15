@@ -8,6 +8,7 @@ enum MaintenanceChecker {
     struct StatusResponse: Decodable {
         let maintenance: Bool
         let message: String
+        let eta: String?
         let timestamp: String
     }
     

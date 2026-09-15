@@ -540,3 +540,18 @@
 "config.hwid" = "HWID";
 "config.simulator" = "Simulador";
 "config.unknown" = "Desconocido";
+
+// MARK: - Maintenance
+"maintenance.updating" = "Sistema en actualización";
+"maintenance.estimated_time" = "Tiempo estimado: %@";
+
+// MARK: - Rewards
+"rewards.next_reward" = "Próxima recompensa";
+"rewards.points_remaining" = "Faltan %d pts para:";
+"rewards.streak_days" = "Días de racha";
+"rewards.trust" = "Confianza";
+"rewards.reports" = "Reportes";
+"rewards.referrals" = "Referidos";
+"rewards.invite_friends" = "Invita amigos y gana";
+"rewards.share_code" = "Compartir código";
+"rewards.share_text" = "Únete a VINI usando mi código: %@";

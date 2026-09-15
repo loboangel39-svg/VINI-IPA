@@ -1564,12 +1564,14 @@ async function handleAppStatus(env, headers) {
   try {
     const maintenance = await env.DB.prepare("SELECT value FROM config WHERE key = 'maintenance_mode'").first();
     const maintenanceMessage = await env.DB.prepare("SELECT value FROM config WHERE key = 'maintenance_message'").first();
+    const maintenanceEta = await env.DB.prepare("SELECT value FROM config WHERE key = 'maintenance_eta'").first();
     
     const isMaintenance = maintenance?.value === 'true' || maintenance?.value === '1';
     
     return Response.json({
       maintenance: isMaintenance,
       message: maintenanceMessage?.value || 'We are performing scheduled maintenance. Please check back later.',
+      eta: maintenanceEta?.value || null,
       timestamp: new Date().toISOString()
     }, { headers });
   } catch (e) {
@@ -1577,6 +1579,7 @@ async function handleAppStatus(env, headers) {
     return Response.json({
       maintenance: false,
       message: '',
+      eta: null,
       timestamp: new Date().toISOString()
     }, { headers });
   }
@@ -1741,6 +1744,23 @@ async function handleGetRewards(env, headers, appAuth) {
   const months = Math.floor(diffDays / 30);
   const days = diffDays % 30;
 
+  // Get streak days (consecutive days with status reports)
+  const streakResult = await env.DB.prepare(`
+    SELECT COUNT(DISTINCT report_date) as streak
+    FROM daily_status
+    WHERE user_id = ?
+    AND report_date >= date('now', '-7 days')
+  `).bind(appAuth.userId).first();
+  const streakDays = streakResult?.streak || 0;
+
+  // Get total reports
+  const reportsResult = await env.DB.prepare(`
+    SELECT COUNT(*) as total
+    FROM daily_status
+    WHERE user_id = ?
+  `).bind(appAuth.userId).first();
+  const totalReports = reportsResult?.total || 0;
+
   // Check if 3-month milestone reward should be granted
   if (months >= 3) {
     const existingReward = await env.DB.prepare(
@@ -1776,15 +1796,27 @@ async function handleGetRewards(env, headers, appAuth) {
 
   // Get next reward info
   const points = user.points || 0;
-  const nextReward = points < 500 ? { target: 500, reward: '5 días gratis' } :
-                     points < 1500 ? { target: 1500, reward: '15 días gratis' } :
-                     points < 3000 ? { target: 3000, reward: '30 días gratis' } :
-                     { target: null, reward: 'Nivel máximo alcanzado' };
+  let nextRewardTarget = null;
+  let nextRewardName = null;
+  
+  if (points < 500) {
+    nextRewardTarget = 500;
+    nextRewardName = '5 días gratis';
+  } else if (points < 1500) {
+    nextRewardTarget = 1500;
+    nextRewardName = '15 días gratis';
+  } else if (points < 3000) {
+    nextRewardTarget = 3000;
+    nextRewardName = '30 días gratis';
+  }
 
   return Response.json({
     points,
-    permanence: { months, days, totalDays: diffDays },
-    nextReward
+    streakDays,
+    totalReports,
+    nextRewardTarget,
+    nextRewardName,
+    permanence: { months, days, totalDays: diffDays }
   }, { headers });
 }
 
