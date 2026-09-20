@@ -1230,42 +1230,50 @@ export default {
           return Response.json({ error: 'Unauthorized', valid: false }, { status: 401, headers: corsHeaders });
         }
 
+        // Helper: inyectar X-New-Token en la respuesta si verifyAppAuth generó uno nuevo
+        const injectNewToken = (response) => {
+          if (appAuth.newToken) {
+            const newHeaders = new Headers(response.headers);
+            newHeaders.set('X-New-Token', appAuth.newToken);
+            return new Response(response.body, { status: response.status, headers: newHeaders });
+          }
+          return response;
+        };
+
         // GET /api/app/config
         if (path === '/api/app/config' && method === 'GET') {
-          return handleAppGetConfig(env, corsHeaders);
+          return injectNewToken(await handleAppGetConfig(env, corsHeaders));
         }
 
         // GET /api/app/patches — lista de patches disponibles para el usuario
         if (path === '/api/app/patches' && method === 'GET') {
-          return handleAppGetPatches(env, corsHeaders, appAuth);
+          return injectNewToken(await handleAppGetPatches(env, corsHeaders, appAuth));
         }
 
         // GET /api/app/patches/:id — detalle de un patch
         if (path.match(/^\/api\/app\/patches\/[^/]+$/) && method === 'GET') {
           const id = path.split('/')[4];
-          return handleAppGetPatchDetail(id, env, corsHeaders, appAuth);
+          return injectNewToken(await handleAppGetPatchDetail(id, env, corsHeaders, appAuth));
         }
 
         // GET /api/app/patches/:id/download — descargar archivo .3105
         if (path.match(/^\/api\/app\/patches\/[^/]+\/download$/) && method === 'GET') {
-          const id = path.split('/')[4];
-          return handleAppDownloadPatch(id, env, corsHeaders, appAuth);
+          return injectNewToken(await handleAppDownloadPatch(id, env, corsHeaders, appAuth));
         }
 
         // GET /api/app/messages
         if (path === '/api/app/messages' && method === 'GET') {
-          return handleAppGetMessages(env, corsHeaders, appAuth);
+          return injectNewToken(await handleAppGetMessages(env, corsHeaders, appAuth));
         }
 
         // POST /api/app/messages/:id/ack
         if (path.match(/^\/api\/app\/messages\/[^/]+\/ack$/) && method === 'POST') {
-          const id = path.split('/')[4];
-          return handleAppAckMessage(id, env, corsHeaders, appAuth);
+          return injectNewToken(await handleAppAckMessage(id, env, corsHeaders, appAuth));
         }
 
         // POST /api/app/telemetry
         if (path === '/api/app/telemetry' && method === 'POST') {
-          return handleAppTelemetry(request, env, corsHeaders, appAuth);
+          return injectNewToken(await handleAppTelemetry(request, env, corsHeaders, appAuth));
         }
       }
 
@@ -1425,7 +1433,15 @@ async function verifyAppAuth(request, env) {
     if (!user) return { valid: false };
     if (!user.is_active || user.is_paused || user.is_blocked) return { valid: false };
 
-    return { valid: true, userId: payload.userId, hwid: payload.hwid, user };
+    // Auto-refresh: si el token expira en menos de 6 horas, emitir uno nuevo
+    const SIX_HOURS = 6 * 60 * 60 * 1000;
+    let newToken = null;
+    if (payload.exp - Date.now() < SIX_HOURS) {
+      const newExp = Date.now() + 86400000; // 24h desde ahora
+      newToken = await createJWT({ userId: payload.userId, licenseKey: payload.licenseKey, hwid: payload.hwid, exp: newExp }, env);
+    }
+
+    return { valid: true, userId: payload.userId, hwid: payload.hwid, user, newToken };
   } catch {
     return { valid: false };
   }

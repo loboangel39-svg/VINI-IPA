@@ -108,6 +108,13 @@ enum RemotePatchError: LocalizedError {
     case networkError
     case unauthorized
     
+    var isUnauthorized: Bool {
+        switch self {
+        case .unauthorized: return true
+        default: return false
+        }
+    }
+    
     var errorDescription: String? {
         switch self {
         case .networkError: return "Connection error"

@@ -78,6 +78,29 @@ final class PatchManager: ObservableObject {
             NotificationCenter.default.post(name: .patchesDidChange, object: nil)
             
             print("[PatchManager] Sync complete — \(patches.count) patches available")
+        } catch let error as RemotePatchError where error.isUnauthorized {
+            // Token expirado o inválido — intentar re-login con license key del Keychain
+            print("[PatchManager] Sync failed: unauthorized — attempting auto re-login")
+            await MainActor.run { self.isSyncing = false }
+            
+            guard let licenseKey = KeychainManager.shared.loadLicenseKey() else {
+                print("[PatchManager] No saved license key — cannot auto re-login")
+                return
+            }
+            
+            await withCheckedContinuation { continuation in
+                LoginManager.login(licenseKey: licenseKey) { success, _, _ in
+                    Task { @MainActor in
+                        if success {
+                            print("[PatchManager] Re-login successful — retrying sync")
+                            await self.syncPatches()
+                        } else {
+                            print("[PatchManager] Re-login failed — user must login manually")
+                        }
+                        continuation.resume()
+                    }
+                }
+            }
         } catch {
             await MainActor.run { self.isSyncing = false }
             print("[PatchManager] Sync failed: \(error.localizedDescription)")
