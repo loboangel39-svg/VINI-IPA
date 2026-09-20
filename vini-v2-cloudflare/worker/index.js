@@ -1258,6 +1258,7 @@ export default {
 
         // GET /api/app/patches/:id/download — descargar archivo .3105
         if (path.match(/^\/api\/app\/patches\/[^/]+\/download$/) && method === 'GET') {
+          const id = path.split('/')[4];
           return injectNewToken(await handleAppDownloadPatch(id, env, corsHeaders, appAuth));
         }
 
