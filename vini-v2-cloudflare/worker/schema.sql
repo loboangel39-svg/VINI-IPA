@@ -11,6 +11,8 @@ CREATE TABLE IF NOT EXISTS users (
   is_paused INTEGER DEFAULT 0,
   is_blocked INTEGER DEFAULT 0,
   permissions TEXT DEFAULT '{}',
+  license_expires_at TEXT,
+  paused_at TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );

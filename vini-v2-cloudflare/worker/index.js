@@ -1306,6 +1306,10 @@ export default {
         const id = path.split('/')[3];
         return handleTogglePause(id, env, corsHeaders);
       }
+      if (path.match(/^\/api\/users\/[^/]+\/adjust-days$/) && method === 'POST') {
+        const id = path.split('/')[3];
+        return handleAdjustDays(id, request, env, corsHeaders);
+      }
       if (path.match(/^\/api\/users\/[^/]+\/hwid$/) && method === 'POST') {
         const id = path.split('/')[3];
         return handleResetHWID(id, env, corsHeaders);
@@ -1781,11 +1785,58 @@ async function handleUpdateUser(id, request, env, headers) {
 }
 
 async function handleTogglePause(id, env, headers) {
-  const user = await env.DB.prepare('SELECT is_paused FROM users WHERE id = ?').bind(id).first();
-  const newState = user.is_paused ? 0 : 1;
-  await env.DB.prepare('UPDATE users SET is_paused = ? WHERE id = ?').bind(newState, id).run();
-  await logActivity(env, 'user_paused', `User ${id} ${newState ? 'paused' : 'resumed'}`);
-  return Response.json({ is_paused: newState }, { headers });
+  const user = await env.DB.prepare('SELECT is_paused, paused_at, license_expires_at, username FROM users WHERE id = ?').bind(id).first();
+  
+  if (!user) {
+    return Response.json({ error: 'User not found' }, { status: 404, headers });
+  }
+  
+  const now = new Date();
+  const nowISO = now.toISOString();
+  
+  if (!user.is_paused) {
+    // PAUSAR: Congelar el tiempo
+    await env.DB.prepare('UPDATE users SET is_paused = 1, paused_at = ?, updated_at = ? WHERE id = ?')
+      .bind(nowISO, nowISO, id).run();
+    
+    await logActivity(env, 'user_paused', `User ${user.username} license PAUSED (time frozen)`);
+    return Response.json({ 
+      is_paused: true, 
+      paused_at: nowISO,
+      message: 'License paused. Time frozen.'
+    }, { headers });
+  } else {
+    // REANUDAR: Calcular días consumidos durante la pausa y extender la licencia
+    let daysToAdd = 0;
+    let newExpiresAt = user.license_expires_at;
+    
+    if (user.paused_at && user.license_expires_at) {
+      const pausedDate = new Date(user.paused_at);
+      const millisecondsPaused = now.getTime() - pausedDate.getTime();
+      daysToAdd = Math.floor(millisecondsPaused / (1000 * 60 * 60 * 24));
+      
+      if (daysToAdd > 0) {
+        const currentExpires = new Date(user.license_expires_at);
+        newExpiresAt = new Date(currentExpires.getTime() + (daysToAdd * 24 * 60 * 60 * 1000)).toISOString();
+        
+        await env.DB.prepare('UPDATE users SET license_expires_at = ? WHERE id = ?')
+          .bind(newExpiresAt, id).run();
+      }
+    }
+    
+    // Limpiar paused_at y despausar
+    await env.DB.prepare('UPDATE users SET is_paused = 0, paused_at = NULL, updated_at = ? WHERE id = ?')
+      .bind(nowISO, id).run();
+    
+    await logActivity(env, 'user_resumed', `User ${user.username} license RESUMED (added ${daysToAdd} days, new expiry: ${newExpiresAt})`);
+    return Response.json({ 
+      is_paused: false, 
+      paused_at: null,
+      days_added_back: daysToAdd,
+      license_expires_at: newExpiresAt,
+      message: `License resumed. ${daysToAdd} days added back.`
+    }, { headers });
+  }
 }
 
 async function handleResetHWID(id, env, headers) {
@@ -1833,6 +1884,50 @@ async function handleRenewLicense(id, request, env, headers) {
     success: true, 
     license_expires_at: newExpiresAt,
     days_added: days
+  }, { headers });
+}
+
+async function handleAdjustDays(id, request, env, headers) {
+  const data = await request.json();
+  const days = parseInt(data.days);
+  
+  if (isNaN(days)) {
+    return Response.json({ error: 'Days must be a number' }, { status: 400, headers });
+  }
+  
+  const user = await env.DB.prepare('SELECT username, license_expires_at FROM users WHERE id = ?').bind(id).first();
+  
+  if (!user) {
+    return Response.json({ error: 'User not found' }, { status: 404, headers });
+  }
+
+  const now = new Date();
+  let newExpiresAt;
+  
+  if (days === 0) {
+    // Establecer sin expiración
+    newExpiresAt = null;
+  } else if (user.license_expires_at) {
+    // Ajustar desde la fecha actual de expiración
+    const currentExpires = new Date(user.license_expires_at);
+    newExpiresAt = new Date(currentExpires.getTime() + (days * 24 * 60 * 60 * 1000)).toISOString();
+  } else {
+    // No tenía fecha, establecer desde ahora
+    newExpiresAt = new Date(now.getTime() + (days * 24 * 60 * 60 * 1000)).toISOString();
+  }
+  
+  const nowISO = now.toISOString();
+  await env.DB.prepare('UPDATE users SET license_expires_at = ?, updated_at = ? WHERE id = ?')
+    .bind(newExpiresAt, nowISO, id).run();
+  
+  const action = days > 0 ? `added ${days} days` : days < 0 ? `removed ${Math.abs(days)} days` : 'set to no expiration';
+  await logActivity(env, 'license_adjusted', `User ${user.username} license adjusted: ${action} (new expiry: ${newExpiresAt || 'never'})`);
+  
+  return Response.json({ 
+    success: true, 
+    license_expires_at: newExpiresAt,
+    days_adjusted: days,
+    message: `License ${action}`
   }, { headers });
 }
 

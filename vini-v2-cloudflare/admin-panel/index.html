@@ -830,13 +830,14 @@
           <td data-label="Tipo">${u.is_premium ? '<span class="badge badge-premium">Premium</span>' : '<span class="badge badge-free">Free</span>'}</td>
           <td data-label="Estado">
             ${u.is_blocked ? '<span class="badge badge-blocked">Bloqueado</span>' : 
-              u.is_paused ? '<span class="badge badge-paused">Pausado</span>' : 
+              u.is_paused ? `<span class="badge badge-paused">Pausado</span>${u.paused_at ? `<br><small style="color:#f97316;">⏸ ${formatDate(u.paused_at)}</small>` : ''}` : 
               '<span class="badge badge-active">Activo</span>'}
           </td>
           <td>
             <button class="btn btn-secondary btn-sm" onclick="editUser('${u.id}')">Editar</button>
             <button class="btn btn-primary btn-sm" onclick="showRenewModal('${u.id}', '${u.username}')">Renovar</button>
-            <button class="btn btn-secondary btn-sm" onclick="togglePause('${u.id}')">${u.is_paused ? 'Reactivar' : 'Pausar'}</button>
+            <button class="btn btn-secondary btn-sm" onclick="showAdjustDaysModal('${u.id}', '${u.username}', '${u.license_expires_at || ''}')">Ajustar Días</button>
+            <button class="btn btn-secondary btn-sm" onclick="togglePause('${u.id}', '${u.username}')">${u.is_paused ? 'Reactivar' : 'Pausar'}</button>
             <button class="btn btn-secondary btn-sm" onclick="resetHWID('${u.id}')">Reset HWID</button>
             <button class="btn btn-${u.is_blocked ? 'primary' : 'danger'} btn-sm" onclick="toggleBlock('${u.id}')">${u.is_blocked ? 'Desbloquear' : 'Bloquear'}</button>
             <button class="btn btn-danger btn-sm" onclick="deleteUser('${u.id}', '${u.username}')">Eliminar</button>
@@ -969,7 +970,52 @@
       });
     }
 
-    async function togglePause(id) { await api(`/api/users/${id}/pause`, { method: 'POST' }); loadUsers(); }
+    async function togglePause(id, username) {
+      const result = await api(`/api/users/${id}/pause`, { method: 'POST' });
+      if (result.is_paused) {
+        alert(`✅ Licencia de "${username}" PAUSADA\n\n⏸ El tiempo ha sido congelado.\nMientras esté pausada, los días no se consumen.`);
+      } else {
+        const daysAdded = result.days_added_back || 0;
+        alert(`✅ Licencia de "${username}" REANUDADA\n\n${daysAdded > 0 ? `⏱ Se agregaron ${daysAdded} días de vuelta.\n` : ''}Nueva fecha de expiración: ${result.license_expires_at ? formatDate(result.license_expires_at) : 'Sin fecha'}`);
+      }
+      loadUsers();
+    }
+
+    function showAdjustDaysModal(id, username, currentExpiry) {
+      const currentDays = currentExpiry ? Math.ceil((new Date(currentExpiry) - new Date()) / (1000 * 60 * 60 * 24)) : 0;
+      
+      showModal(`
+        <h2>Ajustar Días - ${username}</h2>
+        <div style="background:#1e1e2e;padding:15px;border-radius:8px;margin-bottom:20px;">
+          <div style="font-size:13px;color:#888;margin-bottom:5px;">Fecha actual de expiración:</div>
+          <div style="font-size:16px;font-weight:600;">${currentExpiry ? formatDate(currentExpiry) : 'Sin fecha'}</div>
+          ${currentExpiry ? `<div style="font-size:13px;color:${currentDays > 0 ? '#10b981' : '#ef4444'};margin-top:5px;">${currentDays > 0 ? `${currentDays} días restantes` : `Expirada hace ${Math.abs(currentDays)} días`}</div>` : ''}
+        </div>
+        <form id="adjustDaysForm">
+          <div class="form-group">
+            <label>Ajustar días (positivo = agregar, negativo = quitar)</label>
+            <input type="number" name="days" value="0" required style="font-size:18px;text-align:center;">
+            <small style="color:#666;display:block;margin-top:5px;">Ejemplo: +7 agrega 7 días, -3 quita 3 días, 0 establece sin expiración</small>
+          </div>
+          <div class="form-actions">
+            <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+            <button type="submit" class="btn btn-primary">Ajustar</button>
+          </div>
+        </form>
+      `);
+      document.getElementById('adjustDaysForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const fd = new FormData(e.target);
+        const days = parseInt(fd.get('days'));
+        const result = await api(`/api/users/${id}/adjust-days`, {
+          method: 'POST',
+          body: JSON.stringify({ days }),
+        });
+        closeModal();
+        alert(`✅ ${result.message}\n\nNueva fecha: ${result.license_expires_at ? formatDate(result.license_expires_at) : 'Sin expiración'}`);
+        loadUsers();
+      });
+    }
     async function resetHWID(id) { if (confirm('¿Resetear HWID?')) { await api(`/api/users/${id}/hwid`, { method: 'POST' }); loadUsers(); } }
     async function toggleBlock(id) { await api(`/api/users/${id}/block`, { method: 'POST' }); loadUsers(); }
 
