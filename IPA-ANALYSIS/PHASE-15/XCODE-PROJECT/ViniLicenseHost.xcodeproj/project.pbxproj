@@ -1,0 +1,88 @@
+﻿// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		A00000010000000000000001 /* ViniNativeBootstrap.m in Sources */ = {isa = PBXBuildFile; fileRef = A00000110000000000000001 /* ViniNativeBootstrap.m */; };
+		A00000010000000000000002 /* AppDelegate.m in Sources */ = {isa = PBXBuildFile; fileRef = A00000110000000000000003 /* AppDelegate.m */; };
+		A00000010000000000000003 /* ViniLoginViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = A00000110000000000000005 /* ViniLoginViewController.m */; };
+		A00000010000000000000004 /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = A00000110000000000000007 /* main.m */; };
+		A00000010000000000000005 /* Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = A00000110000000000000008 /* Info.plist */; };
+		A00000010000000000000006 /* libViniNativeBootstrap.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A00000110000000000000009 /* libViniNativeBootstrap.a */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		A00000110000000000000001 /* ViniNativeBootstrap.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = ViniNativeBootstrap.m; sourceTree = "<group>"; };
+		A00000110000000000000002 /* ViniNativeBootstrap.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ViniNativeBootstrap.h; sourceTree = "<group>"; };
+		A00000110000000000000003 /* AppDelegate.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = AppDelegate.m; sourceTree = "<group>"; };
+		A00000110000000000000004 /* AppDelegate.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AppDelegate.h; sourceTree = "<group>"; };
+		A00000110000000000000005 /* ViniLoginViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = ViniLoginViewController.m; sourceTree = "<group>"; };
+		A00000110000000000000006 /* ViniLoginViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ViniLoginViewController.h; sourceTree = "<group>"; };
+		A00000110000000000000007 /* main.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = main.m; sourceTree = "<group>"; };
+		A00000110000000000000008 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		A00000110000000000000009 /* libViniNativeBootstrap.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libViniNativeBootstrap.a; sourceTree = BUILT_PRODUCTS_DIR; };
+		A0000011000000000000000A /* ViniLicenseHost.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ViniLicenseHost.app; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		A00000210000000000000001 /* ViniLicenseHost Frameworks */ = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (A00000010000000000000006,); runOnlyForDeploymentPostprocessing = 0; };
+		A00000210000000000000002 /* ViniNativeBootstrap Frameworks */ = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		A00000310000000000000001 = {isa = PBXGroup; children = (A00000310000000000000002,A00000310000000000000003,A00000310000000000000004,A00000310000000000000005,A00000310000000000000006,A00000310000000000000007,A00000310000000000000008,); sourceTree = "<group>"; };
+		A00000310000000000000002 /* ViniNativeBootstrap */ = {isa = PBXGroup; children = (A00000110000000000000001,A00000110000000000000002,); path = "../NATIVE-MODULE"; sourceTree = "<group>"; };
+		A00000310000000000000003 /* ViniLicenseHost */ = {isa = PBXGroup; children = (A00000110000000000000003,A00000110000000000000004,A00000110000000000000005,A00000110000000000000006,A00000110000000000000007,A00000110000000000000008,); path = "../TEST-HOST"; sourceTree = "<group>"; };
+		A00000310000000000000004 /* Products */ = {isa = PBXGroup; children = (A00000110000000000000009,A0000011000000000000000A,); name = Products; sourceTree = "<group>"; };
+		A00000310000000000000005 /* Frameworks */ = {isa = PBXGroup; children = (); name = Frameworks; sourceTree = "<group>"; };
+		A00000310000000000000006 /* Supporting */ = {isa = PBXGroup; children = (); name = Supporting; sourceTree = "<group>"; };
+		A00000310000000000000007 /* Root */ = {isa = PBXGroup; children = (A00000310000000000000002,A00000310000000000000003,A00000310000000000000004,A00000310000000000000005,A00000310000000000000006,); sourceTree = "<group>"; };
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		A00000410000000000000001 /* ViniNativeBootstrap */ = {isa = PBXNativeTarget; buildConfigurationList = A00000510000000000000001; buildPhases = (A00000210000000000000002,A00000610000000000000001,); buildRules = (); dependencies = (); name = ViniNativeBootstrap; productName = ViniNativeBootstrap; productReference = A00000110000000000000009; productType = "com.apple.product-type.library.static"; };
+		A00000410000000000000002 /* ViniLicenseHost */ = {isa = PBXNativeTarget; buildConfigurationList = A00000510000000000000002; buildPhases = (A00000210000000000000001,A00000610000000000000002,A00000610000000000000003,); buildRules = (); dependencies = (A00000710000000000000001,); name = ViniLicenseHost; productName = ViniLicenseHost; productReference = A0000011000000000000000A; productType = "com.apple.product-type.application"; };
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		A00000810000000000000001 /* Project object */ = {isa = PBXProject; attributes = {LastUpgradeCheck = 1600; TargetAttributes = {A00000410000000000000001 = {CreatedOnToolsVersion = 16.0;}; A00000410000000000000002 = {CreatedOnToolsVersion = 16.0;};};}; buildConfigurationList = A00000510000000000000003; compatibilityVersion = "Xcode 14.0"; developmentRegion = en; hasScannedForEncodings = 0; knownRegions = (en, Base,); mainGroup = A00000310000000000000007; productRefGroup = A00000310000000000000004; projectDirPath = ""; projectRoot = ""; targets = (A00000410000000000000001,A00000410000000000000002,); };
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		A00000610000000000000003 /* ViniLicenseHost Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (A00000010000000000000005,); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		A00000610000000000000001 /* ViniNativeBootstrap Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A00000010000000000000001,); runOnlyForDeploymentPostprocessing = 0; };
+		A00000610000000000000002 /* ViniLicenseHost Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A00000010000000000000002,A00000010000000000000003,A00000010000000000000004,); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		A00000710000000000000001 = {isa = PBXTargetDependency; target = A00000410000000000000001; targetProxy = A00000720000000000000001; };
+/* End PBXTargetDependency section */
+
+/* Begin PBXContainerItemProxy section */
+		A00000720000000000000001 = {isa = PBXContainerItemProxy; containerPortal = A00000810000000000000001; proxyType = 1; remoteGlobalIDString = A00000410000000000000001; remoteInfo = ViniNativeBootstrap; };
+/* End PBXContainerItemProxy section */
+
+/* Begin XCBuildConfiguration section */
+		A00000910000000000000001 /* Debug */ = {isa = XCBuildConfiguration; buildSettings = {ARCHS = arm64; CLANG_ENABLE_MODULES = YES; CLANG_ENABLE_OBJC_ARC = YES; IPHONEOS_DEPLOYMENT_TARGET = 15.0; SDKROOT = iphoneos;}; name = Debug; };
+		A00000910000000000000002 /* Release */ = {isa = XCBuildConfiguration; buildSettings = {ARCHS = arm64; CLANG_ENABLE_MODULES = YES; CLANG_ENABLE_OBJC_ARC = YES; IPHONEOS_DEPLOYMENT_TARGET = 15.0; SDKROOT = iphoneos;}; name = Release; };
+		A00000910000000000000003 /* Debug */ = {isa = XCBuildConfiguration; buildSettings = {ARCHS = arm64; CLANG_ENABLE_MODULES = YES; CLANG_ENABLE_OBJC_ARC = YES; HEADER_SEARCH_PATHS = "$(PROJECT_DIR)/../NATIVE-MODULE"; IPHONEOS_DEPLOYMENT_TARGET = 15.0; SDKROOT = iphoneos; PRODUCT_BUNDLE_IDENTIFIER = com.vini.bootstrap.test; INFOPLIST_FILE = "../TEST-HOST/Info.plist"; TARGETED_DEVICE_FAMILY = "1,2"; CODE_SIGNING_ALLOWED = NO; OTHER_LDFLAGS = ("-framework", UIKit, "-framework", Foundation, "-framework", Security);}; name = Debug; };
+		A00000910000000000000004 /* Release */ = {isa = XCBuildConfiguration; buildSettings = {ARCHS = arm64; CLANG_ENABLE_MODULES = YES; CLANG_ENABLE_OBJC_ARC = YES; HEADER_SEARCH_PATHS = "$(PROJECT_DIR)/../NATIVE-MODULE"; IPHONEOS_DEPLOYMENT_TARGET = 15.0; SDKROOT = iphoneos; PRODUCT_BUNDLE_IDENTIFIER = com.vini.bootstrap.test; INFOPLIST_FILE = "../TEST-HOST/Info.plist"; TARGETED_DEVICE_FAMILY = "1,2"; CODE_SIGNING_ALLOWED = NO; OTHER_LDFLAGS = ("-framework", UIKit, "-framework", Foundation, "-framework", Security);}; name = Release; };
+		A00000910000000000000005 /* Project Debug */ = {isa = XCBuildConfiguration; buildSettings = {IPHONEOS_DEPLOYMENT_TARGET = 15.0;}; name = Debug; };
+		A00000910000000000000006 /* Project Release */ = {isa = XCBuildConfiguration; buildSettings = {IPHONEOS_DEPLOYMENT_TARGET = 15.0;}; name = Release; };
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		A00000510000000000000001 = {isa = XCConfigurationList; buildConfigurations = (A00000910000000000000001,A00000910000000000000002,); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		A00000510000000000000002 = {isa = XCConfigurationList; buildConfigurations = (A00000910000000000000003,A00000910000000000000004,); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		A00000510000000000000003 = {isa = XCConfigurationList; buildConfigurations = (A00000910000000000000005,A00000910000000000000006,); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+/* End XCConfigurationList section */
+	};
+	rootObject = A00000810000000000000001;
+}

@@ -1,0 +1,86 @@
+﻿name: VINI native iOS ARM64 build
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'IPA-ANALYSIS/PHASE-15/**'
+      - '.github/workflows/vini-ios-build.yml'
+
+jobs:
+  build-and-simulate:
+    runs-on: macos-14
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: IPA-ANALYSIS/PHASE-15/XCODE-PROJECT
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode and print SDKs
+        run: |
+          sudo xcode-select -s /Applications/Xcode_16.2.app || sudo xcode-select -s /Applications/Xcode.app
+          xcodebuild -version
+          xcodebuild -showsdks
+
+      - name: Build device ARM64 without signing
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project ViniLicenseHost.xcodeproj \
+            -scheme ViniLicenseHost \
+            -sdk iphoneos \
+            -configuration Release \
+            -derivedDataPath "$RUNNER_TEMP/vini-device" \
+            ARCHS=arm64 ONLY_ACTIVE_ARCH=NO CODE_SIGNING_ALLOWED=NO build \
+            | tee "$RUNNER_TEMP/vini-device-build.log"
+
+      - name: Verify device architecture and explicit bootstrap symbol
+        run: |
+          BIN="$RUNNER_TEMP/vini-device/Build/Products/Release-iphoneos/libViniNativeBootstrap.a"
+          test -f "$BIN"
+          xcrun lipo -info "$BIN" | tee "$RUNNER_TEMP/vini-arch.log"
+          xcrun nm -gU "$BIN" | grep '_ViniBootstrapStart'
+
+      - name: Build simulator host
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project ViniLicenseHost.xcodeproj \
+            -scheme ViniLicenseHost \
+            -sdk iphonesimulator \
+            -configuration Debug \
+            -derivedDataPath "$RUNNER_TEMP/vini-sim" \
+            CODE_SIGNING_ALLOWED=NO build \
+            | tee "$RUNNER_TEMP/vini-sim-build.log"
+
+      - name: Launch controlled test host on simulator
+        run: |
+          DEVICE_TYPE=$(xcrun simctl list devicetypes | awk -F '[()]' '/iPhone 16|iPhone 15/ {print $2; exit}')
+          RUNTIME=$(xcrun simctl list runtimes | sed -nE 's/.*- (com\.apple\.CoreSimulator\.SimRuntime\.iOS-[^ ]+) \(available\).*/\1/p' | head -n 1)
+          test -n "$DEVICE_TYPE"
+          test -n "$RUNTIME"
+          DEVICE_ID=$(xcrun simctl create ViniLicenseHost "$DEVICE_TYPE" "$RUNTIME")
+          test -n "$DEVICE_ID"
+          xcrun simctl boot "$DEVICE_ID" || true
+          xcrun simctl bootstatus "$DEVICE_ID" -b
+          APP="$RUNNER_TEMP/vini-sim/Build/Products/Debug-iphonesimulator/ViniLicenseHost.app"
+          xcrun simctl install "$DEVICE_ID" "$APP"
+          xcrun simctl launch "$DEVICE_ID" com.vini.bootstrap.test
+          sleep 3
+          xcrun simctl spawn "$DEVICE_ID" log show --last 2m --style compact --predicate 'eventMessage CONTAINS "[ViniNativeBootstrap] explicit start invoked"' | tee "$RUNNER_TEMP/vini-runtime.log"
+          grep -F '[ViniNativeBootstrap] explicit start invoked' "$RUNNER_TEMP/vini-runtime.log"
+
+      - name: Upload build logs and binaries
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vini-native-ios-build-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/vini-device-build.log
+            ${{ runner.temp }}/vini-sim-build.log
+            ${{ runner.temp }}/vini-runtime.log
+            ${{ runner.temp }}/vini-arch.log
+            ${{ runner.temp }}/vini-device/Build/Products/Release-iphoneos/libViniNativeBootstrap.a
+            ${{ runner.temp }}/vini-sim/Build/Products/Debug-iphonesimulator/ViniLicenseHost.app
+          if-no-files-found: warn
