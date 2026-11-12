@@ -9,7 +9,9 @@ on:
 
 jobs:
   build-and-simulate:
-    runs-on: macos-14
+    # macos-14 is mapped to an unsupported arm64 runner configuration for this repo.
+    # macos-13 provides the required Xcode/iOS SDK toolchain on the available Intel runner.
+    runs-on: macos-13
     timeout-minutes: 30
     defaults:
       run:
