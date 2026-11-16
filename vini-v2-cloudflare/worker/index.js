@@ -1237,7 +1237,7 @@ export default {
 
         // GET /api/app/patches — lista de patches disponibles para el usuario
         if (path === '/api/app/patches' && method === 'GET') {
-          return handleAppGetPatches(env, corsHeaders, appAuth);
+          return handleAppGetPatches(env, corsHeaders, appAuth, url);
         }
 
         // GET /api/app/patches/:id — detalle de un patch
@@ -1326,6 +1326,10 @@ export default {
       // === PATCHES ===
       if (path === '/api/patches' && method === 'GET') {
         return handleGetPatches(env, corsHeaders, url);
+      }
+      if (path.match(/^\/api\/patches\/[^/]+\/category$/) && method === 'PUT') {
+        const id = path.split('/')[3];
+        return handleUpdatePatchCategory(id, request, env, corsHeaders);
       }
       if (path === '/api/patches' && method === 'POST') {
         return handleCreatePatch(request, env, corsHeaders);
@@ -1509,12 +1513,14 @@ async function handleAppGetConfig(env, headers) {
 }
 
 // GET /api/app/patches — lista de patches disponibles para el usuario
-async function handleAppGetPatches(env, headers, appAuth) {
+async function handleAppGetPatches(env, headers, appAuth, url = null) {
+  const includeCategory = url?.searchParams.get('includeCategory') === '1';
   // Obtener patches activos a los que el usuario tiene acceso
   const result = await env.DB.prepare(`
-    SELECT p.id, p.name, p.description, p.version, p.type, p.file_key, p.password, p.content_key, p.created_at, p.updated_at
+    SELECT p.id, p.name, p.description, p.version, p.type, p.file_key, p.password, p.content_key, p.created_at, p.updated_at${includeCategory ? ', pc.category_id' : ''}
     FROM patches p
     INNER JOIN user_patches up ON up.patch_id = p.id
+    ${includeCategory ? 'LEFT JOIN patch_categories pc ON pc.patch_id = p.id' : ''}
     WHERE p.active = 1
       AND up.user_id = ?
     ORDER BY p.created_at DESC
@@ -1531,9 +1537,26 @@ async function handleAppGetPatches(env, headers, appAuth) {
     content_key: p.content_key || null,
     created_at: p.created_at,
     updated_at: p.updated_at,
+    ...(includeCategory ? { categoryID: p.category_id == null ? null : Number(p.category_id) } : {}),
   }));
 
   return Response.json({ patches }, { headers });
+}
+
+async function handleUpdatePatchCategory(id, request, env, headers) {
+  let body;
+  try { body = await request.json(); } catch { return Response.json({ error: 'Invalid JSON' }, { status: 400, headers }); }
+  const value = body?.categoryID;
+  if (value !== null && value !== undefined && ![1, 2, 3].includes(Number(value))) {
+    return Response.json({ error: 'categoryID must be null, 1, 2 or 3' }, { status: 400, headers });
+  }
+  const patch = await env.DB.prepare('SELECT id FROM patches WHERE id = ?').bind(id).first();
+  if (!patch) return Response.json({ error: 'Patch not found' }, { status: 404, headers });
+  const now = new Date().toISOString();
+  await env.DB.prepare(`INSERT INTO patch_categories (patch_id, category_id, updated_at) VALUES (?, ?, ?)
+    ON CONFLICT(patch_id) DO UPDATE SET category_id = excluded.category_id, updated_at = excluded.updated_at`)
+    .bind(id, value == null ? null : Number(value), now).run();
+  return Response.json({ success: true, patchID: id, categoryID: value == null ? null : Number(value) }, { headers });
 }
 
 // GET /api/app/patches/:id — detalle de un patch
@@ -1859,7 +1882,7 @@ async function handleDeleteUser(id, env, headers) {
 async function handleGetPatches(env, headers, url) {
   const type = url.searchParams.get('type') || '';
   const active = url.searchParams.get('active') || '';
-  let query = 'SELECT * FROM patches';
+  let query = 'SELECT p.*, pc.category_id FROM patches p LEFT JOIN patch_categories pc ON pc.patch_id = p.id';
   const conditions = [];
   if (type) conditions.push(`type = '${type}'`);
   if (active === '1') conditions.push('active = 1');

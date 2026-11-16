@@ -532,6 +532,7 @@
                 <th>Expira</th>
                 <th>Tipo</th>
                 <th>Estado</th>
+                <th>Categoría</th>
                 <th>Acciones</th>
               </tr>
             </thead>
@@ -1029,7 +1030,7 @@
       const tbody = document.getElementById('patchesTable');
       
       if (patches.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:40px; color:#666;">No hay patches</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:40px; color:#666;">No hay patches</td></tr>';
         return;
       }
 
@@ -1042,7 +1043,13 @@
               p.type === 'exclusive' ? '<span class="badge badge-blocked">Exclusivo</span>' : 
               '<span class="badge badge-free">Free</span>'}
           </td>
-          <td data-label="Estado">${p.active ? '<span class="badge badge-active">Activo</span>' : '<span class="badge badge-inactive">Inactivo</span>'}</td>
+            <td data-label="Estado">${p.active ? '<span class="badge badge-active">Activo</span>' : '<span class="badge badge-inactive">Inactivo</span>'}</td>
+            <td data-label="Categoría"><select onchange="setPatchCategory('${p.id}', this.value)" style="min-width:130px;">
+              <option value="" ${p.category_id == null ? 'selected' : ''}>Sin categoría</option>
+              <option value="1" ${Number(p.category_id) === 1 ? 'selected' : ''}>Combat</option>
+              <option value="2" ${Number(p.category_id) === 2 ? 'selected' : ''}>Visuals</option>
+              <option value="3" ${Number(p.category_id) === 3 ? 'selected' : ''}>Offsets</option>
+            </select></td>
           <td>
             <button class="btn btn-secondary btn-sm" onclick="editPatch('${p.id}')">Editar</button>
             <button class="btn btn-secondary btn-sm" onclick="togglePatch('${p.id}')">${p.active ? 'Desactivar' : 'Activar'}</button>
@@ -1100,6 +1107,11 @@
     }
 
     async function togglePatch(id) { await api(`/api/patches/${id}/toggle`, { method: 'POST' }); loadPatches(); }
+    async function setPatchCategory(id, value) {
+      const categoryID = value === '' ? null : Number(value);
+      const result = await api(`/api/patches/${id}/category`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ categoryID }) });
+      if (result?.error) alert(`Error: ${result.error}`); else loadPatches();
+    }
     async function deletePatch(id) { if (confirm('¿Eliminar este patch?')) { await api(`/api/patches/${id}`, { method: 'DELETE' }); loadPatches(); } }
 
     async function editPatch(id) {
