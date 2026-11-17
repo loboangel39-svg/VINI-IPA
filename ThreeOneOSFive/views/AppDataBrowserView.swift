@@ -266,6 +266,7 @@ struct AppDataBrowserView: View {
     private func reload() {
         isLoading = true
         isResolving = true
+        DiscoveredAppCatalog.shared.clear()
         errorMessage = nil
         let emptyMessage = language.text("browser.empty")
         DispatchQueue.global(qos: .userInitiated).async {
@@ -297,6 +298,7 @@ struct AppDataBrowserView: View {
             }
             DispatchQueue.main.async {
                 apps = preliminary
+                DiscoveredAppCatalog.shared.publish(preliminary)
                 isLoading = false
             }
 
@@ -331,6 +333,7 @@ struct AppDataBrowserView: View {
                 }
                 DispatchQueue.main.async {
                     apps = progressiveResult
+                    DiscoveredAppCatalog.shared.publish(progressiveResult)
                 }
             }
 
@@ -365,6 +368,7 @@ struct AppDataBrowserView: View {
 
             DispatchQueue.main.async {
                 apps = result
+                DiscoveredAppCatalog.shared.publish(result)
                 isLoading = false
                 isResolving = false
                 if result.isEmpty {

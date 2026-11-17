@@ -90,13 +90,19 @@ enum DevicePatchService {
         for bundleID in bundleIDs {
             guard let path = ContainerStore.resolveAppContainerPath(bundleID: bundleID),
                   ContainerStore.isApplicationContainerPath(path) else {
+                DiscoveredAppCatalog.shared.mark(bundleID, status: .unavailable)
                 throw PatchPackageError.targetAppUnavailable(bundleID)
             }
+            DiscoveredAppCatalog.shared.mark(bundleID, status: .resolved)
             let grant = ContainerStore.grantContainerAccess(path)
             if grant.succeeded { grants.append(grant) }
             if let metadata = ContainerStore.readContainerMetadata(containerPath: path),
                metadata.bundleID != bundleID {
+                DiscoveredAppCatalog.shared.mark(bundleID, status: .unavailable)
                 throw PatchPackageError.targetAppUnavailable(bundleID)
+            }
+            if grant.succeeded || FileManager.default.isReadableFile(atPath: path) {
+                DiscoveredAppCatalog.shared.mark(bundleID, status: .accessible)
             }
             roots[bundleID] = PatchPathValidator.canonicalFileURL(URL(fileURLWithPath: path, isDirectory: true))
         }

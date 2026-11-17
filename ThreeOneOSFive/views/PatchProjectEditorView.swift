@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct PatchProjectEditorView: View {
+    @ObservedObject private var discoveredApps = DiscoveredAppCatalog.shared
     @Environment(\.appLanguage) private var language
     @Environment(\.dismiss) private var dismiss
     let existingProject: PatchProject?
@@ -61,6 +62,19 @@ struct PatchProjectEditorView: View {
                                 .textInputAutocapitalization(.never)
                                 .autocorrectionDisabled()
                                 .font(.body.monospaced())
+                            if !discoveredApps.identities.isEmpty {
+                                Menu {
+                                    ForEach(discoveredApps.identities) { app in
+                                        Button {
+                                            bundleID = app.bundleID
+                                        } label: {
+                                            Text("\(app.displayName) — \(app.bundleID)")
+                                        }
+                                    }
+                                } label: {
+                                    Label("Applications discovered by Files", systemImage: "square.stack")
+                                }
+                            }
                         }
                     } header: {
                         Text(language.text("patch.target_bundle"))
