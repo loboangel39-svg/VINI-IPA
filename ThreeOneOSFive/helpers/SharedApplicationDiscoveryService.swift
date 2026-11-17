@@ -18,9 +18,6 @@ final class SharedApplicationDiscoveryService {
     private let lock = NSLock()
     private var running = false
     private var observers: [(Update) -> Void] = []
-    private var cachedApps: [InstalledApp]?
-    private var completedAt: Date?
-    private let cacheLifetime: TimeInterval = 60
 
     private init() {}
 
@@ -36,23 +33,9 @@ final class SharedApplicationDiscoveryService {
             log("[VINI][Discovery] \(requester) joined active scan")
             return
         }
-        if !forceRefresh,
-           let cachedApps,
-           let completedAt,
-           Date().timeIntervalSince(completedAt) < cacheLifetime {
-            lock.unlock()
-            log("[VINI][Discovery] \(requester) used recent result count=\(cachedApps.count)")
-            DispatchQueue.main.async {
-                DiscoveredAppCatalog.shared.publish(cachedApps)
-                onUpdate(Update(stage: .completed, apps: cachedApps))
-            }
-            return
-        }
 
         running = true
         observers = [onUpdate]
-        cachedApps = nil
-        completedAt = nil
         lock.unlock()
         log("[VINI][Discovery] \(requester) started full scan")
         DispatchQueue.main.async {
@@ -69,8 +52,6 @@ final class SharedApplicationDiscoveryService {
         if case .completed = stage {
             running = false
             observers = []
-            cachedApps = apps
-            completedAt = Date()
         }
         // Queue publication before another request can begin a new scan.
         DispatchQueue.main.async {

@@ -1,9 +1,25 @@
 import Combine
 import Foundation
+import Security
 
 /// Keeps the upstream implementation untouched and owns its sandbox extension handle.
 enum WorseQueryAdapter {
-    static let sourceAppGroup = "group.cc.forcequit.worse-query"
+    private static func authorizedAppGroup() -> String? {
+        guard let task = SecTaskCreateFromSelf(nil),
+              let groups = SecTaskCopyValueForEntitlement(
+                task,
+                "com.apple.security.application-groups" as CFString,
+                nil
+              ) as? [String] else {
+            return nil
+        }
+        return groups.first {
+            $0.hasPrefix("group.") &&
+            FileManager.default.containerURL(
+                forSecurityApplicationGroupIdentifier: $0
+            ) != nil
+        }
+    }
 
     enum AccessError: Error, CustomStringConvertible {
         case unsupportedOS
@@ -22,11 +38,11 @@ enum WorseQueryAdapter {
     static func acquire(path: String) -> Result<Int64, AccessError> {
         let version = ProcessInfo.processInfo.operatingSystemVersion
         guard version.majorVersion >= 26 else { return .failure(.unsupportedOS) }
-        guard FileManager.default.containerURL(
-            forSecurityApplicationGroupIdentifier: sourceAppGroup
-        ) != nil else { return .failure(.unavailableAppGroup) }
+        guard let appGroup = authorizedAppGroup() else {
+            return .failure(.unavailableAppGroup)
+        }
 
-        let handle = worse_query(path, sourceAppGroup, true, false)
+        let handle = worse_query(path, appGroup, true, false)
         guard handle >= 0 else { return .failure(.upstreamCode(handle)) }
         return .success(handle)
     }

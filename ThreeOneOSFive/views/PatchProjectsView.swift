@@ -78,19 +78,6 @@ struct PatchProjectsView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button {
-                        requestApplicationDiscovery(forceRefresh: true)
-                    } label: {
-                        if isDiscoveringApps {
-                            ProgressView()
-                        } else {
-                            Image(systemName: "arrow.clockwise")
-                        }
-                    }
-                    .disabled(isDiscoveringApps)
-                    .accessibilityLabel("Refresh discovered applications")
-                }
-                ToolbarItem(placement: .navigationBarTrailing) {
                     Menu {
                         Button {
                             showCreate = true

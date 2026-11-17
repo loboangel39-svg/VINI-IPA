@@ -63,29 +63,6 @@ struct PatchProjectEditorView: View {
                                 .textInputAutocapitalization(.never)
                                 .autocorrectionDisabled()
                                 .font(.body.monospaced())
-                            Button {
-                                requestApplicationDiscovery(forceRefresh: true)
-                            } label: {
-                                if isDiscoveringApps {
-                                    ProgressView()
-                                } else {
-                                    Label("Refresh discovered applications", systemImage: "arrow.clockwise")
-                                }
-                            }
-                            .disabled(isDiscoveringApps)
-                            if !discoveredApps.identities.isEmpty {
-                                Menu {
-                                    ForEach(discoveredApps.identities) { app in
-                                        Button {
-                                            bundleID = app.bundleID
-                                        } label: {
-                                            Text("\(app.displayName) — \(app.bundleID)")
-                                        }
-                                    }
-                                } label: {
-                                    Label("Applications discovered by Files", systemImage: "square.stack")
-                                }
-                            }
                         }
                     } header: {
                         Text(language.text("patch.target_bundle"))
