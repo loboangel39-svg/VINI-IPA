@@ -1,25 +1,8 @@
 import Combine
 import Foundation
-import Security
 
 /// Keeps the upstream implementation untouched and owns its sandbox extension handle.
 enum WorseQueryAdapter {
-    private static func authorizedAppGroup() -> String? {
-        guard let task = SecTaskCreateFromSelf(nil),
-              let groups = SecTaskCopyValueForEntitlement(
-                task,
-                "com.apple.security.application-groups" as CFString,
-                nil
-              ) as? [String] else {
-            return nil
-        }
-        return groups.first {
-            $0.hasPrefix("group.") &&
-            FileManager.default.containerURL(
-                forSecurityApplicationGroupIdentifier: $0
-            ) != nil
-        }
-    }
 
     enum AccessError: Error, CustomStringConvertible {
         case unsupportedOS
@@ -38,7 +21,7 @@ enum WorseQueryAdapter {
     static func acquire(path: String) -> Result<Int64, AccessError> {
         let version = ProcessInfo.processInfo.operatingSystemVersion
         guard version.majorVersion >= 26 else { return .failure(.unsupportedOS) }
-        guard let appGroup = authorizedAppGroup() else {
+        guard let appGroup = VINIAuthorizedAppGroup() else {
             return .failure(.unavailableAppGroup)
         }
 
