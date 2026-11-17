@@ -15,6 +15,7 @@ struct PatchProjectsView: View {
     @State private var showCreate = false
     @State private var showImporter = false
     @State private var searchText = ""
+    @State private var isDiscoveringApps = false
 
     private var filteredItems: [PatchLibraryItem] {
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -76,6 +77,19 @@ struct PatchProjectsView: View {
             .navigationTitle(language.text("patch.title"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button {
+                        requestApplicationDiscovery(forceRefresh: true)
+                    } label: {
+                        if isDiscoveringApps {
+                            ProgressView()
+                        } else {
+                            Image(systemName: "arrow.clockwise")
+                        }
+                    }
+                    .disabled(isDiscoveringApps)
+                    .accessibilityLabel("Refresh discovered applications")
+                }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Menu {
                         Button {
@@ -144,9 +158,26 @@ struct PatchProjectsView: View {
                     dismissButton: .default(Text(language.text("common.ok")))
                 )
             }
-            .onAppear(perform: consumeExternalImport)
+            .onAppear {
+                consumeExternalImport()
+                requestApplicationDiscovery(forceRefresh: false)
+            }
             .onChange(of: draftCoordinator.importRequest?.id) { _ in
                 consumeExternalImport()
+            }
+        }
+    }
+
+    private func requestApplicationDiscovery(forceRefresh: Bool) {
+        guard !isDiscoveringApps else { return }
+        isDiscoveringApps = true
+        SharedApplicationDiscoveryService.shared.discover(
+            requester: "Patches",
+            forceRefresh: forceRefresh
+        ) { update in
+            if case .completed = update.stage {
+                isDiscoveringApps = false
+                log("[VINI][Patches] discovery completed count=\(update.apps.count)")
             }
         }
     }

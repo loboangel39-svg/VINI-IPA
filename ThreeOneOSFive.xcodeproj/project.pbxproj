@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A1B2C3D40000000000000005 /* SharedApplicationDiscoveryService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000015; };
 		A1B2C3D40000000000000004 /* DiscoveredAppCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000014; };
 		A1B2C3D40000000000000001 /* worse_query.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000011; };
 		A1B2C3D40000000000000002 /* pathleak.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000012; };
@@ -89,6 +90,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		A1B2C3D40000000000000015 /* SharedApplicationDiscoveryService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedApplicationDiscoveryService.swift; sourceTree = "<group>"; };
 		A1B2C3D40000000000000014 /* DiscoveredAppCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiscoveredAppCatalog.swift; sourceTree = "<group>"; };
 		A1B2C3D40000000000000011 /* worse_query.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = ThirdParty/worse_query/worse_query/worse_query.m; sourceTree = SOURCE_ROOT; };
 		A1B2C3D40000000000000012 /* pathleak.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = ThirdParty/worse_query/worse_query/pathleak.m; sourceTree = SOURCE_ROOT; };
@@ -283,6 +285,7 @@
 				3105A104 /* ContainerStore.swift */,
 				A1B2C3D40000000000000013 /* WorseQueryAdapter.swift */,
 				A1B2C3D40000000000000014 /* DiscoveredAppCatalog.swift */,
+				A1B2C3D40000000000000015 /* SharedApplicationDiscoveryService.swift */,
 				3105A108 /* ContainerIdentityResolver.swift */,
 				3105A109 /* ContainerBrowserLogic.swift */,
 				3105A110 /* FileReplacementService.swift */,
@@ -461,6 +464,7 @@
 				A1B2C3D40000000000000002,
 				A1B2C3D40000000000000003,
 				A1B2C3D40000000000000004,
+				A1B2C3D40000000000000005,
 				3105A234,
 				3105A235,
 				3105A236,

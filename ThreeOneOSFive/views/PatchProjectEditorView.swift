@@ -17,6 +17,7 @@ struct PatchProjectEditorView: View {
     @State private var password = ""
     @State private var ruleEditor: PatchRuleEditorContext?
     @State private var validationMessageKey: String?
+    @State private var isDiscoveringApps = false
 
     init(
         existingProject: PatchProject?,
@@ -62,6 +63,16 @@ struct PatchProjectEditorView: View {
                                 .textInputAutocapitalization(.never)
                                 .autocorrectionDisabled()
                                 .font(.body.monospaced())
+                            Button {
+                                requestApplicationDiscovery(forceRefresh: true)
+                            } label: {
+                                if isDiscoveringApps {
+                                    ProgressView()
+                                } else {
+                                    Label("Refresh discovered applications", systemImage: "arrow.clockwise")
+                                }
+                            }
+                            .disabled(isDiscoveringApps)
                             if !discoveredApps.identities.isEmpty {
                                 Menu {
                                     ForEach(discoveredApps.identities) { app in
@@ -158,6 +169,11 @@ struct PatchProjectEditorView: View {
                     Button(language.text("common.done"), action: save)
                 }
             }
+            .onAppear {
+                if discoveredApps.identities.isEmpty {
+                    requestApplicationDiscovery(forceRefresh: false)
+                }
+            }
             .sheet(item: $ruleEditor) { context in
                 PatchRuleEditorView(rule: context.rule) { savedRule in
                     if let index = rules.firstIndex(where: { $0.id == savedRule.id }) {
@@ -166,6 +182,19 @@ struct PatchProjectEditorView: View {
                         rules.append(savedRule)
                     }
                 }
+            }
+        }
+    }
+
+    private func requestApplicationDiscovery(forceRefresh: Bool) {
+        guard !isDiscoveringApps else { return }
+        isDiscoveringApps = true
+        SharedApplicationDiscoveryService.shared.discover(
+            requester: "Patches editor",
+            forceRefresh: forceRefresh
+        ) { update in
+            if case .completed = update.stage {
+                isDiscoveringApps = false
             }
         }
     }

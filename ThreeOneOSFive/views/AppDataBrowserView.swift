@@ -266,112 +266,22 @@ struct AppDataBrowserView: View {
     private func reload() {
         isLoading = true
         isResolving = true
-        DiscoveredAppCatalog.shared.clear()
         errorMessage = nil
         let emptyMessage = language.text("browser.empty")
-        DispatchQueue.global(qos: .userInitiated).async {
-            let bundleMetadata = ContainerStore.applicationBundleMetadataCatalog()
-            let apiApps = ContainerStore.applyingBundleMetadata(
-                to: ContainerStore.installedAppsFromAPI(),
-                catalog: bundleMetadata
-            )
-            if apiApps.isEmpty {
-                log("browser: installed-app API unavailable; trying MCM class-2 enumeration...")
-            }
-            let dynamicIdentifiers = ContainerStore.dynamicAppIdentifiers()
-            let mcmApps = ContainerStore.installedAppsFromMCM(
-                identifiers: dynamicIdentifiers,
-                bundleMetadata: bundleMetadata
-            )
-            let filesystemApps = ContainerStore.containersFromFilesystem()
-            let baseIdentifiedApps = mcmApps + apiApps
-            var result = ContainerDiscoveryMerger.merge(
-                enumerated: filesystemApps,
-                identified: baseIdentifiedApps,
-                path: { $0.containerPath }
-            )
-            log("browser: merged api=\(apiApps.count), MCM=\(mcmApps.count), filesystem=\(filesystemApps.count) -> \(result.count)")
-            result.sort { $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending }
-
-            let preliminary = result.filter {
-                ContainerPresentationPolicy.shouldShow(bundleID: $0.bundleID)
-            }
-            DispatchQueue.main.async {
-                apps = preliminary
-                DiscoveredAppCatalog.shared.publish(preliminary)
+        SharedApplicationDiscoveryService.shared.discover(
+            requester: "Files",
+            forceRefresh: true
+        ) { update in
+            apps = update.apps
+            switch update.stage {
+            case .preliminary:
                 isLoading = false
-            }
-
-            let launchServicesIdentifiers = ContainerStore.launchServicesStoreIdentifiers()
-            let mhaIdentifiers = MHAIdentifierCatalog.identifiers(
-                dynamic: dynamicIdentifiers,
-                installed: apiApps.map(\.bundleID),
-                research: ContainerStore.researchAppIdentifiers,
-                custom: bundleMetadata.keys.sorted(),
-                launchServices: launchServicesIdentifiers
-            )
-            log(
-                "browser: MHA catalog dynamic=\(dynamicIdentifiers.count), " +
-                "installed=\(apiApps.count), research=\(ContainerStore.researchAppIdentifiers.count), " +
-                "LaunchServices=\(launchServicesIdentifiers.count) -> \(mhaIdentifiers.count) candidates"
-            )
-            let mhaApps = ContainerStore.installedAppsFromMHACandidates(
-                identifiers: mhaIdentifiers,
-                bundleMetadata: bundleMetadata
-            ) { discoveredApps in
-                var progressiveResult = AppDataCatalogMerger.merge(
-                    identified: discoveredApps + baseIdentifiedApps,
-                    fallback: [],
-                    identifier: { $0.bundleID },
-                    path: { $0.containerPath }
-                )
-                progressiveResult = progressiveResult.filter {
-                    ContainerPresentationPolicy.shouldShow(bundleID: $0.bundleID)
-                }
-                progressiveResult.sort {
-                    $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending
-                }
-                DispatchQueue.main.async {
-                    apps = progressiveResult
-                    DiscoveredAppCatalog.shared.publish(progressiveResult)
-                }
-            }
-
-            let allKnownApps = mhaApps + baseIdentifiedApps
-            let identifiedPaths = Set(allKnownApps.map {
-                ContainerDiscoveryMerger.canonicalPath($0.containerPath)
-            })
-            let unmatchedFilesystemApps = filesystemApps.filter {
-                !identifiedPaths.contains(
-                    ContainerDiscoveryMerger.canonicalPath($0.containerPath)
-                )
-            }
-            let inferredFilesystemApps = ContainerStore.inferUnidentifiedApps(
-                in: unmatchedFilesystemApps,
-                knownApps: allKnownApps,
-                launchServicesIdentifiers: Set(launchServicesIdentifiers)
-            ).filter {
-                ContainerPresentationPolicy.shouldShow(bundleID: $0.bundleID)
-            }
-            result = AppDataCatalogMerger.merge(
-                identified: allKnownApps,
-                fallback: inferredFilesystemApps,
-                identifier: { $0.bundleID },
-                path: { $0.containerPath }
-            )
-            result = result.filter {
-                ContainerPresentationPolicy.shouldShow(bundleID: $0.bundleID)
-            }
-            result.sort {
-                $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending
-            }
-
-            DispatchQueue.main.async {
-                apps = result
-                DiscoveredAppCatalog.shared.publish(result)
+            case .progress:
+                break
+            case .completed:
                 isLoading = false
                 isResolving = false
-                if result.isEmpty {
+                if update.apps.isEmpty {
                     errorMessage = emptyMessage
                 }
             }
