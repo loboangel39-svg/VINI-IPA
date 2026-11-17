@@ -12,6 +12,7 @@ Rama `feature/vini-native-worse-query`; base `df99bf2fbb32b86966990077864a9d3552
 - `ThreeOneOSFive/helpers/WorseQueryAdapter.swift`: comprueba versión y disponibilidad del App Group original, llama a `worse_query`, devuelve error explícito y libera con `worse_query_release`.
 - `ThreeOneOSFive/helpers/ContainerStore.swift`: representa el proveedor de cada handle y lo libera con su función correspondiente; conserva prioridad de bad_query. El escaneo puede usar un grant de raíz.
 - `ThreeOneOSFive/helpers/DevicePatchService.swift`: conserva grants de contenedor hasta terminar `PatchTransaction` y rechaza metadatos que indiquen otro Bundle ID.
+- `ThreeOneOSFive/views/FileBrowserView.swift`: conserva el grant tipado durante la vida de la vista y lo libera al terminar. Corrige el error de tipo detectado por la compilación inicial del PR.
 
 ## D. Recursos preservados
 Los 17 archivos originales de worse_query están intactos; `bad_query` y los demás motores VINI mantienen sus algoritmos. Files, Patches, entitlements, App Groups, Bundle ID, login, licencias, tokens, backups y restauración siguen presentes. `PatchTransaction` no se modificó.
@@ -20,7 +21,7 @@ Los 17 archivos originales de worse_query están intactos; `bad_query` y los dem
 Manifiesto en `worse_query.sha256`; copia upstream 17/17 blobs Git coincidentes. Los archivos de referencia no se editaron en esta fase. Verificación SHA-256 en runner pendiente.
 
 ## F. Compilación
-Pendiente del workflow de Fase 4. No existe aún ejecución ni artefacto que pruebe compilación de esta fase.
+La primera compilación del workflow original del PR falló en `FileBrowserView.swift:1154` por asignar `ContainerAccessGrant` a `Int64` ([ejecución 44158620752](https://github.com/loboangel39-svg/VINI-IPA/actions/runs/44158620752)). Se corrigió en `de66af4d930d7c8404fe4da55cb310b9fda52b9b`. La nueva compilación está en cola; no hay todavía build exitoso ni artefacto.
 
 ## G. Pruebas
 Estática: rutas de fuente y símbolos configurados en proyecto y bridging header. Compilación, unitarias, integración y dispositivo pendientes.
