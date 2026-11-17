@@ -1,4 +1,6 @@
-# Fase 3 — Files y Patches
+# Fase 3 — Files y Patches (modelo inicial)
+
+> Este informe registra el modelo inicial. La corrección que permite a Patches ejecutar el mismo motor de descubrimiento está en [PHASE_3_SHARED_DISCOVERY_V2.md](PHASE_3_SHARED_DISCOVERY_V2.md). El catálogo ya no depende únicamente de que Files publique resultados.
 
 ## A. Resumen
 Files conserva todas sus fuentes de descubrimiento y publica las mismas instantáneas que muestra en pantalla. El editor de proyectos de Patches ofrece los Bundle IDs publicados. Patches vuelve a resolver la ruta al aplicar, inspeccionar o restaurar; no guarda UUID de contenedor desde el catálogo.
@@ -29,4 +31,4 @@ Estáticas: el catálogo no contiene código de enumeración; Files publica la l
 El catálogo es memoria de proceso: requiere que Files se abra y refresque para ofrecer sus resultados, y la entrada manual permanece disponible. Un estado `accessible` representa un grant o lectura de raíz observada, no una operación de patch completa. La comprobación de metadatos se realiza cuando esos metadatos están disponibles; la verificación en dispositivo sigue pendiente. Al refrescar se descartan identidades antiguas, pero desinstalaciones sin refresh no generan un evento automático; la resolución de Patches sigue consultando MCM/escaneo actual antes de operar.
 
 ## I. Conclusión
-**Implementada, pendiente de compilación y pruebas en dispositivo.** No se afirma que los casos de reinstalación hayan superado una prueba real.
+**Sustituida por el modelo 2 compartido; pendiente de compilación de la corrección y pruebas en dispositivo.** No se afirma que los casos de reinstalación hayan superado una prueba real.

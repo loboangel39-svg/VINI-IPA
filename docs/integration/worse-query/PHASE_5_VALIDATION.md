@@ -1,34 +1,32 @@
-# Fase 5 — Validación
+# Fase 5 — Validación de la integración y corrección modelo 2
 
 ## A. Resumen
-Validación estática realizada frente al baseline; compilación completa, integración en dispositivo y reinstalación real pendientes. La primera compilación del PR detectó un error de tipo y se corrigió en `de66af4d930d7c8404fe4da55cb310b9fda52b9b`.
+La integración anterior compiló y verificó integridad en GitHub Actions. La corrección de descubrimiento compartido está implementada en `097849a8e00de6856a0355c762b57aa0001a0dfd`; su compilación macOS y las pruebas de dispositivo siguen pendientes.
 
 ## B. Estado inicial
-Rama `feature/vini-native-worse-query`, base `df99bf2fbb32b86966990077864a9d355271197b`, upstream `d1540e20cd82b974d891e0551ced6d6aeb570ac2`. PR draft [#1](https://github.com/loboangel39-svg/VINI-IPA/pull/1).
+Rama `feature/vini-native-worse-query`, base VINI `df99bf2fbb32b86966990077864a9d355271197b`, upstream worse_query `d1540e20cd82b974d891e0551ced6d6aeb570ac2`, [PR draft #1](https://github.com/loboangel39-svg/VINI-IPA/pull/1).
 
-## C. Modificaciones
-Este informe únicamente. El código integrado figura en los informes de Fases 1–4. No se alteran motores, permisos ni transacciones para declarar éxito.
+## C. Modificaciones validadas
+El modelo 2 extrae la secuencia de `AppDataBrowserView.reload()` a `SharedApplicationDiscoveryService`. Files y Patches llaman a ese único servicio. Patches inicia descubrimiento al entrar, permite refresh explícito y no requiere abrir Files. `DiscoveredAppCatalog` queda como caché y observador; `DevicePatchService` sigue resolviendo por Bundle ID en cada operación. Véase [informe específico](PHASE_3_SHARED_DISCOVERY_V2.md).
 
 ## D. Recursos preservados
-La comparación base→rama lista únicamente la nueva fuente upstream, informes, workflow, proyecto/bridging header, adaptador, catálogo y los puntos de conexión de Files y Patches. `Info.plist`, autenticación, motor `bad_query`, `PatchTransaction`, assets y Cloudflare no figuran como modificados. Se conservan entitlements, App Groups, Bundle ID, login, licencias, tokens, backups y restauración.
+Comparación con baseline: sin cambios en `Info.plist`, autenticación, `bad_query`, `PatchTransaction`, assets o Cloudflare. Código upstream, entitlements, App Groups, Bundle ID, licencias, tokens, backups y restauración no se alteraron con el modelo 2.
 
 ## E. Integridad
-Se comprobaron 17/17 SHA Git de blobs contra upstream en Fase 1 y se generó el manifiesto SHA-256. La verificación SHA-256 del checkout por Actions permanece en cola. Diferencias upstream detectadas: cero.
+17/17 blobs Git de worse_query siguen idénticos al origen. El manifiesto SHA-256 pasó en [Actions sobre `0873306d`](https://github.com/loboangel39-svg/VINI-IPA/actions/runs/44159957931). El workflow de la nueva cabeza volverá a ejecutarlo.
 
 ## F. Compilación
-- [Build VINI inicial del PR](https://github.com/loboangel39-svg/VINI-IPA/actions/runs/44158620752): falló con error de tipo `FileBrowserView.swift:1154`; código corregido.
-- [Build VINI posterior](https://github.com/loboangel39-svg/VINI-IPA/actions/runs/44159017069) y [workflow de integración](https://github.com/loboangel39-svg/VINI-IPA/actions/runs/44159007689): en cola al redactar.
-- IPA unsigned: no confirmada. Compilación firmada: no intentada.
+- [Integración `0873306d`](https://github.com/loboangel39-svg/VINI-IPA/actions/runs/44159957931): **éxito** con Xcode, arm64, integridad y [IPA unsigned](https://github.com/loboangel39-svg/VINI-IPA/actions/runs/44159957931/artifacts/14363278059).
+- [Corrección modelo 2 `097849a8`](https://github.com/loboangel39-svg/VINI-IPA/actions/runs/44162180980): **en cola** al redactar. No se atribuye el éxito anterior a este código.
+- Firma válida: no intentada.
 
 ## G. Pruebas
-- Estáticas: procedencia de blobs y comparación de archivos modificados, realizadas.
-- Unitarias: no existe target de tests en el proyecto inspeccionado.
-- Compilación y enlace: primera ejecución falló; corrección pendiente de nueva ejecución.
-- Integración: pendiente.
-- Dispositivo: pendiente, incluidas adquisición de worse_query, identidad tras reinstalación, Files→Patches, aplicación y restauración de patches.
+- Estáticas: orden de fuentes y merges comparados con el flujo de Files; coalescencia de solicitudes y refresh explícito presentes; diff de recursos protegidos revisado.
+- Automatizadas: integridad y compilación del commit anterior completadas; no hay target unitario en el proyecto. Build del modelo 2 pendiente.
+- Dispositivo: pendientes Files, Patches sin abrir Files, simultaneidad, refresh, reinstalación, adquisición de worse_query, aplicación y restauración.
 
 ## H. Riesgos
-El ejecutable VINI no tiene entitlement de App Group configurado. Sin provisión autorizada, `WorseQueryAdapter` devuelve un error verificable y el proveedor no puede demostrar acceso. El catálogo compartido se actualiza cuando Files refresca; no detecta desinstalaciones sin refresh. Un estado de catálogo no sustituye validación de ruta ni una transacción exitosa.
+El App Group original de worse_query no está autorizado automáticamente para VINI. La caché de 60 segundos puede mantener identidades hasta un refresh, pero no se usan rutas de esa caché al operar. La validación de identidad y acceso real exige dispositivo y firma autorizados.
 
 ## I. Conclusión
-**Parcial.** No se declara integración funcional hasta obtener build exitoso y pruebas reales en dispositivo autorizado.
+**Modelo 2 implementado y verificado estáticamente; compilación de la corrección y validación funcional pendientes.**

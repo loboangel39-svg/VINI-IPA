@@ -1,30 +1,28 @@
-# Informe final de integración — estado para revisión
+# Informe final de integración — estado de revisión
 
 ## Resumen
-La rama `feature/vini-native-worse-query` y el [PR draft #1](https://github.com/loboangel39-svg/VINI-IPA/pull/1) contienen la copia íntegra de worse_query, un adaptador nativo, conexión del descubrimiento de Files con Patches y un workflow independiente. La integración todavía no está validada funcionalmente: las ejecuciones macOS posteriores a la corrección siguen en cola y no hay prueba en dispositivo.
+La [rama `feature/vini-native-worse-query`](https://github.com/loboangel39-svg/VINI-IPA/tree/feature/vini-native-worse-query) y el [PR draft #1](https://github.com/loboangel39-svg/VINI-IPA/pull/1) conservan el código original de worse_query, añaden un adaptador nativo y conectan Files y Patches mediante **un único servicio de descubrimiento compartido**. El catálogo almacena resultados; Patches puede ejecutar el descubrimiento sin abrir Files y solicitar refresh.
 
 ## Baseline y procedencia
 - VINI: `df99bf2fbb32b86966990077864a9d355271197b`.
 - worse_query: `d1540e20cd82b974d891e0551ced6d6aeb570ac2`.
-- Fuente upstream preservada en `ThirdParty/worse_query/`, 17/17 blobs Git idénticos, SHA-256 en `worse_query.sha256`.
-- No se modificaron `main` ni el repositorio de forcequitOS.
+- 17/17 blobs Git upstream idénticos; SHA-256 en [manifiesto](worse_query.sha256).
+- `main` y el repositorio forcequitOS no fueron modificados.
 
-## Cambios por fase
-- [Fase 0](PHASE_0_AUDIT.md): arquitectura, dependencias y límites de firma.
-- [Fase 1](PHASE_1_SOURCE_INTEGRITY.md): código upstream original y manifiesto de integridad.
-- [Fase 2](PHASE_2_NATIVE_ADAPTER.md): Objective-C original en el target; adaptador que prioriza bad_query y libera handles según proveedor.
-- [Fase 3](PHASE_3_FILES_PATCHES.md): catálogo de identidades publicado por Files, selección en Patches y resolución actual al operar.
-- [Fase 4](PHASE_4_GITHUB_ACTIONS.md): workflow macOS independiente, integridad, build arm64 y empaquetado condicional.
-- [Fase 5](PHASE_5_VALIDATION.md): validación estática y pruebas pendientes.
+## Fases
+- [Fase 0](PHASE_0_AUDIT.md): arquitectura y firma.
+- [Fase 1](PHASE_1_SOURCE_INTEGRITY.md): código upstream y hashes.
+- [Fase 2](PHASE_2_NATIVE_ADAPTER.md): API Objective-C original, adaptador y prioridad conservada de bad_query.
+- [Fase 3 inicial](PHASE_3_FILES_PATCHES.md): publicación del catálogo desde Files; sustituida por el modelo 2.
+- [Fase 3 modelo 2](PHASE_3_SHARED_DISCOVERY_V2.md): extracción de la secuencia original de Files a `SharedApplicationDiscoveryService`, consumida por Files y Patches, con solicitudes simultáneas coordinadas y refresh.
+- [Fase 4](PHASE_4_GITHUB_ACTIONS.md): workflow macOS independiente.
+- [Fase 5](PHASE_5_VALIDATION.md): validación y pendientes.
 
-## Integridad y recursos preservados
-La comparación con el baseline no muestra cambios en `Info.plist`, autenticación, `bad_query`, `PatchTransaction`, assets ni Cloudflare. No se alteraron Bundle ID, entitlements, App Groups, login, licencias, tokens, backups o restauración. Las vistas de la PoC se conservan como referencia fuera del target VINI.
+## Integridad
+El upstream permanece intacto. La comparación con baseline no muestra cambios en `Info.plist`, autenticación, `bad_query`, `PatchTransaction`, assets ni Cloudflare. No se alteraron entitlements, App Groups, Bundle ID, login, licencias, tokens, backups o restauración.
 
 ## Compilación
-La [primera compilación del PR](https://github.com/loboangel39-svg/VINI-IPA/actions/runs/44158620752) falló por una incompatibilidad de tipo en `FileBrowserView`; se corrigió en `de66af4d930d7c8404fe4da55cb310b9fda52b9b`. El [workflow de integración](https://github.com/loboangel39-svg/VINI-IPA/actions/runs/44159007689) y la compilación posterior estaban en cola al redactar. No hay IPA confirmada.
+[Actions sobre `0873306d`](https://github.com/loboangel39-svg/VINI-IPA/actions/runs/44159957931) completó integridad, build iOS arm64 y [IPA unsigned](https://github.com/loboangel39-svg/VINI-IPA/actions/runs/44159957931/artifacts/14363278059). La [ejecución del modelo 2](https://github.com/loboangel39-svg/VINI-IPA/actions/runs/44162180980) estaba en cola al redactar; no hay resultado de compilación de la corrección.
 
-## Limitación de firma y pruebas
-El origen requiere un App Group autorizado y VINI no declara actualmente un archivo de entitlements. Se mantuvieron los identificadores originales y el adaptador devuelve error cuando el grupo no está disponible. Una firma y un dispositivo autorizados son necesarios para demostrar adquisición efectiva, acceso a contenedor vigente tras reinstalación y aplicación/restauración de patches.
-
-## Estado
-**PR draft, integración implementada pero no aceptable todavía.** Pendiente: build exitoso, comprobación SHA-256 en runner, revisión de logs y pruebas en dispositivo. No fusionar automáticamente.
+## Limitaciones y estado
+El ejecutable VINI no dispone automáticamente del App Group requerido por worse_query; el adaptador devuelve un error cuando no está disponible. Quedan pendientes la compilación del modelo 2 y las pruebas en dispositivo autorizado de descubrimiento, reinstalación, acceso y transacciones. **Implementado y en PR draft; aún no validado funcionalmente.** No fusionar automáticamente.
