@@ -1,0 +1,91 @@
+name: VINI worse_query integration
+
+on:
+  push:
+    branches: [feature/vini-native-worse-query]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  integration:
+    runs-on: macos-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout complete history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Record Xcode environment
+        run: |
+          xcodebuild -version | tee xcode-version.txt
+          xcodebuild -project ThreeOneOSFive.xcodeproj -list | tee schemes.txt
+
+      - name: Verify upstream SHA-256 and protected VINI resources
+        run: |
+          shasum -a 256 -c docs/integration/worse-query/worse_query.sha256 | tee source-integrity.txt
+          git diff --exit-code df99bf2fbb32b86966990077864a9d355271197b HEAD -- \
+            ThreeOneOSFive/Info.plist \
+            ThreeOneOSFive/Authentication \
+            ThreeOneOSFive/exploit/bad_query.c \
+            ThreeOneOSFive/exploit/bad_query.h \
+            ThreeOneOSFive/helpers/PatchTransaction.swift \
+            ThreeOneOSFive/Assets.xcassets \
+            vini-v2-cloudflare > protected-diff.txt
+          echo "Protected baseline resources unchanged" >> protected-diff.txt
+          git diff --name-only df99bf2fbb32b86966990077864a9d355271197b HEAD > modified-files.txt
+
+      - name: Build unsigned iOS arm64
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project ThreeOneOSFive.xcodeproj \
+            -scheme 3105 \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build \
+            ARCHS=arm64 \
+            ONLY_ACTIVE_ARCH=YES \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            build 2>&1 | tee build.log
+
+      - name: Package unsigned IPA
+        if: success()
+        run: |
+          mkdir -p output/Payload
+          APP_PATH="$(find build/Build/Products/Release-iphoneos -maxdepth 1 -name '*.app' -type d | head -n 1)"
+          test -n "$APP_PATH"
+          cp -R "$APP_PATH" output/Payload/
+          cd output
+          zip -qry VINI-WorseQuery-Unsigned.ipa Payload
+          rm -rf Payload
+          shasum -a 256 VINI-WorseQuery-Unsigned.ipa > ipa.sha256
+
+      - name: Upload integration reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vini-worse-query-reports
+          path: |
+            xcode-version.txt
+            schemes.txt
+            source-integrity.txt
+            protected-diff.txt
+            modified-files.txt
+            build.log
+            docs/integration/worse-query/worse_query.sha256
+          if-no-files-found: warn
+
+      - name: Upload unsigned IPA
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: VINI-WorseQuery-Unsigned
+          path: |
+            output/VINI-WorseQuery-Unsigned.ipa
+            output/ipa.sha256
+          if-no-files-found: error
