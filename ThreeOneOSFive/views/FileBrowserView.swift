@@ -19,6 +19,7 @@ struct FileBrowserView: View {
     @State private var fileSearchText = ""
     @State private var isLoadingEntries = true
     @State private var hasGranted = false
+    @StateObject private var accessGrantHolder = ContainerAccessGrantHolder()
     @State private var pendingReplacementRequest: FileReplacementRequest?
     @State private var replacementRequest: FileReplacementRequest?
     @State private var activityText: String?
@@ -1151,8 +1152,9 @@ struct FileBrowserView: View {
                     log("filebrowser: MCM activate \(targetBundleID) -> \(handle), detail=\(detail)")
                 }
                 if handle < 0 {
-                    handle = ContainerStore.grantContainerAccess(path)
-                    log("filebrowser: traversal grant \(path) -> \(handle)")
+                    let grant = ContainerStore.grantContainerAccess(path)
+                    accessGrantHolder.retain(grant)
+                    log("filebrowser: traversal grant \(path) -> \(grant.succeeded ? "granted" : String(grant.errorCode))")
                 }
             }
             let loadedEntries = ContainerStore.listFiles(at: path)

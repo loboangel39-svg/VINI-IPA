@@ -1,3 +1,4 @@
+import Combine
 import Foundation
 
 /// Keeps the upstream implementation untouched and owns its sandbox extension handle.
@@ -32,5 +33,21 @@ enum WorseQueryAdapter {
 
     static func release(_ handle: Int64) {
         worse_query_release(handle)
+    }
+}
+
+final class ContainerAccessGrantHolder: ObservableObject {
+    private let lock = NSLock()
+    private var grants: [ContainerAccessGrant] = []
+
+    func retain(_ grant: ContainerAccessGrant) {
+        guard grant.succeeded else { return }
+        lock.lock()
+        grants.append(grant)
+        lock.unlock()
+    }
+
+    deinit {
+        grants.forEach { $0.release() }
     }
 }
