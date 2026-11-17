@@ -84,10 +84,18 @@ enum DevicePatchService {
         operation: ([String: URL]) throws -> T
     ) throws -> T {
         var roots: [String: URL] = [:]
+        var grants: [ContainerAccessGrant] = []
+        defer { grants.forEach { $0.release() } }
 
         for bundleID in bundleIDs {
             guard let path = ContainerStore.resolveAppContainerPath(bundleID: bundleID),
                   ContainerStore.isApplicationContainerPath(path) else {
+                throw PatchPackageError.targetAppUnavailable(bundleID)
+            }
+            let grant = ContainerStore.grantContainerAccess(path)
+            if grant.succeeded { grants.append(grant) }
+            if let metadata = ContainerStore.readContainerMetadata(containerPath: path),
+               metadata.bundleID != bundleID {
                 throw PatchPackageError.targetAppUnavailable(bundleID)
             }
             roots[bundleID] = PatchPathValidator.canonicalFileURL(URL(fileURLWithPath: path, isDirectory: true))

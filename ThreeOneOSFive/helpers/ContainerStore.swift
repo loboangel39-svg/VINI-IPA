@@ -35,6 +35,32 @@ struct FileEntry: Identifiable, Hashable {
 
 // MARK: - Store
 
+enum ContainerAccessGrant {
+    case badQuery(Int64)
+    case worseQuery(Int64)
+    case unavailable(Int64)
+
+    var succeeded: Bool {
+        switch self {
+        case .badQuery, .worseQuery: return true
+        case .unavailable: return false
+        }
+    }
+
+    var errorCode: Int64 {
+        if case .unavailable(let code) = self { return code }
+        return 0
+    }
+
+    func release() {
+        switch self {
+        case .badQuery(let handle): bad_query_release(handle)
+        case .worseQuery(let handle): WorseQueryAdapter.release(handle)
+        case .unavailable: break
+        }
+    }
+}
+
 enum ContainerStore {
     static let appDataRoot = "/var/mobile/Containers/Data/Application"
     static let systemDataRoot = "/var/mobile/Containers/Data/System"
@@ -87,8 +113,12 @@ enum ContainerStore {
 
     static func resolveAppContainerPathByMetadataScan(bundleID: String) -> String? {
         // iOS < 26: kernel R/W is enough, no need to require full sandbox escape
-        if KernelExploit.requiresSandboxEscape, !KernelExploit.hasSandboxAccess() {
-            log("patch: metadata scan skipped — sandbox access not active")
+        let rootGrant = grantContainerAccess(appDataRoot)
+        defer { rootGrant.release() }
+        if KernelExploit.requiresSandboxEscape,
+           !KernelExploit.hasSandboxAccess(),
+           !rootGrant.succeeded {
+            log("patch: metadata scan skipped — no sandbox access or container grant")
             return nil
         }
         let dirs = enumerateDirectories(path: appDataRoot)
@@ -269,12 +299,12 @@ enum ContainerStore {
     ) -> [ApplicationBundleMetadata] {
         let handle = grantContainerAccess(rootPath)
         defer {
-            if handle >= 0 { bad_query_release(handle) }
+            handle.release()
         }
 
         let fileManager = FileManager.default
         guard let rootEntries = try? fileManager.contentsOfDirectory(atPath: rootPath) else {
-            log("browser: app-bundle metadata unavailable root=\(rootPath) grant=\(handle)")
+            log("browser: app-bundle metadata unavailable root=\(rootPath) grant=\(handle.errorCode)")
             return []
         }
 
@@ -364,18 +394,18 @@ enum ContainerStore {
             let hasLease = leasedCachePaths.contains(
                 ContainerDiscoveryMerger.canonicalPath(cachePath)
             )
-            let handle: Int64
+            let handle: ContainerAccessGrant
             if hasLease || !shouldUseBadQuery {
-                handle = -1
+                handle = .unavailable(-1)
             } else {
                 handle = grantContainerAccess(cachePath)
-                if handle < 0 {
-                    log("browser: LaunchServices traversal grant failed \(cachePath) -> \(handle)")
+                if !handle.succeeded {
+                    log("browser: LaunchServices traversal grant failed \(cachePath) -> \(handle.errorCode)")
                     continue
                 }
             }
             defer {
-                if handle >= 0 { bad_query_release(handle) }
+                handle.release()
             }
 
             let names = (try? FileManager.default.contentsOfDirectory(atPath: cachePath)) ?? []
@@ -445,13 +475,13 @@ enum ContainerStore {
         }
 
         let handle = grantContainerAccess(path)
-        if handle >= 0 {
-            defer { bad_query_release(handle) }
+        if handle.succeeded {
+            defer { handle.release() }
             if let names = try? FileManager.default.contentsOfDirectory(atPath: path), !names.isEmpty {
                 return names.map { (path as NSString).appendingPathComponent($0) }
             }
         } else {
-            log("browser: root traversal grant failed \(path) -> \(handle)")
+            log("browser: root traversal grant failed \(path) -> \(handle.errorCode)")
         }
 
         return enumerateDirectories(path: path)
@@ -493,11 +523,21 @@ enum ContainerStore {
         )
     }
 
-    static func grantContainerAccess(_ containerPath: String) -> Int64 {
-        guard shouldUseBadQuery else { return -1 }
+    static func grantContainerAccess(_ containerPath: String) -> ContainerAccessGrant {
+        guard shouldUseBadQuery else { return .unavailable(-1) }
         let clean = containerPath.hasSuffix("/") ? String(containerPath.dropLast()) : containerPath
         var pathC = clean.utf8CString.map { Int8($0) }
-        return bad_query(&pathC, true, nil, false)
+        let existingHandle = bad_query(&pathC, true, nil, false)
+        if existingHandle >= 0 { return .badQuery(existingHandle) }
+
+        switch WorseQueryAdapter.acquire(path: clean) {
+        case .success(let handle):
+            log("container: worse_query granted \(clean)")
+            return .worseQuery(handle)
+        case .failure(let error):
+            log("container: worse_query unavailable for \(clean): \(error)")
+            return .unavailable(existingHandle)
+        }
     }
 
     static func containersFromFilesystem() -> [InstalledApp] {
@@ -556,7 +596,7 @@ enum ContainerStore {
 
         let handle = grantContainerAccess(fallback.containerPath)
         defer {
-            if handle >= 0 { bad_query_release(handle) }
+            handle.release()
         }
 
         let libraryPath = (fallback.containerPath as NSString).appendingPathComponent("Library")
