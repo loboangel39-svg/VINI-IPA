@@ -36,16 +36,16 @@ Ahora: el mismo bloque de coordinación, con esas fuentes y el mismo orden de me
 
 ## G. Compilación
 - Commit de código: [`097849a8`](https://github.com/loboangel39-svg/VINI-IPA/commit/097849a8e00de6856a0355c762b57aa0001a0dfd).
-- [Workflow de integración sobre la cabeza nueva](https://github.com/loboangel39-svg/VINI-IPA/actions/runs/44162180980): en cola al redactar; resultado y errores pendientes.
-- [Workflow anterior](https://github.com/loboangel39-svg/VINI-IPA/actions/runs/44159957931) sobre `0873306d`: éxito, incluido build arm64, integridad y [artefacto IPA unsigned](https://github.com/loboangel39-svg/VINI-IPA/actions/runs/44159957931/artifacts/14363278059). Este resultado no valida aún el código del modelo 2.
+- [Workflow de integración del código modelo 2](https://github.com/loboangel39-svg/VINI-IPA/actions/runs/44162192586): **éxito**; verificación SHA-256 y recursos protegidos, build iOS arm64, empaquetado y publicación de [IPA unsigned](https://github.com/loboangel39-svg/VINI-IPA/actions/runs/44162192586/artifacts/14364566545).
+- [Workflow anterior](https://github.com/loboangel39-svg/VINI-IPA/actions/runs/44159957931) sobre `0873306d`: éxito, incluido build arm64, integridad y [artefacto IPA unsigned](https://github.com/loboangel39-svg/VINI-IPA/actions/runs/44159957931/artifacts/14363278059). Es el baseline de compilación anterior a esta corrección.
 
 ## H. Pruebas
 - Estáticas: inspección de fuentes, orden, callbacks, coalescencia y diff protegido completados.
-- Automatizadas: integridad y build del commit anterior completados; build de `097849a8` pendiente. No existe target unitario en el proyecto.
+- Automatizadas: integridad SHA-256, comprobación de recursos protegidos y build arm64 de `097849a8` completados en Actions. No existe target unitario en el proyecto.
 - Files, Patches sin abrir Files, simultaneidad, refresh, reinstalación y aplicación/restauración reales en dispositivo: pendientes. No se declaran éxitos simulados.
 
 ## I. Pendientes
-Revisar logs del build de la cabeza actual, corregir solo fallos de integración y repetir. Ejecutar pruebas en dispositivo autorizado, especialmente identidad de contenedor tras reinstalación. La caché de 60 segundos puede mostrar una identidad antigua hasta un refresh, aunque `DevicePatchService` no usa rutas del catálogo y resuelve de nuevo al operar. El App Group requerido por worse_query no está disponible automáticamente en la firma VINI.
+Ejecutar pruebas en dispositivo autorizado, especialmente identidad de contenedor tras reinstalación. La caché de 60 segundos puede mostrar una identidad antigua hasta un refresh, aunque `DevicePatchService` no usa rutas del catálogo y resuelve de nuevo al operar. El App Group requerido por worse_query no está disponible automáticamente en la firma VINI.
 
 ## J. Conclusión
-**Implementado y verificado estáticamente; compilación de la corrección y pruebas en dispositivo pendientes.**
+**Implementado, verificado estáticamente y compilado; pruebas en dispositivo pendientes.**

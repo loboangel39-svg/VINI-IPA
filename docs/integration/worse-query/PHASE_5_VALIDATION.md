@@ -1,7 +1,7 @@
 # Fase 5 — Validación de la integración y corrección modelo 2
 
 ## A. Resumen
-La integración anterior compiló y verificó integridad en GitHub Actions. La corrección de descubrimiento compartido está implementada en `097849a8e00de6856a0355c762b57aa0001a0dfd`; su compilación macOS y las pruebas de dispositivo siguen pendientes.
+La integración anterior compiló y verificó integridad en GitHub Actions. La corrección de descubrimiento compartido está implementada en `097849a8e00de6856a0355c762b57aa0001a0dfd`; su compilación macOS terminó con éxito; las pruebas de dispositivo siguen pendientes.
 
 ## B. Estado inicial
 Rama `feature/vini-native-worse-query`, base VINI `df99bf2fbb32b86966990077864a9d355271197b`, upstream worse_query `d1540e20cd82b974d891e0551ced6d6aeb570ac2`, [PR draft #1](https://github.com/loboangel39-svg/VINI-IPA/pull/1).
@@ -17,16 +17,16 @@ Comparación con baseline: sin cambios en `Info.plist`, autenticación, `bad_que
 
 ## F. Compilación
 - [Integración `0873306d`](https://github.com/loboangel39-svg/VINI-IPA/actions/runs/44159957931): **éxito** con Xcode, arm64, integridad y [IPA unsigned](https://github.com/loboangel39-svg/VINI-IPA/actions/runs/44159957931/artifacts/14363278059).
-- [Corrección modelo 2 `097849a8`](https://github.com/loboangel39-svg/VINI-IPA/actions/runs/44162180980): **en cola** al redactar. No se atribuye el éxito anterior a este código.
+- [Corrección modelo 2 `097849a8`](https://github.com/loboangel39-svg/VINI-IPA/actions/runs/44162192586): **éxito**, con SHA-256, recursos protegidos, build arm64 y [IPA unsigned](https://github.com/loboangel39-svg/VINI-IPA/actions/runs/44162192586/artifacts/14364566545).
 - Firma válida: no intentada.
 
 ## G. Pruebas
 - Estáticas: orden de fuentes y merges comparados con el flujo de Files; coalescencia de solicitudes y refresh explícito presentes; diff de recursos protegidos revisado.
-- Automatizadas: integridad y compilación del commit anterior completadas; no hay target unitario en el proyecto. Build del modelo 2 pendiente.
+- Automatizadas: integridad y compilación del commit anterior completadas; no hay target unitario en el proyecto. Build del modelo 2 completado.
 - Dispositivo: pendientes Files, Patches sin abrir Files, simultaneidad, refresh, reinstalación, adquisición de worse_query, aplicación y restauración.
 
 ## H. Riesgos
 El App Group original de worse_query no está autorizado automáticamente para VINI. La caché de 60 segundos puede mantener identidades hasta un refresh, pero no se usan rutas de esa caché al operar. La validación de identidad y acceso real exige dispositivo y firma autorizados.
 
 ## I. Conclusión
-**Modelo 2 implementado y verificado estáticamente; compilación de la corrección y validación funcional pendientes.**
+**Modelo 2 implementado, verificado estáticamente y compilado; validación funcional en dispositivo pendiente.**

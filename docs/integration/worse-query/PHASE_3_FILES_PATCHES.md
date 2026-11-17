@@ -31,4 +31,4 @@ Estáticas: el catálogo no contiene código de enumeración; Files publica la l
 El catálogo es memoria de proceso: requiere que Files se abra y refresque para ofrecer sus resultados, y la entrada manual permanece disponible. Un estado `accessible` representa un grant o lectura de raíz observada, no una operación de patch completa. La comprobación de metadatos se realiza cuando esos metadatos están disponibles; la verificación en dispositivo sigue pendiente. Al refrescar se descartan identidades antiguas, pero desinstalaciones sin refresh no generan un evento automático; la resolución de Patches sigue consultando MCM/escaneo actual antes de operar.
 
 ## I. Conclusión
-**Sustituida por el modelo 2 compartido; pendiente de compilación de la corrección y pruebas en dispositivo.** No se afirma que los casos de reinstalación hayan superado una prueba real.
+**Sustituida por el modelo 2 compartido, que compiló en Actions; pruebas en dispositivo pendientes.** No se afirma que los casos de reinstalación hayan superado una prueba real.
