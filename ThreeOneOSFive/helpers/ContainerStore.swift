@@ -127,19 +127,28 @@ enum ContainerStore {
         let raw = installedAppInfo() as? [String: [String: Any]] ?? [:]
         var apps: [InstalledApp] = []
         var missingContainer = 0
+        var staleAPIPath = 0
+        var mcmRefreshFailed = 0
         for (bundleID, info) in raw {
-            var containerPath = info["container"] as? String ?? ""
-            if containerPath.isEmpty {
-                var lookupError: NSString?
-                if let resolved = MCMActivateContainerPath(2, bundleID, false, &lookupError),
-                   isApplicationContainerPath(resolved) {
-                    containerPath = resolved
-                } else {
-                    missingContainer += 1
+            let apiPath = info["container"] as? String
+            var lookupError: NSString?
+            let mcmPath = MCMActivateContainerPath(2, bundleID, false, &lookupError)
+            if let apiPath {
+                if !ContainerStorePathPolicy.isApplicationPath(apiPath) ||
+                    !FileManager.default.fileExists(atPath: apiPath) {
+                    staleAPIPath += 1
                 }
             }
-            // Skip entries we cannot browse — empty path is dropped by mergers anyway.
-            guard !containerPath.isEmpty else { continue }
+            if mcmPath == nil { mcmRefreshFailed += 1 }
+            guard let containerPath = CurrentContainerPathResolver.select(
+                bundleID: bundleID,
+                apiPath: apiPath,
+                mcmPath: mcmPath,
+                pathExists: { FileManager.default.fileExists(atPath: $0) }
+            ) else {
+                missingContainer += 1
+                continue
+            }
             apps.append(InstalledApp(
                 bundleID: bundleID,
                 name: info["name"] as? String ?? "",
@@ -148,7 +157,8 @@ enum ContainerStore {
                 icon: info["icon"] as? UIImage
             ))
         }
-        log("browser: LS/API apps=\(apps.count) raw=\(raw.count) missingContainer=\(missingContainer)")
+        log("browser: LS/API apps=\(apps.count) raw=\(raw.count) missingContainer=\(missingContainer) " +
+            "staleAPIPath=\(staleAPIPath) mcmRefreshFailed=\(mcmRefreshFailed)")
         return apps
     }
 

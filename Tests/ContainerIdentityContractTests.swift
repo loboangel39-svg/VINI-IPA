@@ -9,6 +9,8 @@ struct ContainerIdentityContractTests {
         testAccessFailureIsNotSuccess()
         testMetadataStates()
         testReinstallUsesCurrentPath()
+        testAPIStalePathPrefersCurrentMCMPath()
+        testMissingMetadataDoesNotBecomeUninstalled()
         testCanonicalPathsAndMergeOrder()
         testUUIDsAreNotPresentedAsApps()
 
@@ -104,6 +106,31 @@ struct ContainerIdentityContractTests {
         )
         require(released == [42, 42], "Every grant must be released")
         print("PASS: reinstall re-resolves the current UUID instead of caching the old one")
+    }
+
+    private static func testAPIStalePathPrefersCurrentMCMPath() {
+        let oldPath = "/private/var/mobile/Containers/Data/Application/AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA"
+        let newPath = "/private/var/mobile/Containers/Data/Application/BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB"
+        let selected = CurrentContainerPathResolver.select(
+            bundleID: "com.example.reinstalled",
+            apiPath: oldPath,
+            mcmPath: newPath,
+            pathExists: { $0 == oldPath || $0 == newPath }
+        )
+        require(selected == newPath, "A current MCM path must replace a stale API UUID")
+        print("PASS: stale API UUID is replaced by current MCM path")
+    }
+
+    private static func testMissingMetadataDoesNotBecomeUninstalled() {
+        let path = "/private/var/mobile/Containers/Data/Application/CCCCCCCC-CCCC-CCCC-CCCC-CCCCCCCCCCCC"
+        let selected = CurrentContainerPathResolver.select(
+            bundleID: "com.example.pending",
+            apiPath: path,
+            mcmPath: nil,
+            pathExists: { _ in true }
+        )
+        require(selected == path, "A valid container remains present while metadata is temporarily unavailable")
+        print("PASS: temporary identity metadata loss is not treated as uninstallation")
     }
 
     private static func testCanonicalPathsAndMergeOrder() {

@@ -83,7 +83,8 @@ jobs:
 
       - name: Package app
         run: |
-          mkdir -p output
+          set -euo pipefail
+          mkdir -p output/Payload
 
           APP_PATH=$(find build/Build/Products/Release-iphoneos \
             -maxdepth 1 \
@@ -97,15 +98,20 @@ jobs:
             exit 1
           fi
 
-          cp -R "$APP_PATH" output/
+          cp -R "$APP_PATH" output/Payload/VINI-IPA.app
           
           # Crear lista de archivos para verificar
           echo "Contenido del .app:"
           ls -la "$APP_PATH"
+          test -f "output/Payload/VINI-IPA.app/Info.plist"
+          (cd output && zip -qry ../VINI-IPA-unsigned.ipa Payload)
+          shasum -a 256 VINI-IPA-unsigned.ipa | tee VINI-IPA-unsigned.ipa.sha256
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: VINI-iOS
-          path: output/
+          name: VINI-IPA-unsigned
+          path: |
+            VINI-IPA-unsigned.ipa
+            VINI-IPA-unsigned.ipa.sha256
           retention-days: 7

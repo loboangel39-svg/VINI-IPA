@@ -86,6 +86,38 @@ enum ContainerDiscoveryMerger {
     }
 }
 
+enum CurrentContainerPathResolver {
+    static func select(
+        bundleID: String,
+        apiPath: String?,
+        mcmPath: String?,
+        pathExists: (String) -> Bool
+    ) -> String? {
+        // MCM is queried even when the API supplied a non-empty path: after a
+        // reinstall that path may still contain the previous UUID.
+        if let mcmPath,
+           ContainerStorePathPolicy.isApplicationPath(mcmPath),
+           pathExists(mcmPath) {
+            return ContainerDiscoveryMerger.canonicalPath(mcmPath)
+        }
+        if let apiPath,
+           ContainerStorePathPolicy.isApplicationPath(apiPath),
+           pathExists(apiPath) {
+            return ContainerDiscoveryMerger.canonicalPath(apiPath)
+        }
+        return nil
+    }
+}
+
+enum ContainerStorePathPolicy {
+    static func isApplicationPath(_ path: String) -> Bool {
+        let canonical = ContainerDiscoveryMerger.canonicalPath(path)
+        let root = "/private/var/mobile/Containers/Data/Application/"
+        return canonical.hasPrefix(root) &&
+            UUID(uuidString: String(canonical.dropFirst(root.count))) != nil
+    }
+}
+
 enum ContainerAccessPolicy {
     static func shouldRequestGrant(isRoot: Bool) -> Bool {
         isRoot
