@@ -56,7 +56,7 @@ No se modificó ni una línea del motor; el adaptador vive fuera de
 | `ThreeOneOSFive/ThreeOneOSFive-Bridging-Header.h` | `2056f4dd33711e79ab77ee4156b5a4d9894c8244fc3f858d11306373a4269500` | modificado |
 | `ThreeOneOSFive.xcodeproj/project.pbxproj` | `a623aec34eab9126c7bbe58c33e8524568a20a240a590043ff3bdf0e9a66ce84` | modificado |
 | `ThreeOneOSFive/helpers/WorseQueryAccessProvider.swift` | `d19a38e4271f47634df3697348fad79072333eb4f82b33ca3df2d5506055f888` | nuevo |
-| `ThreeOneOSFive/helpers/WorseQueryProviderPolicy.swift` | `601d58a8f041781982661081c061ff8dc0f1f5eeedbba257fe7f0d491a4c6419` | nuevo |
+| `ThreeOneOSFive/helpers/WorseQueryProviderPolicy.swift` | `8d54ff3df14599256ee48413b66502272dcd870a87bba29f641695fb57b09c6a` | nuevo |
 | `ThreeOneOSFive/helpers/WQEntitlements.m` | `2fb33766f8a7d4f1f2123fa68954bd12ad1c0861c530fae548bbb820cd568770` | nuevo |
 | `ThreeOneOSFive/helpers/WQEntitlements.h` | `2a59b018e62df1582970712893b9795e8dcc0750989ef4e99b838c621b0517c9` | nuevo |
 | `Tests/WorseQueryProviderPolicyTests.swift` | `eab0e3452b2dd1fe5555c0140ada9968e17534521db39455d7a60d0cf4d2cfa1` | nuevo |

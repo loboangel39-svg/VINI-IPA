@@ -124,11 +124,16 @@ enum WorseQueryProviderPolicy {
         guard minor >= 0, patch >= 0 else { return .badQuery }
 
         if major == 26 {
-            if minor < 6 || (minor == 6 && patch <= 1) {
+            if minor < 6 {
                 return .badQuery
             }
-            if minor == 7 && patch <= 2 {
-                return .worseQuery
+            if minor == 6 {
+                // 26.6.1 is the last VINI-verified build; 26.6.2+ moves to
+                // worse_query, still inside upstream's 26.7.2 ceiling.
+                return patch <= 1 ? .badQuery : .worseQuery
+            }
+            if minor == 7 {
+                return patch <= 2 ? .worseQuery : .badQuery
             }
             return .badQuery
         }
