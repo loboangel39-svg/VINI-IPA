@@ -274,6 +274,33 @@ enum PatchTargetValidationResult: Equatable {
     }
 }
 
+enum PatchInstallationState: Equatable {
+    case installed
+    case notInstalled
+    case modified
+    case unknown
+}
+
+enum PatchTargetObservation: Equatable {
+    case matches
+    case missing
+    case differs
+    case unavailable
+}
+
+enum PatchInstallationStateResolver {
+    static func resolve(
+        observations: [PatchTargetObservation],
+        hasVerifiableFiles: Bool
+    ) -> PatchInstallationState {
+        guard hasVerifiableFiles, !observations.isEmpty else { return .unknown }
+        guard !observations.contains(.unavailable) else { return .unknown }
+        if observations.allSatisfy({ $0 == .matches }) { return .installed }
+        if observations.allSatisfy({ $0 == .missing }) { return .notInstalled }
+        return .modified
+    }
+}
+
 enum PatchReceiptContainerValidator {
     static func validate(
         bundleID: String,

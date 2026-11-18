@@ -172,6 +172,12 @@
 "patch.unlock" = "解锁";
 "patch.apply" = "应用补丁";
 "patch.restore" = "恢复原始文件";
+"patch.installation_status" = "当前内容";
+"patch.installation.installed" = "已安装";
+"patch.installation.not_installed" = "未安装";
+"patch.installation.modified" = "已修改";
+"patch.installation.unknown" = "未知";
+"patch.installation_status_footer" = "VINI 会验证当前容器和预期文件内容。访问失败会保持为未知；仅存在文件夹不足以证明补丁已安装。";
 "patch.apply_footer" = "写入前，3105 会在此设备上解析每个 bundle，并保存所有原始文件以便恢复。";
 "patch.apply_confirm_title" = "要应用此补丁吗？";
 "patch.apply_confirm_message" = "将再次验证所有 bundle identifier 和相对路径，并在首次写入前备份原始文件。";

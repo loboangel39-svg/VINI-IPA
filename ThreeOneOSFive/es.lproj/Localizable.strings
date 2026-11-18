@@ -173,6 +173,12 @@
 "patch.unlock" = "Desbloquear";
 "patch.apply" = "Aplicar parche";
 "patch.restore" = "Restaurar originales";
+"patch.installation_status" = "Contenido actual";
+"patch.installation.installed" = "Instalado";
+"patch.installation.not_installed" = "No instalado";
+"patch.installation.modified" = "Modificado";
+"patch.installation.unknown" = "Desconocido";
+"patch.installation_status_footer" = "VINI verifica el contenedor actual y el contenido esperado de los archivos. Los fallos de acceso permanecen desconocidos; la presencia de una carpeta no demuestra la instalación.";
 "patch.apply_footer" = "Antes de escribir, VINI resuelve cada bundle en este dispositivo y guarda cada archivo original para recuperación.";
 "patch.apply_confirm_title" = "¿Aplicar este parche?";
 "patch.apply_confirm_message" = "Todos los identificadores de bundle y rutas relativas se validarán de nuevo. Los originales se respaldan antes de la primera escritura.";

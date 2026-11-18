@@ -172,6 +172,12 @@
 "patch.unlock" = "Mở khóa";
 "patch.apply" = "Áp dụng patch";
 "patch.restore" = "Khôi phục file gốc";
+"patch.installation_status" = "Nội dung hiện tại";
+"patch.installation.installed" = "Đã cài đặt";
+"patch.installation.not_installed" = "Chưa cài đặt";
+"patch.installation.modified" = "Đã sửa đổi";
+"patch.installation.unknown" = "Không xác định";
+"patch.installation_status_footer" = "VINI xác minh container hiện tại và nội dung file dự kiến. Lỗi truy cập vẫn được giữ là không xác định; chỉ có thư mục không đủ chứng minh patch đã được cài.";
 "patch.apply_footer" = "Trước khi ghi, 3105 phân giải từng bundle trên thiết bị này và sao lưu mọi file gốc để khôi phục.";
 "patch.apply_confirm_title" = "Áp dụng patch này?";
 "patch.apply_confirm_message" = "Mọi bundle identifier và đường dẫn tương đối sẽ được kiểm tra lại. File gốc được sao lưu trước lần ghi đầu tiên.";

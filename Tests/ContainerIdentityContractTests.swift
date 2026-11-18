@@ -13,6 +13,7 @@ struct ContainerIdentityContractTests {
         testCanonicalPathsAndMergeOrder()
         testFilesTabReinstallState()
         testPatchValidationPresentationStates()
+        testPatchInstallationStates()
         testReceiptRejectsDifferentInstallation()
         testUUIDsAreNotPresentedAsApps()
 
@@ -267,6 +268,45 @@ struct ContainerIdentityContractTests {
             "Unavailable, denied, and mismatched targets must use distinct UI messages"
         )
         print("PASS: patch validation states remain distinct without weakening blocking")
+    }
+
+    private static func testPatchInstallationStates() {
+        require(
+            PatchInstallationStateResolver.resolve(
+                observations: [.matches, .matches],
+                hasVerifiableFiles: true
+            ) == .installed,
+            "Matching file content must be installed"
+        )
+        require(
+            PatchInstallationStateResolver.resolve(
+                observations: [.missing, .missing],
+                hasVerifiableFiles: true
+            ) == .notInstalled,
+            "Confirmed missing targets must be not installed"
+        )
+        require(
+            PatchInstallationStateResolver.resolve(
+                observations: [.matches, .differs],
+                hasVerifiableFiles: true
+            ) == .modified,
+            "Mixed or different target content must be modified"
+        )
+        require(
+            PatchInstallationStateResolver.resolve(
+                observations: [.missing, .unavailable],
+                hasVerifiableFiles: true
+            ) == .unknown,
+            "An access failure must make the result unknown, not absent"
+        )
+        require(
+            PatchInstallationStateResolver.resolve(
+                observations: [.matches],
+                hasVerifiableFiles: false
+            ) == .unknown,
+            "Directory presence alone must not prove patch installation"
+        )
+        print("PASS: installed, absent, modified, and unknown patch states remain distinct")
     }
 
     private static func testReceiptRejectsDifferentInstallation() {

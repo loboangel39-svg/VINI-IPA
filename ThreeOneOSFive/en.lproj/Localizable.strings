@@ -172,6 +172,12 @@
 "patch.unlock" = "Unlock";
 "patch.apply" = "Apply Patch";
 "patch.restore" = "Restore Originals";
+"patch.installation_status" = "Current content";
+"patch.installation.installed" = "Installed";
+"patch.installation.not_installed" = "Not installed";
+"patch.installation.modified" = "Modified";
+"patch.installation.unknown" = "Unknown";
+"patch.installation_status_footer" = "VINI verifies the current container and expected file content. Access failures remain unknown; folder presence alone does not prove installation.";
 "patch.apply_footer" = "Before writing, VINI resolves each bundle on this device and saves every original file for recovery.";
 "patch.apply_confirm_title" = "Apply this patch?";
 "patch.apply_confirm_message" = "All bundle identifiers and relative paths will be validated again. Originals are backed up before the first write.";
