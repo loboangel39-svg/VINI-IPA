@@ -259,6 +259,128 @@ enum AppDataCatalogMerger {
     }
 }
 
+struct FilesCatalogIdentityEntry<Element> {
+    let value: Element
+    let bundleID: String
+    let installationIdentity: String
+    let containerPath: String
+}
+
+struct FilesCatalogSnapshot<Element> {
+    let identified: [FilesCatalogIdentityEntry<Element>]
+    let enumerated: [Element]
+}
+
+enum FilesIdentityCatalog {
+    static func publish<Element>(
+        snapshot: FilesCatalogSnapshot<Element>,
+        fallbackIdentifier: (Element) -> String,
+        fallbackPath: (Element) -> String
+    ) -> [Element] {
+        let identified = snapshot.identified.filter {
+            ContainerBundleCandidateResolver.isValidBundleIdentifier($0.bundleID)
+                && !$0.installationIdentity.isEmpty
+                && !ContainerDiscoveryMerger.canonicalPath($0.containerPath).isEmpty
+        }
+        let merged = AppDataCatalogMerger.merge(
+            identified: identified,
+            fallback: snapshot.enumerated.map {
+                FilesCatalogIdentityEntry(
+                    value: $0,
+                    bundleID: fallbackIdentifier($0),
+                    installationIdentity: ContainerDiscoveryMerger.canonicalPath(fallbackPath($0)),
+                    containerPath: fallbackPath($0)
+                )
+            },
+            identifier: { $0.bundleID },
+            path: { $0.containerPath }
+        )
+        return merged.filter {
+            ContainerPresentationPolicy.shouldShow(bundleID: $0.bundleID)
+        }.map(\.value)
+    }
+}
+
+struct FilesSimulatedCatalogEntry: Equatable {
+    let bundleID: String?
+    let displayName: String
+    let containerPath: String
+    let installationIdentity: String
+}
+
+struct FilesSimulatedIdentityProvider {
+    enum ProviderError: Error {
+        case invalidInstallationIdentity
+    }
+
+    enum State {
+        case identified(installationIdentity: String)
+        case absent
+        case enumeratedWithoutIdentity(installationIdentity: String)
+    }
+
+    let rootDirectory: URL
+    let bundleID: String
+
+    func snapshot(state: State) throws -> FilesCatalogSnapshot<FilesSimulatedCatalogEntry> {
+        switch state {
+        case .absent:
+            return FilesCatalogSnapshot(identified: [], enumerated: [])
+        case .identified(let installationIdentity):
+            let entry = try makeEntry(
+                installationIdentity: installationIdentity,
+                bundleID: bundleID
+            )
+            return FilesCatalogSnapshot(
+                identified: [
+                    FilesCatalogIdentityEntry(
+                        value: entry,
+                        bundleID: bundleID,
+                        installationIdentity: installationIdentity,
+                        containerPath: entry.containerPath
+                    )
+                ],
+                enumerated: []
+            )
+        case .enumeratedWithoutIdentity(let installationIdentity):
+            return FilesCatalogSnapshot(
+                identified: [],
+                enumerated: [
+                    try makeEntry(
+                        installationIdentity: installationIdentity,
+                        bundleID: nil
+                    )
+                ]
+            )
+        }
+    }
+
+    private func makeEntry(
+        installationIdentity: String,
+        bundleID: String?
+    ) throws -> FilesSimulatedCatalogEntry {
+        let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-_"))
+        guard !installationIdentity.isEmpty,
+              installationIdentity.unicodeScalars.allSatisfy({ allowed.contains($0) }) else {
+            throw ProviderError.invalidInstallationIdentity
+        }
+        let directory = rootDirectory.appendingPathComponent(
+            installationIdentity,
+            isDirectory: true
+        )
+        try FileManager.default.createDirectory(
+            at: directory,
+            withIntermediateDirectories: true
+        )
+        return FilesSimulatedCatalogEntry(
+            bundleID: bundleID,
+            displayName: "Simulated \(installationIdentity)",
+            containerPath: directory.path,
+            installationIdentity: installationIdentity
+        )
+    }
+}
+
 enum ContainerPresentationPolicy {
     static func shouldShow(bundleID: String) -> Bool {
         UUID(uuidString: bundleID) == nil

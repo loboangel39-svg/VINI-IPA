@@ -350,15 +350,14 @@ struct AppDataBrowserView: View {
                 identifiers: mhaIdentifiers,
                 bundleMetadata: bundleMetadata
             ) { discoveredApps in
-                var progressiveResult = AppDataCatalogMerger.merge(
-                    identified: discoveredApps + baseIdentifiedApps,
-                    fallback: [],
-                    identifier: { $0.bundleID },
-                    path: { $0.containerPath }
+                var progressiveResult = FilesIdentityCatalog.publish(
+                    snapshot: Self.filesCatalogSnapshot(
+                        identified: discoveredApps + baseIdentifiedApps,
+                        enumerated: []
+                    ),
+                    fallbackIdentifier: { $0.bundleID },
+                    fallbackPath: { $0.containerPath }
                 )
-                progressiveResult = progressiveResult.filter {
-                    ContainerPresentationPolicy.shouldShow(bundleID: $0.bundleID)
-                }
                 progressiveResult.sort {
                     $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending
                 }
@@ -383,15 +382,14 @@ struct AppDataBrowserView: View {
             ).filter {
                 ContainerPresentationPolicy.shouldShow(bundleID: $0.bundleID)
             }
-            result = AppDataCatalogMerger.merge(
-                identified: allKnownApps,
-                fallback: inferredFilesystemApps,
-                identifier: { $0.bundleID },
-                path: { $0.containerPath }
+            result = FilesIdentityCatalog.publish(
+                snapshot: Self.filesCatalogSnapshot(
+                    identified: allKnownApps,
+                    enumerated: inferredFilesystemApps
+                ),
+                fallbackIdentifier: { $0.bundleID },
+                fallbackPath: { $0.containerPath }
             )
-            result = result.filter {
-                ContainerPresentationPolicy.shouldShow(bundleID: $0.bundleID)
-            }
             result.sort {
                 $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending
             }
@@ -413,6 +411,23 @@ struct AppDataBrowserView: View {
                 }
             }
         }
+    }
+
+    private static func filesCatalogSnapshot(
+        identified: [InstalledApp],
+        enumerated: [InstalledApp]
+    ) -> FilesCatalogSnapshot<InstalledApp> {
+        FilesCatalogSnapshot(
+            identified: identified.map {
+                FilesCatalogIdentityEntry(
+                    value: $0,
+                    bundleID: $0.bundleID,
+                    installationIdentity: ContainerDiscoveryMerger.canonicalPath($0.containerPath),
+                    containerPath: $0.containerPath
+                )
+            },
+            enumerated: enumerated
+        )
     }
 }
 

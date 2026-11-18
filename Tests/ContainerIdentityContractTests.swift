@@ -11,6 +11,8 @@ struct ContainerIdentityContractTests {
         testMetadataStates()
         testReinstallUsesCurrentPath()
         testCanonicalPathsAndMergeOrder()
+        testSimulatedFilesReinstallSequence()
+        testSimulatedFilesPublishesAfterIdentityArrives()
         testFilesTabReinstallState()
         testPatchValidationPresentationStates()
         testReceiptRejectsDifferentInstallation()
@@ -174,6 +176,71 @@ struct ContainerIdentityContractTests {
         require(duplicateAB.map(\.path) == [enumerated[0].path], "[A, B] must preserve current first-wins priority")
         require(duplicateBA.map(\.path) == [enumerated[1].path], "[B, A] must preserve current first-wins priority")
         print("PASS: canonical path and merge order are preserved")
+    }
+
+    private static func testSimulatedFilesReinstallSequence() {
+        withSimulatedFilesProvider { provider, root in
+            let first = try provider.snapshot(state: .identified(installationIdentity: "A"))
+            let absent = try provider.snapshot(state: .absent)
+            let reinstalled = try provider.snapshot(state: .identified(installationIdentity: "B"))
+
+            let rowsA = publishSimulated(first)
+            let rowsAbsent = publishSimulated(absent)
+            let rowsB = publishSimulated(reinstalled)
+
+            require(rowsA.map(\.installationIdentity) == ["A"], "Files must publish installation A")
+            require(rowsAbsent.isEmpty, "Files must retire A when the provider reports it absent")
+            require(rowsB.map(\.installationIdentity) == ["B"], "Files must publish only installation B after reload")
+            require(rowsB.allSatisfy { $0.bundleID == provider.bundleID }, "A and B must use the same fictitious Bundle ID")
+            require(rowsB.allSatisfy { URL(fileURLWithPath: $0.containerPath).path.hasPrefix(root.path) }, "Simulated entries must stay inside VINI's temporary container")
+            print("PASS: simulated Files A -> absent -> B retires A and publishes B")
+        }
+    }
+
+    private static func testSimulatedFilesPublishesAfterIdentityArrives() {
+        withSimulatedFilesProvider { provider, _ in
+            let unidentified = try provider.snapshot(
+                state: .enumeratedWithoutIdentity(installationIdentity: "B")
+            )
+            let identified = try provider.snapshot(state: .identified(installationIdentity: "B"))
+
+            require(
+                publishSimulated(unidentified).isEmpty,
+                "An enumerated entry without a Bundle ID identity must not publish an app row"
+            )
+            let rows = publishSimulated(identified)
+            require(rows.count == 1, "Files must publish the row when identity B arrives")
+            require(rows.first?.bundleID == provider.bundleID, "The published row must carry the fictitious Bundle ID")
+            require(rows.first?.installationIdentity == "B", "The published row must carry installation identity B")
+            print("PASS: simulated Files publishes B when its identity arrives")
+        }
+    }
+
+    private static func publishSimulated(
+        _ snapshot: FilesCatalogSnapshot<FilesSimulatedCatalogEntry>
+    ) -> [FilesSimulatedCatalogEntry] {
+        FilesIdentityCatalog.publish(
+            snapshot: snapshot,
+            fallbackIdentifier: { $0.bundleID ?? "" },
+            fallbackPath: { $0.containerPath }
+        )
+    }
+
+    private static func withSimulatedFilesProvider(
+        _ operation: (FilesSimulatedIdentityProvider, URL) throws -> Void
+    ) {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("VINI-Files-Identity-\(UUID().uuidString)", isDirectory: true)
+        let provider = FilesSimulatedIdentityProvider(
+            rootDirectory: root,
+            bundleID: "com.example.vini.files.simulated"
+        )
+        do {
+            defer { try? FileManager.default.removeItem(at: root) }
+            try operation(provider, root)
+        } catch {
+            require(false, "Simulated Files provider failed: \(error)")
+        }
     }
 
     private static func testFilesTabReinstallState() {
