@@ -1,4 +1,49 @@
 import Foundation
+import Darwin
+
+struct FileContainerPhysicalIdentity: Equatable {
+    let device: UInt64
+    let inode: UInt64
+
+    static func capture(path: String) -> FileContainerPhysicalIdentity? {
+        var info = stat()
+        guard lstat(path, &info) == 0,
+              (info.st_mode & mode_t(S_IFMT)) == mode_t(S_IFDIR) else { return nil }
+        return FileContainerPhysicalIdentity(
+            device: UInt64(info.st_dev),
+            inode: UInt64(info.st_ino)
+        )
+    }
+
+    func stillNamesSameDirectory(at path: String) -> Bool {
+        guard let current = Self.capture(path: path) else { return false }
+        return current == self
+    }
+}
+
+enum FileContainerValidation {
+    enum Result: Equatable {
+        case valid(FileContainerPhysicalIdentity)
+        case missing
+        case replaced
+        case invalidPath
+    }
+
+    static func validate(path: String) -> Result {
+        let canonical = ContainerDiscoveryMerger.canonicalPath(path)
+        guard canonical.hasPrefix("/private/var/mobile/Containers/Data/Application/") else {
+            return .invalidPath
+        }
+        guard UUID(uuidString: (canonical as NSString).lastPathComponent) != nil else {
+            return .invalidPath
+        }
+        guard let identity = FileContainerPhysicalIdentity.capture(path: canonical) else {
+            var info = stat()
+            return lstat(canonical, &info) == 0 ? .replaced : .missing
+        }
+        return .valid(identity)
+    }
+}
 
 enum ContainerDiscoveryMerger {
     static func canonicalPath(_ rawPath: String) -> String {

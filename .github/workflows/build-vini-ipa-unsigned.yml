@@ -1,0 +1,60 @@
+name: Build VINI-IPA unsigned
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-unsigned-ipa:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: |
+          sudo xcode-select -s /Applications/Xcode.app
+          xcodebuild -version
+
+      - name: Build unsigned device app
+        run: |
+          xcodebuild \
+            -project ThreeOneOSFive.xcodeproj \
+            -scheme 3105 \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build \
+            PRODUCT_NAME=VINI-IPA \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            build
+
+      - name: Package and validate unsigned IPA
+        shell: bash
+        run: |
+          set -euo pipefail
+          app_path="$(find build/Build/Products/Release-iphoneos -maxdepth 1 -type d -name '*.app' -print -quit)"
+          test -n "$app_path"
+          test -f "$app_path/Info.plist"
+          executable="$(/usr/libexec/PlistBuddy -c 'Print:CFBundleExecutable' "$app_path/Info.plist")"
+          test -f "$app_path/$executable"
+          file "$app_path/$executable"
+          lipo -info "$app_path/$executable"
+          mkdir -p artifact/Payload
+          cp -R "$app_path" artifact/Payload/VINI-IPA.app
+          (cd artifact && zip -qry ../VINI-IPA-unsigned.ipa Payload)
+          unzip -l VINI-IPA-unsigned.ipa
+          unzip -l VINI-IPA-unsigned.ipa | grep -F 'Payload/VINI-IPA.app/Info.plist'
+          shasum -a 256 VINI-IPA-unsigned.ipa | tee VINI-IPA-unsigned.ipa.sha256
+
+      - name: Upload unsigned IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: VINI-IPA-unsigned
+          path: |
+            VINI-IPA-unsigned.ipa
+            VINI-IPA-unsigned.ipa.sha256
+          retention-days: 14

@@ -282,7 +282,21 @@ struct AppDataBrowserView: View {
                 identifiers: dynamicIdentifiers,
                 bundleMetadata: bundleMetadata
             )
-            let filesystemApps = ContainerStore.containersFromFilesystem()
+            let filesystemApps = ContainerStore.containersFromFilesystem().filter { app in
+                switch FileContainerValidation.validate(path: app.containerPath) {
+                case .valid:
+                    return true
+                case .missing:
+                    log("browser: discarded missing container path=\(app.containerPath)")
+                    return false
+                case .replaced:
+                    log("browser: discarded replaced container path=\(app.containerPath)")
+                    return false
+                case .invalidPath:
+                    log("browser: discarded invalid container path=\(app.containerPath)")
+                    return false
+                }
+            }
             let baseIdentifiedApps = mcmApps + apiApps
             var result = ContainerDiscoveryMerger.merge(
                 enumerated: filesystemApps,
