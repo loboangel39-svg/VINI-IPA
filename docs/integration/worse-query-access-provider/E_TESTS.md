@@ -32,8 +32,25 @@ Comprueba, en un runner macOS:
 9. Inspección del producto (Bundle ID, versión, librerías, entitlements).
 10. Empaquetado de IPA sin firmar + SHA-256.
 
-Resultado de la primera ejecución: **PENDIENTE DE REGISTRAR** (se actualizará
-con el ID y el artefacto al publicar la rama).
+### Resultado registrado
+
+| Elemento | Resultado |
+|---|---|
+| Commit validado | `df9008d47e0a3611296eb735c177c87edd09790f` |
+| Run | [44236967928](https://github.com/loboangel39-svg/VINI-IPA/actions/runs/44236967928) |
+| Resultado | **success** |
+| Runner | macOS, Xcode 26.6 (`17F113`) |
+| Producto | `VINI.app`, iOS arm64 Release, sin firma |
+| Bundle ID construido | `com.apple.mobile.MobileHouseArrest` |
+| Pruebas de política | **PASS** |
+| Pruebas de identidad/reinstalación | **PASS** |
+| Componentes protegidos | 102 comprobados, 0 diferencias |
+| Artefacto de informes | [`worse-query-access-provider-reports`](https://github.com/loboangel39-svg/VINI-IPA/actions/runs/44236967928/artifacts/14398280896) |
+| Artefacto IPA | [`VINI-WorseQuery-AccessProvider-Unsigned`](https://github.com/loboangel39-svg/VINI-IPA/actions/runs/44236967928/artifacts/14397234249) |
+| SHA-256 IPA | `ed2d104dc7d33d63a255691864870de34ea22006053de346e5ddf8b4ce62d839` |
+
+La IPA es exclusivamente experimental y **no está firmada**. El artefacto no
+demuestra funcionamiento del proveedor en un dispositivo real.
 
 ## 3. Pruebas sintéticas de selección
 

@@ -2,7 +2,7 @@
 
 Rama: `feature/worse-query-access-provider`
 Base: `main` @ `df99bf2fbb32b86966990077864a9d355271197b`
-PR: **pendiente de crear** (se enlazará al publicar la rama)
+PR: [#2](https://github.com/loboangel39-svg/VINI-IPA/pull/2)
 
 ## 1. Qué hace esta integración
 
@@ -61,8 +61,13 @@ Manifiestos:
 - Pruebas sintéticas de política e identidad: se ejecutan en el workflow
   `WorseQuery access provider validation`.
 - Build iOS arm64 sin firma: se ejecuta en el mismo workflow.
-- Run de CI, artefactos y commit exacto: **PENDIENTE DE REGISTRAR** hasta
-  publicar la rama.
+- Commit de código validado: `df9008d47e0a3611296eb735c177c87edd09790f`.
+- CI macOS/Xcode: [run 44236967928](https://github.com/loboangel39-svg/VINI-IPA/actions/runs/44236967928), **success**.
+- Artefactos (retención de 30 días):
+  [`worse-query-access-provider-reports`](https://github.com/loboangel39-svg/VINI-IPA/actions/runs/44236967928/artifacts/14398280896)
+  y [`VINI-WorseQuery-AccessProvider-Unsigned`](https://github.com/loboangel39-svg/VINI-IPA/actions/runs/44236967928/artifacts/14397234249).
+- SHA-256 de la IPA sin firmar:
+  `ed2d104dc7d33d63a255691864870de34ea22006053de346e5ddf8b4ce62d839`.
 
 Ningún resultado sintético se presenta como prueba en dispositivo.
 
