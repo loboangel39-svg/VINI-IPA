@@ -1,0 +1,172 @@
+name: WorseQuery access provider validation
+
+on:
+  push:
+    branches: [feature/worse-query-access-provider]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: macos-latest
+    env:
+      BASELINE_SHA: df99bf2fbb32b86966990077864a9d355271197b
+    steps:
+      - name: Checkout complete history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Record Xcode and scheme environment
+        run: |
+          xcodebuild -version | tee xcode-version.txt
+          xcodebuild -project ThreeOneOSFive.xcodeproj -list | tee schemes.txt
+
+      - name: Verify vendored upstream source is unmodified
+        run: |
+          shasum -a 256 -c docs/integration/worse-query-access-provider/UPSTREAM_SHA256.sha256 \
+            | tee upstream-integrity.txt
+
+      - name: Verify protected VINI components are unchanged
+        run: |
+          shasum -a 256 -c docs/integration/worse-query-access-provider/PROTECTED_COMPONENTS.sha256 \
+            | tee protected-integrity.txt
+          git diff --name-only "$BASELINE_SHA" HEAD | sort > changed-files.txt
+          awk '{print $2}' docs/integration/worse-query-access-provider/PROTECTED_COMPONENTS.sha256 \
+            | sort > protected-paths.txt
+          comm -12 changed-files.txt protected-paths.txt > protected-violations.txt
+          if [ -s protected-violations.txt ]; then
+            echo "Protected components changed:"
+            cat protected-violations.txt
+            exit 1
+          fi
+          echo "No protected component changed" | tee protected-diff.txt
+
+      - name: Verify Bundle ID and App Group posture
+        run: |
+          BUNDLE_ID=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' ThreeOneOSFive/Info.plist)
+          test "$BUNDLE_ID" = "com.apple.mobile.MobileHouseArrest"
+          {
+            echo "Bundle ID: $BUNDLE_ID"
+            echo "CODE_SIGN_ENTITLEMENTS entries:"
+            grep -n 'CODE_SIGN_ENTITLEMENTS' ThreeOneOSFive.xcodeproj/project.pbxproj || true
+            echo "App Group entitlement occurrences in repository:"
+            grep -rn 'com.apple.security.application-groups' ThreeOneOSFive ThirdParty || true
+            echo "No App Group entitlement is added by this branch."
+          } | tee signing-posture.txt
+
+      - name: Run provider-selection tests
+        run: |
+          set -o pipefail
+          swiftc -parse-as-library -O \
+            -o "$RUNNER_TEMP/wq-policy-tests" \
+            Tests/WorseQueryProviderPolicyTests.swift \
+            ThreeOneOSFive/helpers/WorseQueryProviderPolicy.swift \
+            ThreeOneOSFive/helpers/SupportPolicy.swift
+          "$RUNNER_TEMP/wq-policy-tests" | tee policy-tests.txt
+
+      - name: Run container identity and reinstall contract tests
+        run: |
+          set -o pipefail
+          swiftc -parse-as-library -O \
+            -o "$RUNNER_TEMP/wq-identity-tests" \
+            Tests/ContainerIdentityContractTests.swift \
+            ThreeOneOSFive/helpers/ContainerBrowserLogic.swift \
+            ThreeOneOSFive/helpers/ContainerIdentityResolver.swift
+          "$RUNNER_TEMP/wq-identity-tests" | tee identity-tests.txt
+
+      - name: Verify resolver and engine surfaces were not duplicated
+        run: |
+          {
+            echo "resolveAppContainerPath definitions:"
+            grep -rn 'func resolveAppContainerPath' ThreeOneOSFive || true
+            echo "PatchTransaction.apply definitions:"
+            grep -rn 'static func apply(' ThreeOneOSFive/helpers/PatchTransaction.swift || true
+            echo "worse_query call sites:"
+            grep -rn 'worse_query(' ThreeOneOSFive --include='*.swift' --include='*.m' \
+              | grep -v 'ThirdParty/worse_query/' || true
+            echo "bad_query call sites:"
+            grep -rn 'bad_query(&' ThreeOneOSFive --include='*.swift' || true
+          } | tee architecture-guardrails.txt
+
+      - name: Build unsigned iOS arm64
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project ThreeOneOSFive.xcodeproj \
+            -scheme 3105 \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build \
+            ARCHS=arm64 \
+            ONLY_ACTIVE_ARCH=YES \
+            PRODUCT_NAME=VINI \
+            INFOPLIST_KEY_CFBundleDisplayName=VINI \
+            INFOPLIST_KEY_CFBundleName=VINI \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            build 2>&1 | tee build.log
+
+      - name: Inspect built product without signing
+        if: success()
+        run: |
+          APP_PATH="$(find build/Build/Products/Release-iphoneos -maxdepth 1 -name '*.app' -type d | head -n 1)"
+          test -n "$APP_PATH"
+          {
+            echo "APP_PATH=$APP_PATH"
+            /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP_PATH/Info.plist"
+            /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP_PATH/Info.plist"
+            echo "Linked libraries:"
+            otool -L "$APP_PATH/VINI" || true
+            echo "Embedded entitlements:"
+            codesign -d --entitlements :- "$APP_PATH" 2>&1 || true
+          } | tee built-product.txt
+
+      - name: Package unsigned IPA
+        if: success()
+        run: |
+          mkdir -p output/Payload
+          APP_PATH="$(find build/Build/Products/Release-iphoneos -maxdepth 1 -name '*.app' -type d | head -n 1)"
+          test -n "$APP_PATH"
+          cp -R "$APP_PATH" output/Payload/
+          cd output
+          zip -qry VINI-WorseQuery-AccessProvider-Unsigned.ipa Payload
+          rm -rf Payload
+          shasum -a 256 VINI-WorseQuery-AccessProvider-Unsigned.ipa > ipa.sha256
+
+      - name: Upload validation reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: worse-query-access-provider-reports
+          path: |
+            xcode-version.txt
+            schemes.txt
+            upstream-integrity.txt
+            protected-integrity.txt
+            protected-violations.txt
+            protected-diff.txt
+            signing-posture.txt
+            policy-tests.txt
+            identity-tests.txt
+            architecture-guardrails.txt
+            build.log
+            built-product.txt
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Upload unsigned experimental IPA
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: VINI-WorseQuery-AccessProvider-Unsigned
+          path: |
+            output/VINI-WorseQuery-AccessProvider-Unsigned.ipa
+            output/ipa.sha256
+          if-no-files-found: error
+          retention-days: 30

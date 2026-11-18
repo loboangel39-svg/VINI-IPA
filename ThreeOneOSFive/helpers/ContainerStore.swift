@@ -86,10 +86,19 @@ enum ContainerStore {
     }
 
     static func resolveAppContainerPathByMetadataScan(bundleID: String) -> String? {
-        // iOS < 26: kernel R/W is enough, no need to require full sandbox escape
-        if KernelExploit.requiresSandboxEscape, !KernelExploit.hasSandboxAccess() {
-            log("patch: metadata scan skipped — sandbox access not active")
-            return nil
+        // iOS < 26: kernel R/W is enough, no need to require full sandbox escape.
+        // Only request a provider grant when the kernel sandbox escape is not
+        // already active, so this path performs no extra work on devices where
+        // the original mechanism already works.
+        let needsRootGrant = KernelExploit.requiresSandboxEscape
+            && !KernelExploit.hasSandboxAccess()
+        let rootGrant = needsRootGrant ? grantContainerAccess(appDataRoot) : -1
+        defer { releaseContainerAccess(rootGrant) }
+        if needsRootGrant, rootGrant < 0 {
+            // Inode enumeration is not sandbox-gated, and the additional
+            // provider may still grant individual containers. Keep scanning;
+            // every candidate must pass a real metadata read below.
+            log("patch: metadata scan continuing without root grant; trying per-container access")
         }
         let dirs = enumerateDirectories(path: appDataRoot)
         guard !dirs.isEmpty else {
@@ -98,8 +107,13 @@ enum ContainerStore {
         }
         for dir in dirs {
             guard UUID(uuidString: (dir as NSString).lastPathComponent) != nil else { continue }
-            guard let metadata = readContainerMetadata(containerPath: dir),
-                  metadata.bundleID == bundleID else { continue }
+            var metadata = readContainerMetadata(containerPath: dir)
+            if metadata == nil {
+                let grant = grantContainerAccess(dir)
+                metadata = readContainerMetadata(containerPath: dir)
+                releaseContainerAccess(grant)
+            }
+            guard let metadata, metadata.bundleID == bundleID else { continue }
             let canonical = ContainerDiscoveryMerger.canonicalPath(dir)
             guard isApplicationContainerPath(canonical) else { continue }
             return canonical
@@ -493,11 +507,81 @@ enum ContainerStore {
         )
     }
 
-    static func grantContainerAccess(_ containerPath: String) -> Int64 {
+    private static let accessProviderDecision: ContainerAccessProviderDecision = {
+        let version = ProcessInfo.processInfo.operatingSystemVersion
+        let decision = WorseQueryProviderPolicy.decision(
+            major: version.majorVersion,
+            minor: version.minorVersion,
+            patch: version.patchVersion,
+            build: AppInfo.osBuild
+        )
+        let order = decision.attemptOrder.map(\.rawValue).joined(separator: ">")
+        log(
+            "access: preferred=\(decision.preferred.rawValue) order=\(order) " +
+                "mapVerified=\(decision.mapVerified) " +
+                "notes=\(decision.notes.joined(separator: " | "))"
+        )
+        return decision
+    }()
+
+    private static let worseQueryAvailable: Bool = {
+        let available = WorseQueryAccessProvider.isAvailable
+        let group = WorseQueryAccessProvider.authorizedAppGroup() ?? "none"
+        log(
+            "access: worse_query available=\(available) osCompatible=" +
+                "\(WorseQueryAccessProvider.isCompatibleWithCurrentOS()) appGroup=\(group)"
+        )
+        return available
+    }()
+
+    /// Grants sandbox access to an already-resolved path.
+    ///
+    /// Providers are attempted sequentially in the order chosen by
+    /// `WorseQueryProviderPolicy`. This function does not discover or identify
+    /// containers; it only answers "can this path be accessed?".
+    /// The returned handle must be released with `releaseContainerAccess(_:)`.
+    static func grantContainerAccess(_ containerPath: String, requiringWrite: Bool = false) -> Int64 {
         guard shouldUseBadQuery else { return -1 }
         let clean = containerPath.hasSuffix("/") ? String(containerPath.dropLast()) : containerPath
-        var pathC = clean.utf8CString.map { Int8($0) }
-        return bad_query(&pathC, true, nil, false)
+
+        for provider in accessProviderDecision.attemptOrder {
+            switch provider {
+            case .badQuery:
+                var pathC = clean.utf8CString.map { Int8($0) }
+                let handle = bad_query(&pathC, true, nil, false)
+                if handle >= 0 { return handle }
+                log("access: bad_query failed \(clean) -> \(handle)")
+            case .worseQuery:
+                guard worseQueryAvailable else { continue }
+                switch WorseQueryAccessProvider.acquire(
+                    path: clean,
+                    requiringWrite: requiringWrite
+                ) {
+                case .success(let handle):
+                    log("access: worse_query granted \(clean) write=\(requiringWrite)")
+                    return handle
+                case .failure(let error):
+                    log("access: worse_query unavailable \(clean): \(error)")
+                }
+            }
+        }
+
+        return -1
+    }
+
+    static func hasAccess(to path: String, requiringWrite: Bool = false) -> Bool {
+        var required = R_OK | X_OK
+        if requiringWrite {
+            required |= W_OK
+        }
+        return access(path, required) == 0
+    }
+
+    static func releaseContainerAccess(_ handle: Int64) {
+        guard handle >= 0 else { return }
+        // Both providers release through the same sandbox_extension_release
+        // symbol; the upstream worse_query release is equivalent.
+        bad_query_release(handle)
     }
 
     static func containersFromFilesystem() -> [InstalledApp] {
