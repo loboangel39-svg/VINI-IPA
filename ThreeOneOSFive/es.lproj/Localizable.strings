@@ -173,6 +173,12 @@
 "patch.unlock" = "Desbloquear";
 "patch.apply" = "Aplicar parche";
 "patch.restore" = "Restaurar originales";
+"patch.installation_status" = "Contenido actual";
+"patch.installation.installed" = "Instalado";
+"patch.installation.not_installed" = "No instalado";
+"patch.installation.modified" = "Modificado";
+"patch.installation.unknown" = "Desconocido";
+"patch.installation_status_footer" = "VINI verifica el contenedor actual y el contenido esperado de los archivos. Los fallos de acceso permanecen desconocidos; la presencia de una carpeta no demuestra la instalación.";
 "patch.apply_footer" = "Antes de escribir, VINI resuelve cada bundle en este dispositivo y guarda cada archivo original para recuperación.";
 "patch.apply_confirm_title" = "¿Aplicar este parche?";
 "patch.apply_confirm_message" = "Todos los identificadores de bundle y rutas relativas se validarán de nuevo. Los originales se respaldan antes de la primera escritura.";
@@ -195,6 +201,11 @@
 "patch.error.replacement_required" = "Elige un archivo de reemplazo para cada ruta destino antes de guardar.";
 "patch.error.keychain" = "La clave de desbloqueo recordada no se pudo guardar o leer de forma segura.";
 "patch.error.app_unavailable" = "El bundle de app %@ no está instalado o no se puede abrir. No se cambiaron archivos de parche.";
+"patch.error.container_not_resolved" = "No se pudo resolver el contenedor de datos actual del bundle de app %@. Esto no demuestra que la app no esté instalada. No se cambiaron archivos de parche.";
+"patch.error.identity_not_verified" = "No se pudo verificar la identidad del contenedor actual de %@. No se cambiaron archivos de parche.";
+"patch.error.write_access_denied" = "Se denegó el acceso de escritura al bundle de app %@. No se cambiaron archivos de parche.";
+"patch.error.identity_mismatch" = "El contenedor resuelto para %@ pertenece a otra app. No se cambiaron archivos de parche.";
+"patch.error.container_changed" = "%@ ahora apunta a otro contenedor, normalmente porque la app se reinstaló o actualizó. La copia anterior no se escribió en ese contenedor.";
 "patch.error.symlink" = "Los destinos de parche no pueden atravesar enlaces simbólicos.";
 "patch.error.apply" = "No se pudo aplicar el parche. Las escrituras anteriores fueron revertidas.";
 "patch.error.restore" = "No se pudieron restaurar los originales de forma segura. No se sobrescribió ningún destino no verificado.";
@@ -339,6 +350,12 @@
 "browser.folder" = "Carpeta";
 "browser.file" = "Archivo";
 "browser.empty_folder" = "Esta carpeta está vacía.";
+"browser.read_failed" = "No se pudo leer esta carpeta";
+"browser.read_failed_hint" = "La carpeta puede no estar disponible o el acceso puede estar denegado. Revisa los registros y vuelve a intentarlo.";
+"browser.destination_stale" = "Esta pestaña apunta a un destino desactualizado";
+"browser.destination_stale_message" = "La misma app ahora apunta a otro contenedor. Abre explícitamente la instalación actual para continuar.";
+"browser.destination_unavailable_message" = "El destino de app usado por esta pestaña ya no aparece en el catálogo confirmado.";
+"browser.open_current_installation" = "Abrir instalación actual";
 "browser.replace_hint" = "Mantén presionado este archivo para reemplazarlo.";
 "browser.replace" = "Reemplazar";
 "browser.replacing" = "Reemplazando…";

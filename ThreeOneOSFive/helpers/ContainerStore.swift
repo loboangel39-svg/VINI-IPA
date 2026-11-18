@@ -63,16 +63,26 @@ enum ContainerStore {
 
     static func resolveAppContainerPath(bundleID: String) -> String? {
         guard (try? PatchPathValidator.canonicalBundleIdentifier(bundleID)) == bundleID else {
+            log("patch: BUNDLE_ID_MISSING_OR_INVALID requested=\(bundleID)")
             return nil
         }
+        log("patch: resolver requested bundleID=\(bundleID)")
         var lookupError: NSString?
         if let path = MCMActivateContainerPath(2, bundleID, false, &lookupError),
            isApplicationContainerPath(path) {
-            log("patch: MHA-C2 resolved \(bundleID)")
+            logResolvedIdentity(stage: "patch", source: "MHA-C2", bundleID: bundleID, path: path, verified: false)
             return path
         }
         let detail = lookupError.map(String.init) ?? "unavailable"
         log("patch: MHA-C2 could not resolve \(bundleID), detail=\(detail)")
+
+        // Files can receive the current data-container URL directly from an
+        // exact LSApplicationProxy. Re-query that same existing provider here,
+        // but never use its path for writes until MCM metadata binds the path
+        // to the requested Bundle ID.
+        if let launchServicesPath = resolveAppContainerPathFromLaunchServices(bundleID: bundleID) {
+            return launchServicesPath
+        }
 
         // Fallback for iOS builds where MCM refuses to hand out sandbox
         // tokens (e.g. iOS 18.1.x): scan the app-data root with the inode
@@ -85,11 +95,62 @@ enum ContainerStore {
         return nil
     }
 
-    static func resolveAppContainerPathByMetadataScan(bundleID: String) -> String? {
-        // iOS < 26: kernel R/W is enough, no need to require full sandbox escape
-        if KernelExploit.requiresSandboxEscape, !KernelExploit.hasSandboxAccess() {
-            log("patch: metadata scan skipped — sandbox access not active")
+    private static func resolveAppContainerPathFromLaunchServices(bundleID: String) -> String? {
+        let info = appInfoForBundleID(bundleID) as? [String: Any] ?? [:]
+        guard info["found"] as? Bool == true,
+              let rawPath = info["container"] as? String else {
+            log("patch: LaunchServices has no exact container for \(bundleID)")
             return nil
+        }
+        let path = ContainerDiscoveryMerger.canonicalPath(rawPath)
+        guard isApplicationContainerPath(path) else {
+            log("patch: LaunchServices returned invalid app-data path for \(bundleID)")
+            return nil
+        }
+
+        var metadata = readContainerMetadata(containerPath: path)
+        if metadata == nil {
+            let grant = grantContainerAccess(path)
+            metadata = readContainerMetadata(containerPath: path)
+            releaseContainerAccess(grant)
+        }
+        guard let metadata else {
+            log("patch: IDENTITY_NOT_VERIFIED source=LaunchServices bundleID=\(bundleID) uuid=\((path as NSString).lastPathComponent)")
+            return nil
+        }
+        guard metadata.bundleID == bundleID else {
+            log("patch: BUNDLE_ID_MISMATCH source=LaunchServices requested=\(bundleID) metadata=\(metadata.bundleID) uuid=\((path as NSString).lastPathComponent)")
+            return nil
+        }
+        logResolvedIdentity(stage: "patch", source: "LaunchServices+metadata", bundleID: bundleID, path: path, verified: true)
+        return path
+    }
+
+    private static func logResolvedIdentity(
+        stage: String,
+        source: String,
+        bundleID: String,
+        path: String,
+        verified: Bool
+    ) {
+        let canonical = ContainerDiscoveryMerger.canonicalPath(path)
+        log("\(stage): identity source=\(source) bundleID=\(bundleID) uuid=\((canonical as NSString).lastPathComponent) verified=\(verified)")
+    }
+
+    static func resolveAppContainerPathByMetadataScan(bundleID: String) -> String? {
+        // iOS < 26: kernel R/W is enough, no need to require full sandbox escape.
+        // Only request a provider grant when the kernel sandbox escape is not
+        // already active, so this path performs no extra work on devices where
+        // the original mechanism already works.
+        let needsRootGrant = KernelExploit.requiresSandboxEscape
+            && !KernelExploit.hasSandboxAccess()
+        let rootGrant = needsRootGrant ? grantContainerAccess(appDataRoot) : -1
+        defer { releaseContainerAccess(rootGrant) }
+        if needsRootGrant, rootGrant < 0 {
+            // Inode enumeration is not sandbox-gated, and the additional
+            // provider may still grant individual containers. Keep scanning;
+            // every candidate must pass a real metadata read below.
+            log("patch: metadata scan continuing without root grant; trying per-container access")
         }
         let dirs = enumerateDirectories(path: appDataRoot)
         guard !dirs.isEmpty else {
@@ -98,10 +159,16 @@ enum ContainerStore {
         }
         for dir in dirs {
             guard UUID(uuidString: (dir as NSString).lastPathComponent) != nil else { continue }
-            guard let metadata = readContainerMetadata(containerPath: dir),
-                  metadata.bundleID == bundleID else { continue }
+            var metadata = readContainerMetadata(containerPath: dir)
+            if metadata == nil {
+                let grant = grantContainerAccess(dir)
+                metadata = readContainerMetadata(containerPath: dir)
+                releaseContainerAccess(grant)
+            }
+            guard let metadata, metadata.bundleID == bundleID else { continue }
             let canonical = ContainerDiscoveryMerger.canonicalPath(dir)
             guard isApplicationContainerPath(canonical) else { continue }
+            logResolvedIdentity(stage: "patch", source: "metadata-scan", bundleID: bundleID, path: canonical, verified: true)
             return canonical
         }
         return nil
@@ -133,6 +200,7 @@ enum ContainerStore {
                 version: info["version"] as? String ?? "",
                 icon: info["icon"] as? UIImage
             ))
+            logResolvedIdentity(stage: "browser", source: "LaunchServices/API", bundleID: bundleID, path: containerPath, verified: false)
         }
         log("browser: LS/API apps=\(apps.count) raw=\(raw.count) missingContainer=\(missingContainer)")
         return apps
@@ -204,6 +272,7 @@ enum ContainerStore {
                 version: rawInfo["version"] as? String ?? metadata?.version ?? "",
                 icon: rawInfo["icon"] as? UIImage
             ))
+            logResolvedIdentity(stage: "browser", source: "MCM-enumeration", bundleID: bundleID, path: containerPath, verified: false)
         }
         log("browser: MCM resolved \(apps.count)/\(identifiers.count) app paths")
         return apps
@@ -250,6 +319,7 @@ enum ContainerStore {
                 version: rawInfo["version"] as? String ?? metadata?.version ?? "",
                 icon: rawInfo["icon"] as? UIImage
             ))
+            logResolvedIdentity(stage: "browser", source: "MHA-C2", bundleID: bundleID, path: containerPath, verified: false)
             if apps.count <= 5 {
                 log("browser: MHA-C2 resolved \(bundleID) -> \(containerPath)")
             }
@@ -493,11 +563,81 @@ enum ContainerStore {
         )
     }
 
-    static func grantContainerAccess(_ containerPath: String) -> Int64 {
+    private static let accessProviderDecision: ContainerAccessProviderDecision = {
+        let version = ProcessInfo.processInfo.operatingSystemVersion
+        let decision = WorseQueryProviderPolicy.decision(
+            major: version.majorVersion,
+            minor: version.minorVersion,
+            patch: version.patchVersion,
+            build: AppInfo.osBuild
+        )
+        let order = decision.attemptOrder.map(\.rawValue).joined(separator: ">")
+        log(
+            "access: preferred=\(decision.preferred.rawValue) order=\(order) " +
+                "mapVerified=\(decision.mapVerified) " +
+                "notes=\(decision.notes.joined(separator: " | "))"
+        )
+        return decision
+    }()
+
+    private static let worseQueryAvailable: Bool = {
+        let available = WorseQueryAccessProvider.isAvailable
+        let group = WorseQueryAccessProvider.authorizedAppGroup() ?? "none"
+        log(
+            "access: worse_query available=\(available) osCompatible=" +
+                "\(WorseQueryAccessProvider.isCompatibleWithCurrentOS()) appGroup=\(group)"
+        )
+        return available
+    }()
+
+    /// Grants sandbox access to an already-resolved path.
+    ///
+    /// Providers are attempted sequentially in the order chosen by
+    /// `WorseQueryProviderPolicy`. This function does not discover or identify
+    /// containers; it only answers "can this path be accessed?".
+    /// The returned handle must be released with `releaseContainerAccess(_:)`.
+    static func grantContainerAccess(_ containerPath: String, requiringWrite: Bool = false) -> Int64 {
         guard shouldUseBadQuery else { return -1 }
         let clean = containerPath.hasSuffix("/") ? String(containerPath.dropLast()) : containerPath
-        var pathC = clean.utf8CString.map { Int8($0) }
-        return bad_query(&pathC, true, nil, false)
+
+        for provider in accessProviderDecision.attemptOrder {
+            switch provider {
+            case .badQuery:
+                var pathC = clean.utf8CString.map { Int8($0) }
+                let handle = bad_query(&pathC, true, nil, false)
+                if handle >= 0 { return handle }
+                log("access: bad_query failed \(clean) -> \(handle)")
+            case .worseQuery:
+                guard worseQueryAvailable else { continue }
+                switch WorseQueryAccessProvider.acquire(
+                    path: clean,
+                    requiringWrite: requiringWrite
+                ) {
+                case .success(let handle):
+                    log("access: worse_query granted \(clean) write=\(requiringWrite)")
+                    return handle
+                case .failure(let error):
+                    log("access: worse_query unavailable \(clean): \(error)")
+                }
+            }
+        }
+
+        return -1
+    }
+
+    static func hasAccess(to path: String, requiringWrite: Bool = false) -> Bool {
+        var required = R_OK | X_OK
+        if requiringWrite {
+            required |= W_OK
+        }
+        return access(path, required) == 0
+    }
+
+    static func releaseContainerAccess(_ handle: Int64) {
+        guard handle >= 0 else { return }
+        // Both providers release through the same sandbox_extension_release
+        // symbol; the upstream worse_query release is equivalent.
+        bad_query_release(handle)
     }
 
     static func containersFromFilesystem() -> [InstalledApp] {
@@ -681,25 +821,28 @@ enum ContainerStore {
 
     // MARK: File browsing
 
-    static func listFiles(at path: String) -> [FileEntry] {
+    static func listFiles(at path: String) -> FileListingResult<FileEntry> {
         let fm = FileManager.default
-        guard let items = try? fm.contentsOfDirectory(atPath: path) else {
+        let result = FileListingResult<FileEntry>.capture {
+            let items = try fm.contentsOfDirectory(atPath: path)
+            var entries: [FileEntry] = []
+            for item in items {
+                if item.hasPrefix(".") { continue }
+                let full = (path as NSString).appendingPathComponent(item)
+                var isDir: ObjCBool = false
+                guard fm.fileExists(atPath: full, isDirectory: &isDir) else { continue }
+                let size = isDir.boolValue ? 0 : ((try? fm.attributesOfItem(atPath: full)[.size] as? Int64) ?? 0)
+                entries.append(FileEntry(name: item, path: full, isDirectory: isDir.boolValue, size: size))
+            }
+            return entries.sorted {
+                if $0.isDirectory != $1.isDirectory { return $0.isDirectory }
+                return $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+            }
+        }
+        if case .failure = result {
             log("listFiles: FAILED for \(path) errno=\(errno)")
-            return []
         }
-        var entries: [FileEntry] = []
-        for item in items {
-            if item.hasPrefix(".") { continue }
-            let full = (path as NSString).appendingPathComponent(item)
-            var isDir: ObjCBool = false
-            guard fm.fileExists(atPath: full, isDirectory: &isDir) else { continue }
-            let size = isDir.boolValue ? 0 : ((try? fm.attributesOfItem(atPath: full)[.size] as? Int64) ?? 0)
-            entries.append(FileEntry(name: item, path: full, isDirectory: isDir.boolValue, size: size))
-        }
-        return entries.sorted {
-            if $0.isDirectory != $1.isDirectory { return $0.isDirectory }
-            return $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
-        }
+        return result
     }
 
     static func readTextFile(at path: String, limit: Int = 200_000) -> String {
