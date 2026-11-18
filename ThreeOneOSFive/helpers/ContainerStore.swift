@@ -63,16 +63,26 @@ enum ContainerStore {
 
     static func resolveAppContainerPath(bundleID: String) -> String? {
         guard (try? PatchPathValidator.canonicalBundleIdentifier(bundleID)) == bundleID else {
+            log("patch: BUNDLE_ID_MISSING_OR_INVALID requested=\(bundleID)")
             return nil
         }
+        log("patch: resolver requested bundleID=\(bundleID)")
         var lookupError: NSString?
         if let path = MCMActivateContainerPath(2, bundleID, false, &lookupError),
            isApplicationContainerPath(path) {
-            log("patch: MHA-C2 resolved \(bundleID)")
+            logResolvedIdentity(stage: "patch", source: "MHA-C2", bundleID: bundleID, path: path, verified: false)
             return path
         }
         let detail = lookupError.map(String.init) ?? "unavailable"
         log("patch: MHA-C2 could not resolve \(bundleID), detail=\(detail)")
+
+        // Files can receive the current data-container URL directly from an
+        // exact LSApplicationProxy. Re-query that same existing provider here,
+        // but never use its path for writes until MCM metadata binds the path
+        // to the requested Bundle ID.
+        if let launchServicesPath = resolveAppContainerPathFromLaunchServices(bundleID: bundleID) {
+            return launchServicesPath
+        }
 
         // Fallback for iOS builds where MCM refuses to hand out sandbox
         // tokens (e.g. iOS 18.1.x): scan the app-data root with the inode
@@ -83,6 +93,48 @@ enum ContainerStore {
             return scanned
         }
         return nil
+    }
+
+    private static func resolveAppContainerPathFromLaunchServices(bundleID: String) -> String? {
+        let info = appInfoForBundleID(bundleID) as? [String: Any] ?? [:]
+        guard info["found"] as? Bool == true,
+              let rawPath = info["container"] as? String else {
+            log("patch: LaunchServices has no exact container for \(bundleID)")
+            return nil
+        }
+        let path = ContainerDiscoveryMerger.canonicalPath(rawPath)
+        guard isApplicationContainerPath(path) else {
+            log("patch: LaunchServices returned invalid app-data path for \(bundleID)")
+            return nil
+        }
+
+        var metadata = readContainerMetadata(containerPath: path)
+        if metadata == nil {
+            let grant = grantContainerAccess(path)
+            metadata = readContainerMetadata(containerPath: path)
+            releaseContainerAccess(grant)
+        }
+        guard let metadata else {
+            log("patch: IDENTITY_NOT_VERIFIED source=LaunchServices bundleID=\(bundleID) uuid=\((path as NSString).lastPathComponent)")
+            return nil
+        }
+        guard metadata.bundleID == bundleID else {
+            log("patch: BUNDLE_ID_MISMATCH source=LaunchServices requested=\(bundleID) metadata=\(metadata.bundleID) uuid=\((path as NSString).lastPathComponent)")
+            return nil
+        }
+        logResolvedIdentity(stage: "patch", source: "LaunchServices+metadata", bundleID: bundleID, path: path, verified: true)
+        return path
+    }
+
+    private static func logResolvedIdentity(
+        stage: String,
+        source: String,
+        bundleID: String,
+        path: String,
+        verified: Bool
+    ) {
+        let canonical = ContainerDiscoveryMerger.canonicalPath(path)
+        log("\(stage): identity source=\(source) bundleID=\(bundleID) uuid=\((canonical as NSString).lastPathComponent) verified=\(verified)")
     }
 
     static func resolveAppContainerPathByMetadataScan(bundleID: String) -> String? {
@@ -116,6 +168,7 @@ enum ContainerStore {
             guard let metadata, metadata.bundleID == bundleID else { continue }
             let canonical = ContainerDiscoveryMerger.canonicalPath(dir)
             guard isApplicationContainerPath(canonical) else { continue }
+            logResolvedIdentity(stage: "patch", source: "metadata-scan", bundleID: bundleID, path: canonical, verified: true)
             return canonical
         }
         return nil
@@ -147,6 +200,7 @@ enum ContainerStore {
                 version: info["version"] as? String ?? "",
                 icon: info["icon"] as? UIImage
             ))
+            logResolvedIdentity(stage: "browser", source: "LaunchServices/API", bundleID: bundleID, path: containerPath, verified: false)
         }
         log("browser: LS/API apps=\(apps.count) raw=\(raw.count) missingContainer=\(missingContainer)")
         return apps
@@ -218,6 +272,7 @@ enum ContainerStore {
                 version: rawInfo["version"] as? String ?? metadata?.version ?? "",
                 icon: rawInfo["icon"] as? UIImage
             ))
+            logResolvedIdentity(stage: "browser", source: "MCM-enumeration", bundleID: bundleID, path: containerPath, verified: false)
         }
         log("browser: MCM resolved \(apps.count)/\(identifiers.count) app paths")
         return apps
@@ -264,6 +319,7 @@ enum ContainerStore {
                 version: rawInfo["version"] as? String ?? metadata?.version ?? "",
                 icon: rawInfo["icon"] as? UIImage
             ))
+            logResolvedIdentity(stage: "browser", source: "MHA-C2", bundleID: bundleID, path: containerPath, verified: false)
             if apps.count <= 5 {
                 log("browser: MHA-C2 resolved \(bundleID) -> \(containerPath)")
             }

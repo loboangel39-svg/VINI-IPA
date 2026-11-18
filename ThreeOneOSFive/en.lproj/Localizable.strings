@@ -200,6 +200,8 @@
 "patch.error.replacement_required" = "Choose a replacement file for every target path before saving.";
 "patch.error.keychain" = "The remembered unlock key could not be saved or read securely.";
 "patch.error.app_unavailable" = "The app bundle %@ is not installed or cannot be opened. No patch files were changed.";
+"patch.error.container_not_resolved" = "The current data container for app bundle %@ could not be resolved. This does not prove that the app is not installed. No patch files were changed.";
+"patch.error.identity_not_verified" = "The identity of the current container for %@ could not be verified. No patch files were changed.";
 "patch.error.write_access_denied" = "Write access to the app bundle %@ was denied. No patch files were changed.";
 "patch.error.identity_mismatch" = "The resolved container for %@ belongs to a different app. No patch files were changed.";
 "patch.error.container_changed" = "%@ now resolves to a different container, usually because the app was reinstalled or updated. The old backup was not written into that container.";

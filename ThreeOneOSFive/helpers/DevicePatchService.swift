@@ -92,9 +92,8 @@ enum DevicePatchService {
                     if grant >= 0 { grants.append(grant) }
                 }
                 guard ContainerStore.hasAccess(to: path) else { return .unknown }
-                if let metadata = ContainerStore.readContainerMetadata(containerPath: path),
-                   !metadata.bundleID.isEmpty,
-                   metadata.bundleID != bundleID {
+                guard let metadata = ContainerStore.readContainerMetadata(containerPath: path),
+                      metadata.bundleID == bundleID else {
                     return .unknown
                 }
                 roots[bundleID] = PatchPathValidator.canonicalFileURL(
@@ -183,11 +182,16 @@ enum DevicePatchService {
         defer { grants.forEach { ContainerStore.releaseContainerAccess($0) } }
 
         for bundleID in bundleIDs {
+            log("patch: project bundleID=\(bundleID) entering resolver")
             guard let path = ContainerStore.resolveAppContainerPath(bundleID: bundleID) else {
-                throw PatchPackageError.targetAppUnavailable(bundleID)
+                log("patch: CONTAINER_NOT_RESOLVED bundleID=\(bundleID)")
+                throw PatchPackageError.targetContainerNotResolved(bundleID)
             }
             let hasResolvedTarget = ContainerStore.isApplicationContainerPath(path)
-            guard hasResolvedTarget else { throw PatchPackageError.targetAppUnavailable(bundleID) }
+            guard hasResolvedTarget else {
+                log("patch: CONTAINER_NOT_RESOLVED bundleID=\(bundleID) invalidPath=true")
+                throw PatchPackageError.targetContainerNotResolved(bundleID)
+            }
 
             // The original resolver owns the path. The additional provider is
             // only used when that path is not already writable, and the grant
@@ -207,10 +211,13 @@ enum DevicePatchService {
                 metadataBundleID: metadata?.bundleID
             ) {
             case .unavailable:
-                throw PatchPackageError.targetAppUnavailable(bundleID)
+                throw PatchPackageError.targetContainerNotResolved(bundleID)
             case .writeAccessDenied:
                 log("patch: write access unavailable for \(bundleID)")
                 throw PatchPackageError.targetWriteAccessDenied(bundleID)
+            case .identityNotVerified:
+                log("patch: IDENTITY_NOT_VERIFIED bundleID=\(bundleID) uuid=\((path as NSString).lastPathComponent)")
+                throw PatchPackageError.targetIdentityNotVerified(bundleID)
             case .identityMismatch:
                 log(
                     "patch: identity mismatch for \(bundleID) at \(path) " +

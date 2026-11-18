@@ -13,6 +13,7 @@ struct ContainerIdentityContractTests {
         testCanonicalPathsAndMergeOrder()
         testFilesTabReinstallState()
         testPatchValidationPresentationStates()
+        testFreeFireMAXBundlePropagation()
         testPatchInstallationStates()
         testReceiptRejectsDifferentInstallation()
         testUUIDsAreNotPresentedAsApps()
@@ -258,16 +259,45 @@ struct ContainerIdentityContractTests {
                 hasWriteAccess: true,
                 requestedBundleID: bundleID,
                 metadataBundleID: nil
-            ) == .available,
-            "Unavailable metadata must preserve the existing accepted state"
+            ) == .identityNotVerified,
+            "Unavailable metadata must not be accepted as verified identity"
         )
         require(
-            PatchPackageError.targetAppUnavailable(bundleID).localizationKey == "patch.error.app_unavailable"
+            PatchPackageError.targetContainerNotResolved(bundleID).localizationKey == "patch.error.container_not_resolved"
                 && PatchPackageError.targetWriteAccessDenied(bundleID).localizationKey == "patch.error.write_access_denied"
+                && PatchPackageError.targetIdentityNotVerified(bundleID).localizationKey == "patch.error.identity_not_verified"
                 && PatchPackageError.targetIdentityMismatch(bundleID).localizationKey == "patch.error.identity_mismatch",
-            "Unavailable, denied, and mismatched targets must use distinct UI messages"
+            "Unresolved, denied, unverified, and mismatched targets must use distinct UI messages"
         )
         print("PASS: patch validation states remain distinct without weakening blocking")
+    }
+
+    private static func testFreeFireMAXBundlePropagation() {
+        let bundleID = "com.dts.freefiremax"
+        let project = PatchProject(
+            name: "Free Fire MAX contract",
+            bundleIdentifiers: [bundleID],
+            rules: [PatchRule(
+                bundleID: bundleID,
+                relativePath: "Library/test.dat",
+                replacementFilename: "test.dat",
+                replacementData: Data([0x31, 0x05])
+            )]
+        )
+        require(
+            project.allBundleIdentifiers == [bundleID],
+            "Free Fire MAX Bundle ID must reach the resolver unchanged and without UUID storage"
+        )
+        require(
+            PatchTargetValidationResult.classify(
+                hasResolvedTarget: true,
+                hasWriteAccess: true,
+                requestedBundleID: project.allBundleIdentifiers[0],
+                metadataBundleID: bundleID
+            ) == .available,
+            "Free Fire MAX must be accepted only when current metadata confirms the same Bundle ID"
+        )
+        print("PASS: com.dts.freefiremax propagates unchanged and requires matching identity")
     }
 
     private static func testPatchInstallationStates() {

@@ -201,6 +201,8 @@
 "patch.error.replacement_required" = "Elige un archivo de reemplazo para cada ruta destino antes de guardar.";
 "patch.error.keychain" = "La clave de desbloqueo recordada no se pudo guardar o leer de forma segura.";
 "patch.error.app_unavailable" = "El bundle de app %@ no está instalado o no se puede abrir. No se cambiaron archivos de parche.";
+"patch.error.container_not_resolved" = "No se pudo resolver el contenedor de datos actual del bundle de app %@. Esto no demuestra que la app no esté instalada. No se cambiaron archivos de parche.";
+"patch.error.identity_not_verified" = "No se pudo verificar la identidad del contenedor actual de %@. No se cambiaron archivos de parche.";
 "patch.error.write_access_denied" = "Se denegó el acceso de escritura al bundle de app %@. No se cambiaron archivos de parche.";
 "patch.error.identity_mismatch" = "El contenedor resuelto para %@ pertenece a otra app. No se cambiaron archivos de parche.";
 "patch.error.container_changed" = "%@ ahora apunta a otro contenedor, normalmente porque la app se reinstaló o actualizó. La copia anterior no se escribió en ese contenedor.";

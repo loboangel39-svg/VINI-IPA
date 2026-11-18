@@ -200,6 +200,8 @@
 "patch.error.replacement_required" = "保存前，请为每个目标路径选择替换文件。";
 "patch.error.keychain" = "无法安全保存或读取已记住的解锁密钥。";
 "patch.error.app_unavailable" = "未安装应用 bundle %@，或无法打开该应用。未更改任何补丁文件。";
+"patch.error.container_not_resolved" = "无法解析应用 bundle %@ 的当前数据容器。这并不能证明该应用未安装。未更改任何补丁文件。";
+"patch.error.identity_not_verified" = "无法验证 %@ 当前容器的身份。未更改任何补丁文件。";
 "patch.error.write_access_denied" = "对应用 bundle %@ 的写入访问被拒绝。未更改任何补丁文件。";
 "patch.error.identity_mismatch" = "为 %@ 解析出的容器属于其他应用。未更改任何补丁文件。";
 "patch.error.container_changed" = "%@ 现在解析到另一个容器，通常是因为应用已重新安装或更新。旧备份未写入该容器。";
