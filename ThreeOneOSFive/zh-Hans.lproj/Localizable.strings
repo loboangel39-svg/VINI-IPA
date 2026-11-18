@@ -194,6 +194,9 @@
 "patch.error.replacement_required" = "保存前，请为每个目标路径选择替换文件。";
 "patch.error.keychain" = "无法安全保存或读取已记住的解锁密钥。";
 "patch.error.app_unavailable" = "未安装应用 bundle %@，或无法打开该应用。未更改任何补丁文件。";
+"patch.error.write_access_denied" = "对应用 bundle %@ 的写入访问被拒绝。未更改任何补丁文件。";
+"patch.error.identity_mismatch" = "为 %@ 解析出的容器属于其他应用。未更改任何补丁文件。";
+"patch.error.container_changed" = "%@ 现在解析到另一个容器，通常是因为应用已重新安装或更新。旧备份未写入该容器。";
 "patch.error.symlink" = "补丁目标路径不能经过符号链接。";
 "patch.error.apply" = "无法应用补丁。之前的所有写入均已回滚。";
 "patch.error.restore" = "无法安全恢复原始文件。未覆盖任何未经验证的目标。";
@@ -338,6 +341,12 @@
 "browser.folder" = "文件夹";
 "browser.file" = "文件";
 "browser.empty_folder" = "此文件夹为空。";
+"browser.read_failed" = "无法读取此文件夹";
+"browser.read_failed_hint" = "此文件夹可能不可用或访问被拒绝。请查看日志后重试。";
+"browser.destination_stale" = "此标签页指向已过期的目标";
+"browser.destination_stale_message" = "同一应用现在解析到另一个容器。请明确打开当前安装后继续。";
+"browser.destination_unavailable_message" = "此标签页使用的应用目标已不在确认后的目录中。";
+"browser.open_current_installation" = "打开当前安装";
 "browser.replace_hint" = "触摸并按住此文件以进行替换。";
 "browser.replace" = "替换";
 "browser.replacing" = "正在替换…";

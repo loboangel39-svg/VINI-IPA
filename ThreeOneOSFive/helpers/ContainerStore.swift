@@ -765,25 +765,28 @@ enum ContainerStore {
 
     // MARK: File browsing
 
-    static func listFiles(at path: String) -> [FileEntry] {
+    static func listFiles(at path: String) -> FileListingResult<FileEntry> {
         let fm = FileManager.default
-        guard let items = try? fm.contentsOfDirectory(atPath: path) else {
+        let result = FileListingResult<FileEntry>.capture {
+            let items = try fm.contentsOfDirectory(atPath: path)
+            var entries: [FileEntry] = []
+            for item in items {
+                if item.hasPrefix(".") { continue }
+                let full = (path as NSString).appendingPathComponent(item)
+                var isDir: ObjCBool = false
+                guard fm.fileExists(atPath: full, isDirectory: &isDir) else { continue }
+                let size = isDir.boolValue ? 0 : ((try? fm.attributesOfItem(atPath: full)[.size] as? Int64) ?? 0)
+                entries.append(FileEntry(name: item, path: full, isDirectory: isDir.boolValue, size: size))
+            }
+            return entries.sorted {
+                if $0.isDirectory != $1.isDirectory { return $0.isDirectory }
+                return $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+            }
+        }
+        if case .failure = result {
             log("listFiles: FAILED for \(path) errno=\(errno)")
-            return []
         }
-        var entries: [FileEntry] = []
-        for item in items {
-            if item.hasPrefix(".") { continue }
-            let full = (path as NSString).appendingPathComponent(item)
-            var isDir: ObjCBool = false
-            guard fm.fileExists(atPath: full, isDirectory: &isDir) else { continue }
-            let size = isDir.boolValue ? 0 : ((try? fm.attributesOfItem(atPath: full)[.size] as? Int64) ?? 0)
-            entries.append(FileEntry(name: item, path: full, isDirectory: isDir.boolValue, size: size))
-        }
-        return entries.sorted {
-            if $0.isDirectory != $1.isDirectory { return $0.isDirectory }
-            return $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
-        }
+        return result
     }
 
     static func readTextFile(at path: String, limit: Int = 200_000) -> String {

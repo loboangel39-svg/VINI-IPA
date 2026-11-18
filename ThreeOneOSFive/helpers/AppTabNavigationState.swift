@@ -87,10 +87,17 @@ struct FileBrowserDestination: Hashable {
     let bundleID: String?
 }
 
+enum FilesTabDestinationStatus: Equatable {
+    case current
+    case unavailable
+    case replaced(FileBrowserDestination)
+}
+
 struct FilesTabState: Identifiable, Equatable {
     let id: UUID
     var customTitle: String?
     var navigationPath: [FileBrowserDestination]
+    var destinationStatus: FilesTabDestinationStatus
 
     func displayTitle(defaultTitle: String) -> String {
         customTitle ?? navigationPath.last?.title ?? defaultTitle
@@ -99,6 +106,11 @@ struct FilesTabState: Identifiable, Equatable {
     var currentPath: String? {
         navigationPath.last?.startPath
     }
+
+    var staleReplacement: FileBrowserDestination? {
+        guard case .replaced(let destination) = destinationStatus else { return nil }
+        return destination
+    }
 }
 
 struct FilesTabSession: Equatable {
@@ -106,7 +118,12 @@ struct FilesTabSession: Equatable {
     private(set) var selectedTabID: UUID
 
     init(initialTabID: UUID = UUID()) {
-        tabs = [FilesTabState(id: initialTabID, customTitle: nil, navigationPath: [])]
+        tabs = [FilesTabState(
+            id: initialTabID,
+            customTitle: nil,
+            navigationPath: [],
+            destinationStatus: .current
+        )]
         selectedTabID = initialTabID
     }
 
@@ -117,14 +134,53 @@ struct FilesTabSession: Equatable {
     mutating func setActiveNavigationPath(_ path: [FileBrowserDestination]) {
         guard let index = tabs.firstIndex(where: { $0.id == selectedTabID }) else { return }
         tabs[index].navigationPath = path
+        tabs[index].destinationStatus = .current
     }
 
     mutating func openTab(
         id: UUID = UUID(),
         navigationPath: [FileBrowserDestination] = []
     ) {
-        tabs.append(FilesTabState(id: id, customTitle: nil, navigationPath: navigationPath))
+        tabs.append(FilesTabState(
+            id: id,
+            customTitle: nil,
+            navigationPath: navigationPath,
+            destinationStatus: .current
+        ))
         selectedTabID = id
+    }
+
+    mutating func reconcileAppDestinations(_ currentDestinations: [FileBrowserDestination]) {
+        let currentByBundleID = currentDestinations.reduce(into: [String: FileBrowserDestination]()) {
+            result, destination in
+            guard let bundleID = destination.bundleID, result[bundleID] == nil else { return }
+            result[bundleID] = destination
+        }
+
+        for index in tabs.indices {
+            guard let opened = tabs[index].navigationPath.first,
+                  let bundleID = opened.bundleID else {
+                tabs[index].destinationStatus = .current
+                continue
+            }
+            guard let current = currentByBundleID[bundleID] else {
+                tabs[index].destinationStatus = .unavailable
+                continue
+            }
+            let openedPath = ContainerDiscoveryMerger.canonicalPath(opened.containerPath)
+            let currentPath = ContainerDiscoveryMerger.canonicalPath(current.containerPath)
+            tabs[index].destinationStatus = openedPath == currentPath
+                ? .current
+                : .replaced(current)
+        }
+    }
+
+    mutating func openCurrentInstallation(in tabID: UUID) {
+        guard let index = tabs.firstIndex(where: { $0.id == tabID }),
+              let replacement = tabs[index].staleReplacement else { return }
+        tabs[index].navigationPath = [replacement]
+        tabs[index].destinationStatus = .current
+        selectedTabID = tabID
     }
 
     mutating func selectTab(_ id: UUID) {
@@ -141,7 +197,12 @@ struct FilesTabSession: Equatable {
     mutating func closeTab(_ id: UUID, replacementID: UUID = UUID()) {
         guard let index = tabs.firstIndex(where: { $0.id == id }) else { return }
         if tabs.count == 1 {
-            tabs = [FilesTabState(id: replacementID, customTitle: nil, navigationPath: [])]
+            tabs = [FilesTabState(
+                id: replacementID,
+                customTitle: nil,
+                navigationPath: [],
+                destinationStatus: .current
+            )]
             selectedTabID = replacementID
             return
         }

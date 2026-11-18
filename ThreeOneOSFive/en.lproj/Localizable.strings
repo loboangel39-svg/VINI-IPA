@@ -194,6 +194,9 @@
 "patch.error.replacement_required" = "Choose a replacement file for every target path before saving.";
 "patch.error.keychain" = "The remembered unlock key could not be saved or read securely.";
 "patch.error.app_unavailable" = "The app bundle %@ is not installed or cannot be opened. No patch files were changed.";
+"patch.error.write_access_denied" = "Write access to the app bundle %@ was denied. No patch files were changed.";
+"patch.error.identity_mismatch" = "The resolved container for %@ belongs to a different app. No patch files were changed.";
+"patch.error.container_changed" = "%@ now resolves to a different container, usually because the app was reinstalled or updated. The old backup was not written into that container.";
 "patch.error.symlink" = "Patch targets cannot pass through symbolic links.";
 "patch.error.apply" = "The patch could not be applied. Any earlier writes were rolled back.";
 "patch.error.restore" = "The originals could not be restored safely. No unverified target was overwritten.";
@@ -338,6 +341,12 @@
 "browser.folder" = "Folder";
 "browser.file" = "File";
 "browser.empty_folder" = "This folder is empty.";
+"browser.read_failed" = "Unable to read this folder";
+"browser.read_failed_hint" = "The folder may be unavailable or access may be denied. Check Logs for details, then retry.";
+"browser.destination_stale" = "This tab points to an outdated destination";
+"browser.destination_stale_message" = "The same app now resolves to a different container. Open the current installation explicitly to continue.";
+"browser.destination_unavailable_message" = "The app destination used by this tab is no longer present in the confirmed catalog.";
+"browser.open_current_installation" = "Open Current Installation";
 "browser.replace_hint" = "Touch and hold this file to replace it.";
 "browser.replace" = "Replace";
 "browser.replacing" = "Replacing…";

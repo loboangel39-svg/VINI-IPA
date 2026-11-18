@@ -1,5 +1,32 @@
 import Foundation
 
+enum FileListingResult<Element> {
+    case success([Element])
+    case failure
+
+    static func capture(_ operation: () throws -> [Element]) -> FileListingResult<Element> {
+        do {
+            return .success(try operation())
+        } catch {
+            return .failure
+        }
+    }
+}
+
+extension FileListingResult: Equatable where Element: Equatable {}
+
+struct FileAccessGrantState: Equatable {
+    private(set) var hasConfirmedAccess = false
+
+    var shouldAttemptGrant: Bool { !hasConfirmedAccess }
+
+    mutating func record(grantHandle: Int64, listingSucceeded: Bool) {
+        if grantHandle >= 0 || listingSucceeded {
+            hasConfirmedAccess = true
+        }
+    }
+}
+
 enum ContainerDiscoveryMerger {
     static func canonicalPath(_ rawPath: String) -> String {
         var path = (rawPath as NSString).standardizingPath

@@ -76,7 +76,9 @@ jobs:
             -o "$RUNNER_TEMP/wq-identity-tests" \
             Tests/ContainerIdentityContractTests.swift \
             ThreeOneOSFive/helpers/ContainerBrowserLogic.swift \
-            ThreeOneOSFive/helpers/ContainerIdentityResolver.swift
+            ThreeOneOSFive/helpers/ContainerIdentityResolver.swift \
+            ThreeOneOSFive/helpers/AppTabNavigationState.swift \
+            ThreeOneOSFive/helpers/PatchProjectModels.swift
           "$RUNNER_TEMP/wq-identity-tests" | tee identity-tests.txt
 
       - name: Verify resolver and engine surfaces were not duplicated

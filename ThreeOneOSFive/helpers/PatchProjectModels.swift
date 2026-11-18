@@ -179,6 +179,9 @@ enum PatchPackageError: Error, Equatable {
     case invalidProject
     case keychainFailed
     case targetAppUnavailable(String)
+    case targetWriteAccessDenied(String)
+    case targetIdentityMismatch(String)
+    case targetContainerChanged(String)
     case symbolicLinkUnsupported
     case targetOccupied(String)
     case projectAlreadyApplied
@@ -206,6 +209,9 @@ extension PatchPackageError: LocalizedError {
         case .invalidProject: return "patch.error.invalid_project"
         case .keychainFailed: return "patch.error.keychain"
         case .targetAppUnavailable: return "patch.error.app_unavailable"
+        case .targetWriteAccessDenied: return "patch.error.write_access_denied"
+        case .targetIdentityMismatch: return "patch.error.identity_mismatch"
+        case .targetContainerChanged: return "patch.error.container_changed"
         case .targetOccupied: return "patch.error.target_occupied"
         case .projectAlreadyApplied: return "patch.error.already_applied"
         case .restoreTargetsChanged: return "patch.error.restore_targets_changed"
@@ -231,12 +237,51 @@ extension PatchPackageError: LocalizedError {
 
     var localizationArgument: String? {
         switch self {
-        case .targetAppUnavailable(let bundleID), .targetOccupied(let bundleID):
+        case .targetAppUnavailable(let bundleID),
+             .targetWriteAccessDenied(let bundleID),
+             .targetIdentityMismatch(let bundleID),
+             .targetContainerChanged(let bundleID),
+             .targetOccupied(let bundleID):
             return bundleID
         case .restoreTargetsChanged(let paths):
             return paths.joined(separator: "\n")
         default:
             return nil
+        }
+    }
+}
+
+enum PatchTargetValidationResult: Equatable {
+    case available
+    case unavailable
+    case writeAccessDenied
+    case identityMismatch
+
+    static func classify(
+        hasResolvedTarget: Bool,
+        hasWriteAccess: Bool,
+        requestedBundleID: String,
+        metadataBundleID: String?
+    ) -> PatchTargetValidationResult {
+        guard hasResolvedTarget else { return .unavailable }
+        guard hasWriteAccess else { return .writeAccessDenied }
+        if let metadataBundleID,
+           !metadataBundleID.isEmpty,
+           metadataBundleID != requestedBundleID {
+            return .identityMismatch
+        }
+        return .available
+    }
+}
+
+enum PatchReceiptContainerValidator {
+    static func validate(
+        bundleID: String,
+        expectedFingerprint: Data,
+        currentFingerprint: Data
+    ) throws {
+        guard expectedFingerprint == currentFingerprint else {
+            throw PatchPackageError.targetContainerChanged(bundleID)
         }
     }
 }

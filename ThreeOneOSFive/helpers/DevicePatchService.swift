@@ -88,10 +88,11 @@ enum DevicePatchService {
         defer { grants.forEach { ContainerStore.releaseContainerAccess($0) } }
 
         for bundleID in bundleIDs {
-            guard let path = ContainerStore.resolveAppContainerPath(bundleID: bundleID),
-                  ContainerStore.isApplicationContainerPath(path) else {
+            guard let path = ContainerStore.resolveAppContainerPath(bundleID: bundleID) else {
                 throw PatchPackageError.targetAppUnavailable(bundleID)
             }
+            let hasResolvedTarget = ContainerStore.isApplicationContainerPath(path)
+            guard hasResolvedTarget else { throw PatchPackageError.targetAppUnavailable(bundleID) }
 
             // The original resolver owns the path. The additional provider is
             // only used when that path is not already writable, and the grant
@@ -100,22 +101,29 @@ enum DevicePatchService {
                 let grant = ContainerStore.grantContainerAccess(path, requiringWrite: true)
                 if grant >= 0 { grants.append(grant) }
             }
-            guard ContainerStore.hasAccess(to: path, requiringWrite: true) else {
-                log("patch: write access unavailable for \(bundleID)")
+            let hasWriteAccess = ContainerStore.hasAccess(to: path, requiringWrite: true)
+            let metadata = hasWriteAccess
+                ? ContainerStore.readContainerMetadata(containerPath: path)
+                : nil
+            switch PatchTargetValidationResult.classify(
+                hasResolvedTarget: hasResolvedTarget,
+                hasWriteAccess: hasWriteAccess,
+                requestedBundleID: bundleID,
+                metadataBundleID: metadata?.bundleID
+            ) {
+            case .unavailable:
                 throw PatchPackageError.targetAppUnavailable(bundleID)
-            }
-
-            // A resolved path is not, by itself, proof that it still belongs
-            // to the requested app. Reject a readable metadata mismatch; never
-            // invent a new Bundle ID -> UUID association.
-            if let metadata = ContainerStore.readContainerMetadata(containerPath: path),
-               !metadata.bundleID.isEmpty,
-               metadata.bundleID != bundleID {
+            case .writeAccessDenied:
+                log("patch: write access unavailable for \(bundleID)")
+                throw PatchPackageError.targetWriteAccessDenied(bundleID)
+            case .identityMismatch:
                 log(
                     "patch: identity mismatch for \(bundleID) at \(path) " +
-                        "metadata=\(metadata.bundleID)"
+                        "metadata=\(metadata?.bundleID ?? "unavailable")"
                 )
-                throw PatchPackageError.targetAppUnavailable(bundleID)
+                throw PatchPackageError.targetIdentityMismatch(bundleID)
+            case .available:
+                break
             }
 
             roots[bundleID] = PatchPathValidator.canonicalFileURL(URL(fileURLWithPath: path, isDirectory: true))
