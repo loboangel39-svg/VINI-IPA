@@ -84,12 +84,40 @@ enum DevicePatchService {
         operation: ([String: URL]) throws -> T
     ) throws -> T {
         var roots: [String: URL] = [:]
+        var grants: [Int64] = []
+        defer { grants.forEach { ContainerStore.releaseContainerAccess($0) } }
 
         for bundleID in bundleIDs {
             guard let path = ContainerStore.resolveAppContainerPath(bundleID: bundleID),
                   ContainerStore.isApplicationContainerPath(path) else {
                 throw PatchPackageError.targetAppUnavailable(bundleID)
             }
+
+            // The original resolver owns the path. The additional provider is
+            // only used when that path is not already writable, and the grant
+            // is held for the whole transaction.
+            if !ContainerStore.hasAccess(to: path, requiringWrite: true) {
+                let grant = ContainerStore.grantContainerAccess(path, requiringWrite: true)
+                if grant >= 0 { grants.append(grant) }
+            }
+            guard ContainerStore.hasAccess(to: path, requiringWrite: true) else {
+                log("patch: write access unavailable for \(bundleID)")
+                throw PatchPackageError.targetAppUnavailable(bundleID)
+            }
+
+            // A resolved path is not, by itself, proof that it still belongs
+            // to the requested app. Reject a readable metadata mismatch; never
+            // invent a new Bundle ID -> UUID association.
+            if let metadata = ContainerStore.readContainerMetadata(containerPath: path),
+               !metadata.bundleID.isEmpty,
+               metadata.bundleID != bundleID {
+                log(
+                    "patch: identity mismatch for \(bundleID) at \(path) " +
+                        "metadata=\(metadata.bundleID)"
+                )
+                throw PatchPackageError.targetAppUnavailable(bundleID)
+            }
+
             roots[bundleID] = PatchPathValidator.canonicalFileURL(URL(fileURLWithPath: path, isDirectory: true))
         }
         return try operation(roots)
