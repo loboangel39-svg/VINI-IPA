@@ -69,6 +69,7 @@ final class RemotePatchImportCoordinator: ObservableObject {
                     continue
                 }
                 log("[PATCH] package inspection accepted id=\(patch.id) package=\(summary.packageID.uuidString)")
+                log("[PATCH] import packageID=\(summary.packageID.uuidString) library count before=\(store.items.count)")
                 if let contentKey = download.contentKey {
                     do {
                         try PatchKeyStore.store(contentKey, for: summary)
@@ -85,6 +86,7 @@ final class RemotePatchImportCoordinator: ObservableObject {
                         try await Task.sleep(nanoseconds: 100_000_000)
                     }
                     store.reload()
+                    log("[PATCH] library count after=\(store.items.count) unique packageIDs=\(Set(store.items.map(\.id)).count)")
                     if store.passwordRequest != nil {
                         log("[PATCH] import pending password package=\(summary.packageID.uuidString)")
                     } else {

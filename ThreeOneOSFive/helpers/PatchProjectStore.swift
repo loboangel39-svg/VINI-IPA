@@ -414,6 +414,7 @@ final class PatchProjectStore: ObservableObject {
 
     private func finishOperation(successMessageKey: String) {
         reload()
+        log("[PATCH] reload count=\(items.count) unique packageIDs=\(Set(items.map(\.id)).count)")
         isBusy = false
         alert = PatchStoreAlert(titleKey: "common.done", messageKey: successMessageKey)
     }

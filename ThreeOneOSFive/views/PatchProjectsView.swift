@@ -107,6 +107,7 @@ struct PatchProjectsView: View {
                         searchEmptyState
                             .listRowSeparator(.hidden)
                     } else {
+                        let _ = log("[PATCH] Installed visible count=\(filteredItems.count)")
                         if !filteredItems.isEmpty {
                             Section(language.text("patch.title")) {
                                 ForEach(filteredItems) { item in

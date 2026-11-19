@@ -115,9 +115,11 @@ enum PatchProjectLibrary {
                 log("patch: skipped invalid local package \(url.lastPathComponent)")
             }
         }
-        return byID.values.sorted {
+        let loaded = byID.values.sorted {
             ($0.project?.updatedAt ?? .distantPast) > ($1.project?.updatedAt ?? .distantPast)
         }
+        log("[PATCH] library load count=\(loaded.count) unique packageIDs=\(Set(loaded.map(\.id)).count)")
+        return loaded
     }
 
     static func readPackage(at url: URL) throws -> Data {
@@ -237,6 +239,7 @@ enum PatchProjectLibrary {
                 existingURL: existingURL,
                 fileManager: fileManager
             )
+            log("[PATCH] library saved packageID=\(summary.packageID.uuidString) file=\(savedURL?.lastPathComponent ?? \"unknown\")")
             if summary.schemaVersion >= 2 {
                 if PatchProjectAccessPolicy.shouldMaterializeWorkspace(
                     project: decoded.project,
