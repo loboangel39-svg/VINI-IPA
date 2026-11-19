@@ -22,8 +22,7 @@ final class LoginManager {
     static func login(licenseKey: String, completion: @escaping (Bool, String, Date?) -> Void) {
         let hwid = getPersistentHWID()
         
-        print("[LoginManager] Validating license: \(licenseKey)")
-        print("[LoginManager] HWID (persistent): \(hwid)")
+        print("[AUTH] login validation started; hwid present=\(!hwid.isEmpty)")
         
         validateWithWorker(licenseKey: licenseKey, hwid: hwid, completion: completion)
     }
@@ -54,6 +53,7 @@ final class LoginManager {
         
         URLSession.shared.dataTask(with: request) { data, response, error in
             if let error = error {
+                print("[AUTH] login transport failure: \(error.localizedDescription)")
                 completion(false, "Connection error: \(error.localizedDescription)", nil)
                 return
             }
@@ -72,6 +72,7 @@ final class LoginManager {
             let errorMessage = json["error"] as? String
             
             if valid {
+                print("[AUTH] license validation accepted")
                 // Guardar token de sesión en Keychain (sobrevive reinstalaciones)
                 if let token = json["token"] as? String {
                     KeychainManager.shared.saveAuthToken(token)
@@ -95,6 +96,7 @@ final class LoginManager {
                 
                 completion(true, "Login successful", expiresAt)
             } else {
+                print("[AUTH] license validation rejected")
                 completion(false, errorMessage ?? "Invalid license", nil)
             }
         }.resume()
@@ -149,14 +151,14 @@ final class LoginManager {
             return
         }
         
-        print("[LoginManager] Attempting auto-login with saved license key")
+        print("[AUTH] auto-login started with saved credentials")
         
         login(licenseKey: licenseKey) { success, message, expiresAt in
             if success {
-                print("[LoginManager] Auto-login successful")
+                print("[AUTH] auto-login accepted by server")
                 completion(true, licenseKey, expiresAt)
             } else {
-                print("[LoginManager] Auto-login failed: \(message)")
+                print("[AUTH] auto-login rejected: \(message)")
                 completion(false, nil, nil)
             }
         }

@@ -41,22 +41,46 @@ final class RemotePatchImportCoordinator: ObservableObject {
         isLoading = true
         defer { isLoading = false }
         do {
+            log("[PATCH] catalog request")
             let catalog = try await RemotePatchService.shared.fetchAvailablePatches()
             patches = catalog.filter { $0.type.lowercased() == "3105" || $0.name.lowercased().hasSuffix(".3105") }
+            log("[PATCH] catalog result count=\(catalog.count), valid3105=\(patches.count)")
             for patch in patches {
                 guard importingID == nil else { break }
                 importingID = patch.id
+                while store.isBusy {
+                    try await Task.sleep(nanoseconds: 100_000_000)
+                }
+                log("[PATCH] download started id=\(patch.id)")
                 let data = try await PatchDownloadService.shared.downloadPackageData(patchId: patch.id)
+                log("[PATCH] download completed id=\(patch.id) bytes=\(data.count)")
                 guard let summary = try? PatchPackageCodec.inspect(data) else {
+                    log("[PATCH] package inspection rejected id=\(patch.id)")
                     importingID = nil
                     continue
                 }
+                log("[PATCH] package inspection accepted id=\(patch.id) package=\(summary.packageID.uuidString)")
                 let existing = PatchProjectLibrary.load().contains { $0.id == summary.packageID }
-                if !existing { _ = store.importPackage(data: data) }
+                if existing {
+                    log("[PATCH] duplicate skipped package=\(summary.packageID.uuidString)")
+                } else if store.importPackage(data: data) {
+                    while store.isBusy {
+                        try await Task.sleep(nanoseconds: 100_000_000)
+                    }
+                    store.reload()
+                    if store.passwordRequest != nil {
+                        log("[PATCH] import pending password package=\(summary.packageID.uuidString)")
+                    } else {
+                        log("[PATCH] import completed package=\(summary.packageID.uuidString) installedCount=\(store.items.count)")
+                    }
+                } else {
+                    log("[PATCH] import not started package=\(summary.packageID.uuidString)")
+                }
                 importingID = nil
             }
             errorMessage = nil
         } catch {
+            log("[PATCH] synchronization failed: \(error.localizedDescription)")
             errorMessage = error.localizedDescription
         }
     }

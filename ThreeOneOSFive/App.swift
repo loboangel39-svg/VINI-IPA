@@ -14,7 +14,8 @@ struct ThreeOneOSFiveApp: App {
     @State private var isCheckingAutoLogin = true
     @StateObject private var repositoryStore = PackageRepositoryStore()
     @AppStorage(AppLanguage.storageKey) private var languageCode = AppLanguage.english.rawValue
-    @State private var showOnboarding = OnboardingStore.shouldShow()
+    // Temporarily disconnected from navigation; retained for reversible restoration.
+    @State private var showOnboarding = false
     @State private var showAttribution = false
     @State private var updateOffer: AppUpdateChecker.Offer?
     @Environment(\.scenePhase) private var scenePhase
@@ -121,7 +122,7 @@ struct ThreeOneOSFiveApp: App {
 
     private func attemptAutoLogin() async {
         if isLoggedIn {
-            checkSessionValidity()
+            await checkSessionValidityAsync()
             isCheckingAutoLogin = false
             if isLoggedIn { synchronizeRemotePatches() }
             return
@@ -159,6 +160,28 @@ struct ThreeOneOSFiveApp: App {
         LoginManager.verifyLicense(licenseKey: currentLicenseKey) { valid in
             if !valid { DispatchQueue.main.async { logout() } }
         }
+    }
+
+    private func checkSessionValidityAsync() async {
+        guard isLoggedIn else { return }
+        if sessionExpiresAt > 0, Date() > Date(timeIntervalSince1970: sessionExpiresAt) {
+            logout()
+            log("[AUTH] local expiration rejected session")
+            return
+        }
+        guard !currentLicenseKey.isEmpty else {
+            logout()
+            log("[AUTH] missing license rejected session")
+            return
+        }
+        log("[AUTH] server validation started")
+        let valid = await withCheckedContinuation { continuation in
+            LoginManager.verifyLicense(licenseKey: currentLicenseKey) { result in
+                continuation.resume(returning: result)
+            }
+        }
+        log("[AUTH] server validation result=\(valid ? "accepted" : "rejected")")
+        if !valid { logout() }
     }
 
     private func logout() {
