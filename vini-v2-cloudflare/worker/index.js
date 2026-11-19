@@ -1539,6 +1539,7 @@ async function handleAppGetPatches(env, headers, appAuth) {
     description: p.description,
     version: p.version,
     type: p.type,
+    file_key: p.file_key || null,
     status: 'available',
     password: p.password || null,
     content_key: p.content_key || null,

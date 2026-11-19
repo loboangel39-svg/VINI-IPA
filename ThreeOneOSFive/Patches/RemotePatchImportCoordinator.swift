@@ -48,8 +48,9 @@ final class RemotePatchImportCoordinator: ObservableObject {
             log("[PATCH] catalog request")
             let catalog = try await RemotePatchService.shared.fetchAvailablePatches()
             patches = catalog.filter {
-                let fileKey = $0.fileKey?.lowercased() ?? ""
-                return fileKey.hasSuffix(".3105") || $0.type.lowercased() == "3105" || $0.name.lowercased().hasSuffix(".3105")
+                let fileKey = $0.fileKey?.split(separator: "?").first.map(String.init)?.lowercased() ?? ""
+                let fileName = fileKey.split(separator: "/").last.map(String.init) ?? fileKey
+                return fileName.hasSuffix(".3105") || $0.type.lowercased() == "3105" || $0.name.lowercased().hasSuffix(".3105")
             }
             log("[PATCH] catalog result count=\(catalog.count), valid3105=\(patches.count)")
             for patch in patches {
