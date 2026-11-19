@@ -30,7 +30,7 @@ struct LoginView: View {
                 // MARK: - Título
                 Text("Ingresar licencia")
                     .font(.system(size: 28, weight: .bold))
-                    .foregroundStyle(AppTheme.chromeHighlight)
+                    .foregroundStyle(AppTheme.accent)
                     .multilineTextAlignment(.center)
 
                 Spacer().frame(height: 10)
@@ -53,7 +53,7 @@ struct LoginView: View {
 
                     TextField("", text: $licenseKey)
                         .font(.system(size: 17, weight: .regular))
-                        .foregroundStyle(AppTheme.chromeHighlight)
+                        .foregroundStyle(AppTheme.accent)
                         .textInputAutocapitalization(.characters)
                         .autocorrectionDisabled()
                         .padding(.horizontal, 16)

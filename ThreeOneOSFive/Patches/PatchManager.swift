@@ -75,7 +75,7 @@ final class PatchManager: ObservableObject {
             }
             
             // 5. Notificar cambios
-            NotificationCenter.default.post(name: .patchesDidChange, object: nil)
+            NotificationCenter.default.post(name: Notification.Name("patchesDidChange"), object: nil)
             
             print("[PatchManager] Sync complete — \(patches.count) patches available")
         } catch {
@@ -215,7 +215,7 @@ final class PatchManager: ObservableObject {
     /// Elimina un patch local
     func deleteLocalPatch(_ patchId: String) {
         storage.deletePatch(patchId: patchId)
-        NotificationCenter.default.post(name: .patchesDidChange, object: nil)
+        NotificationCenter.default.post(name: Notification.Name("patchesDidChange"), object: nil)
     }
     
     /// Lista todos los IDs de patches almacenados localmente
@@ -225,7 +225,7 @@ final class PatchManager: ObservableObject {
     
     /// Notifica que los patches cambiaron
     func notifyPatchesChanged() {
-        NotificationCenter.default.post(name: .patchesDidChange, object: nil)
+        NotificationCenter.default.post(name: Notification.Name("patchesDidChange"), object: nil)
     }
     
     // MARK: - Content Key Storage

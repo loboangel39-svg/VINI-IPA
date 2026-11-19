@@ -12,7 +12,13 @@ struct RemotePatchImportView: View {
                 if coordinator.isLoading && coordinator.patches.isEmpty {
                     ProgressView()
                 } else if coordinator.patches.isEmpty {
-                    ContentUnavailableView("No patches available", systemImage: "shippingbox")
+                    VStack(spacing: 12) {
+                        Image(systemName: "shippingbox")
+                            .font(.largeTitle)
+                            .foregroundStyle(.secondary)
+                        Text("No patches available")
+                            .foregroundStyle(.secondary)
+                    }
                 } else {
                     List(coordinator.patches) { patch in
                         HStack {
