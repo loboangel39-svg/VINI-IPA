@@ -38,7 +38,7 @@ struct LoginView: View {
                 // MARK: - Subtítulo
                 Text("Activa tu cuenta con una clave de licencia")
                     .font(.system(size: 16, weight: .regular))
-                    .foregroundStyle(AppTheme.accentSecondary)
+                    .foregroundStyle(AppTheme.accent)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 40)
 
@@ -48,7 +48,7 @@ struct LoginView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("CLAVE DE LICENCIA")
                         .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(AppTheme.accentSecondary)
+                        .foregroundStyle(AppTheme.accent)
                         .tracking(0.8)
 
                     TextField("", text: $licenseKey)
@@ -115,7 +115,7 @@ struct LoginView: View {
                 // MARK: - Hint
                 Text("Tu licencia se vincula a este dispositivo")
                     .font(.system(size: 13, weight: .regular))
-                    .foregroundStyle(AppTheme.accentSecondary)
+                    .foregroundStyle(AppTheme.accent)
                     .multilineTextAlignment(.center)
 
                 Spacer()

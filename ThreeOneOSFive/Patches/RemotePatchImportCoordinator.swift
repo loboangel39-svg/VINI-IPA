@@ -25,7 +25,7 @@ final class RemotePatchImportCoordinator: ObservableObject {
         defer { importingID = nil }
         do {
             let data = try await PatchDownloadService.shared.downloadPackageData(patchId: patch.id)
-            guard await store.importPackage(data: data) else {
+            guard store.importPackage(data: data) else {
                 throw RemotePatchError.networkError
             }
             errorMessage = nil
