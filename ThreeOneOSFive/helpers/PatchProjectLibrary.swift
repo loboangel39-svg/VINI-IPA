@@ -329,6 +329,65 @@ enum PatchProjectLibrary {
         return removed
     }
 
+    static func migrateLegacyRemoteOrigins() -> (identified: Int, unresolved: Int) {
+        let installed = load()
+        var identified = 0
+        var unresolved = 0
+        for remoteID in PatchStorage.shared.localPatchIds() {
+            guard let data = PatchStorage.shared.readPatchData(patchId: remoteID),
+                  let summary = try? PatchPackageCodec.inspect(data) else {
+                unresolved += 1
+                continue
+            }
+            guard let item = installed.first(where: { $0.id == summary.packageID }) else {
+                unresolved += 1
+                continue
+            }
+            guard item.summary == summary else {
+                unresolved += 1
+                continue
+            }
+            let origin = PatchPackageOrigin(
+                repositoryName: "VINI Remote",
+                repositoryURL: URL(string: "https://vini-v2-api.loboangel39.workers.dev")!,
+                packageIdentifier: remoteID,
+                remotePatchID: remoteID
+            )
+            do {
+                try saveOrigin(origin, to: originFileURL(packageID: item.id, fileManager: .default))
+                identified += 1
+            } catch {
+                unresolved += 1
+            }
+        }
+        log("[PATCH] legacy migration identified=\(identified) unresolved=\(unresolved)")
+        return (identified, unresolved)
+    }
+
+    @discardableResult
+    static func updateRemoteOrigin(
+        for packageID: UUID,
+        expectedSummary: PatchPackageSummary,
+        remotePatchID: String
+    ) -> Bool {
+        guard let item = load().first(where: { $0.id == packageID }),
+              item.summary == expectedSummary,
+              item.origin?.remotePatchID == nil else { return false }
+        let origin = PatchPackageOrigin(
+            repositoryName: "VINI Remote",
+            repositoryURL: URL(string: "https://vini-v2-api.loboangel39.workers.dev")!,
+            packageIdentifier: remotePatchID,
+            remotePatchID: remotePatchID
+        )
+        do {
+            try saveOrigin(origin, to: originFileURL(packageID: packageID, fileManager: .default))
+            log("[PATCH] origin updated packageID=\(packageID.uuidString)")
+            return true
+        } catch {
+            return false
+        }
+    }
+
     static func synchronizeWorkspace(
         item: PatchLibraryItem,
         fileManager: FileManager = .default

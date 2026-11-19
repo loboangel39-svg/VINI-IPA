@@ -48,6 +48,7 @@ final class RemotePatchImportCoordinator: ObservableObject {
             log("[PATCH] catalog request")
             let catalog = try await RemotePatchService.shared.fetchAvailablePatches()
             let authorizedPatchIDs = Set(catalog.map(\.id))
+            _ = PatchProjectLibrary.migrateLegacyRemoteOrigins()
             patches = catalog.filter {
                 let fileKey = $0.fileKey?.split(separator: "?").first.map(String.init)?.lowercased() ?? ""
                 let fileName = fileKey.split(separator: "/").last.map(String.init) ?? fileKey
@@ -83,6 +84,11 @@ final class RemotePatchImportCoordinator: ObservableObject {
                 let existing = PatchProjectLibrary.load().contains { $0.id == summary.packageID }
                 if existing {
                     log("[PATCH] duplicate skipped package=\(summary.packageID.uuidString)")
+                    _ = PatchProjectLibrary.updateRemoteOrigin(
+                        for: summary.packageID,
+                        expectedSummary: summary,
+                        remotePatchID: patch.id
+                    )
                 } else if store.importPackage(
                     data: data,
                     origin: PatchPackageOrigin(
