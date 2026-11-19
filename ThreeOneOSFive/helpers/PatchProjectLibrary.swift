@@ -57,12 +57,7 @@ enum PatchProjectLibrary {
         return root
     }
 
-    // Carga todos los patches del directorio (sin filtrar)
-    // El worker ya filtra por usuario, así que solo se descargan los asignados
     static func load(fileManager: FileManager = .default) -> [PatchLibraryItem] {
-        // Bridge: copiar patches descargados de Documents/RemotePatches/ a Application Support/PatchProjects/
-        bridgeDownloadedPatches(fileManager: fileManager)
-
         guard let root = try? packageRootURL(fileManager: fileManager),
               let urls = try? fileManager.contentsOfDirectory(
                 at: root,
@@ -120,12 +115,9 @@ enum PatchProjectLibrary {
                 log("patch: skipped invalid local package \(url.lastPathComponent)")
             }
         }
-
-        let result = byID.values.sorted {
+        return byID.values.sorted {
             ($0.project?.updatedAt ?? .distantPast) > ($1.project?.updatedAt ?? .distantPast)
         }
-        log("patch: loaded \(result.count) patches from disk")
-        return result
     }
 
     static func readPackage(at url: URL) throws -> Data {
@@ -135,7 +127,7 @@ enum PatchProjectLibrary {
               values.isRegularFile == true else {
             throw PatchPackageError.invalidProject
         }
-        return try Data(contentsOf: url, options: [.mappedIfSafe])
+        return try Data(contentsOf: url, options: .mappedIfSafe)
     }
 
     static func save(
@@ -320,6 +312,7 @@ enum PatchProjectLibrary {
         fileManager: FileManager = .default
     ) throws -> PatchProject {
         guard item.summary.schemaVersion >= 2,
+              item.canInspectContents,
               let baseProject = item.project,
               let contentKey = item.contentKey else {
             throw PatchPackageError.invalidProject
@@ -347,12 +340,6 @@ enum PatchProjectLibrary {
             fileManager: fileManager
         )
         return project
-    }
-
-    static func seedDefaultPackages(fileManager: FileManager = .default) {
-        // DESHABILITADO: Los patches ahora se descargan remotamente desde el Worker
-        log("patch: seedDefaultPackages deshabilitado - usando patches remotos")
-        return
     }
 
     private static func sanitizedFilename(_ rawName: String) -> String {
@@ -420,77 +407,5 @@ enum PatchProjectLibrary {
             to: url,
             options: [.atomic, .completeFileProtection]
         )
-    }
-
-    // MARK: - Bridge: RemotePatches → PatchProjects
-    // Copia los archivos .3105 descargados por PatchManager/PatchStorage
-    // (Documents/RemotePatches/) al directorio que escanea este módulo
-    // (Application Support/PatchProjects/).
-    // También elimina de PatchProjects/ los patches remotos que ya no están asignados.
-    private static func bridgeDownloadedPatches(fileManager: FileManager) {
-        let patchManager = PatchManager.shared
-        let localIds = patchManager.localPatchIds()
-
-        guard let libraryRoot = try? packageRootURL(fileManager: fileManager) else {
-            log("patch: bridge failed — cannot resolve PatchProjects directory")
-            return
-        }
-
-        // 1. Copiar patches que sí están asignados
-        var copied = 0
-        for patchId in localIds {
-            guard let data = patchManager.patchData(patchId) else { continue }
-            let destURL = libraryRoot.appendingPathComponent("patch-\(patchId).3105")
-
-            // Solo escribir si el contenido cambió
-            if let existingData = try? Data(contentsOf: destURL), existingData == data {
-                continue
-            }
-
-            do {
-                try data.write(to: destURL, options: [.atomic])
-                copied += 1
-            } catch {
-                log("patch: bridge failed for \(patchId) — \(error.localizedDescription)")
-            }
-        }
-        if copied > 0 {
-            log("patch: bridged \(copied) patches from RemotePatches to PatchProjects")
-        }
-
-        // 2. Eliminar de PatchProjects/ los patches remotos que ya no están asignados
-        //    Solo eliminamos archivos con formato "patch-<uuid>.3105" (patches remotos)
-        //    No tocamos patches creados/importados localmente por el usuario
-        guard let existingFiles = try? fileManager.contentsOfDirectory(
-            at: libraryRoot,
-            includingPropertiesForKeys: nil,
-            options: [.skipsHiddenFiles]
-        ) else { return }
-
-        let remotePatchIds = Set(localIds)
-        var removed = 0
-
-        for file in existingFiles where file.pathExtension.lowercased() == "3105" {
-            let name = file.deletingPathExtension().lastPathComponent
-            // Solo procesar archivos con formato "patch-<id>"
-            guard name.hasPrefix("patch-") else { continue }
-
-            let patchId = String(name.dropFirst("patch-".count))
-
-            // Si este patch remoto ya no está en RemotePatches, eliminarlo
-            if !remotePatchIds.contains(patchId) {
-                do {
-                    try fileManager.removeItem(at: file)
-                    removed += 1
-                    log("patch: removed orphaned remote patch from PatchProjects: \(patchId)")
-                } catch {
-                    log("patch: failed to remove orphaned patch \(patchId) — \(error.localizedDescription)")
-                }
-            }
-        }
-
-        if removed > 0 {
-            log("patch: removed \(removed) orphaned remote patches from PatchProjects")
-        }
     }
 }

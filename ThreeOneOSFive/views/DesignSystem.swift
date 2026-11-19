@@ -4,22 +4,8 @@ enum AppTheme {
     static let accent = Color(
         uiColor: UIColor { traits in
             traits.userInterfaceStyle == .dark
-                ? UIColor(red: 0.91, green: 0.91, blue: 0.91, alpha: 1.00) // Plata metálica brillante (#E8E8E8) para fondo oscuro
-                : UIColor(red: 0.25, green: 0.25, blue: 0.25, alpha: 1.00) // Gris oscuro sólido (#404040) para fondo claro
-        }
-    )
-    static let accentSecondary = Color(
-        uiColor: UIColor { traits in
-            traits.userInterfaceStyle == .dark
-                ? UIColor(red: 0.75, green: 0.75, blue: 0.75, alpha: 1.00) // Gris medio (#C0C0C0)
-                : UIColor(red: 0.38, green: 0.38, blue: 0.38, alpha: 1.00) // Gris oscuro medio (#616161)
-        }
-    )
-    static let chromeHighlight = Color(
-        uiColor: UIColor { traits in
-            traits.userInterfaceStyle == .dark
-                ? UIColor(red: 1.0, green: 1.0, blue: 1.0, alpha: 1.00) // Blanco puro para highlights
-                : UIColor(red: 0.13, green: 0.13, blue: 0.13, alpha: 1.00) // Casi negro (#222222)
+                ? UIColor(red: 1.00, green: 0.64, blue: 0.42, alpha: 1.00)
+                : UIColor(red: 0.85, green: 0.42, blue: 0.20, alpha: 1.00)
         }
     )
     static let pageBackground = Color(uiColor: .systemBackground)
@@ -33,6 +19,23 @@ enum AppTheme {
     static let appIconSize: CGFloat = 32
     static let emptyIconSize: CGFloat = 30
     static let selectionIconSize: CGFloat = 18
+    static let contentCardCornerRadius: CGFloat = 20
+    static let contentCardInset: CGFloat = 16
+    static let contentCardPadding: CGFloat = 16
+}
+
+struct AppCardBorder: View {
+    var body: some View {
+        RoundedRectangle(
+            cornerRadius: AppTheme.contentCardCornerRadius,
+            style: .continuous
+        )
+        .strokeBorder(
+            Color(uiColor: .separator).opacity(0.22),
+            lineWidth: 0.5
+        )
+        .accessibilityHidden(true)
+    }
 }
 
 struct AppRowIcon: View {

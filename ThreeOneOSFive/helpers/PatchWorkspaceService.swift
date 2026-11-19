@@ -301,6 +301,8 @@ enum PatchWorkspaceService {
         let project = PatchProject(
             id: baseProject.id,
             name: manifest.displayName,
+            author: baseProject.author,
+            isPrivate: baseProject.isPrivate,
             createdAt: baseProject.createdAt,
             updatedAt: Date(),
             bundleIdentifiers: orderedBundles,

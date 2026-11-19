@@ -257,6 +257,41 @@ enum AppDisplayNamePolicy {
     }
 }
 
+enum WQFilesIdentityMerge {
+    static func verifiedApps(
+        identities: [String: WQFilesResolvedIdentity],
+        originalApps: [InstalledApp]
+    ) -> [InstalledApp] {
+        let originalByPath = Dictionary(
+            originalApps.map { (ContainerDiscoveryMerger.canonicalPath($0.containerPath), $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
+        var usedBundleIDs = Set<String>()
+        var result: [InstalledApp] = []
+        for identity in identities.values.sorted(by: { $0.containerPath < $1.containerPath }) {
+            let path = ContainerDiscoveryMerger.canonicalPath(identity.containerPath)
+            if let original = originalByPath[path],
+               UUID(uuidString: original.bundleID) == nil,
+               original.bundleID != identity.bundleID {
+                log("wqfiles: rejected contradiction path=\(path) original=\(original.bundleID) new=\(identity.bundleID)")
+                continue
+            }
+            guard usedBundleIDs.insert(identity.bundleID).inserted else {
+                log("wqfiles: rejected duplicate Bundle ID \(identity.bundleID)")
+                continue
+            }
+            result.append(InstalledApp(
+                bundleID: identity.bundleID,
+                name: identity.displayName,
+                containerPath: path,
+                version: originalByPath[path]?.version ?? "",
+                icon: originalByPath[path]?.icon
+            ))
+        }
+        return result
+    }
+}
+
 struct ApplicationBundleMetadata: Equatable {
     let bundleID: String
     let displayName: String

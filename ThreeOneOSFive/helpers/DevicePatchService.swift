@@ -84,14 +84,24 @@ enum DevicePatchService {
         operation: ([String: URL]) throws -> T
     ) throws -> T {
         var roots: [String: URL] = [:]
+        var sessions: [ContainerAccessSession] = []
 
         for bundleID in bundleIDs {
             guard let path = ContainerStore.resolveAppContainerPath(bundleID: bundleID),
                   ContainerStore.isApplicationContainerPath(path) else {
                 throw PatchPackageError.targetAppUnavailable(bundleID)
             }
+            do {
+                let session = try ContainerAccessCoordinator.acquire(
+                    bundleID: bundleID, containerPath: path, operation: .write
+                ).get()
+                sessions.append(session)
+            } catch {
+                log("patch: shared container access failed \(bundleID): \(error.localizedDescription)")
+                throw PatchPackageError.targetAppUnavailable(bundleID)
+            }
             roots[bundleID] = PatchPathValidator.canonicalFileURL(URL(fileURLWithPath: path, isDirectory: true))
         }
-        return try operation(roots)
+        return try withExtendedLifetime(sessions) { try operation(roots) }
     }
 }

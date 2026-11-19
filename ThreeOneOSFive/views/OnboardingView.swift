@@ -7,13 +7,22 @@ private enum OnboardingStep: Int, CaseIterable {
     var prev: OnboardingStep? { Self(rawValue: rawValue - 1) }
 }
 
+private enum OnboardingNavigationDirection {
+    case forward
+    case backward
+}
+
 struct OnboardingView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage(AppLanguage.storageKey) private var languageCode = AppLanguage.english.rawValue
     @State private var step: OnboardingStep = .language
-    @State private var dragOffset: CGFloat = 0
+    @State private var navigationDirection: OnboardingNavigationDirection = .forward
     var onComplete: () -> Void
 
     private var language: AppLanguage { AppLanguage(rawValue: languageCode) ?? .english }
+    private var motionAnimation: Animation? {
+        reduceMotion ? nil : .easeInOut(duration: 0.24)
+    }
 
     var body: some View {
         ZStack {
@@ -23,12 +32,12 @@ struct OnboardingView: View {
             VStack(spacing: 0) {
                 header
                 pageContent
-                controls
             }
         }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            controls
+        }
         .tint(AppTheme.accent)
-        .animation(.spring(response: 0.38, dampingFraction: 0.84), value: step)
-        .animation(.spring(response: 0.38, dampingFraction: 0.84), value: languageCode)
     }
 
     private var header: some View {
@@ -39,16 +48,22 @@ struct OnboardingView: View {
                         .fill(s.rawValue <= step.rawValue ? AppTheme.accent : Color.secondary.opacity(0.22))
                         .frame(height: 4)
                         .frame(maxWidth: s == step ? 28 : 18)
-                        .animation(.spring(response: 0.35, dampingFraction: 0.8), value: step)
+                        .animation(motionAnimation, value: step)
+                        .accessibilityHidden(true)
                 }
             }
-            .padding(.horizontal, AppTheme.pageInset)
-            .padding(.top, 18)
+            .frame(maxWidth: 560)
+            .padding(.horizontal, 20)
 
             Text(language.text("onboarding.step", "\(step.rawValue + 1)", "\(OnboardingStep.allCases.count)"))
                 .font(.caption.weight(.medium))
                 .foregroundStyle(.secondary)
+                .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
         }
+        .padding(.top, 16)
+        .padding(.bottom, 8)
+        .frame(maxWidth: .infinity)
+        .background(AppTheme.pageBackground)
     }
 
     @ViewBuilder
@@ -56,16 +71,31 @@ struct OnboardingView: View {
         ZStack {
             ForEach(OnboardingStep.allCases, id: \.rawValue) { s in
                 if s == step {
-                    page(for: s)
-                        .transition(.asymmetric(
-                            insertion: .move(edge: .trailing).combined(with: .opacity),
-                            removal: .move(edge: .leading).combined(with: .opacity)
-                        ))
-                        .id("page-\(s.rawValue)-\(languageCode)")
+                    ScrollView(.vertical, showsIndicators: false) {
+                        page(for: s)
+                            .frame(maxWidth: 560)
+                            .frame(maxWidth: .infinity)
+                            .padding(.horizontal, 20)
+                            .padding(.top, 12)
+                            .padding(.bottom, 28)
+                    }
+                    .transition(pageTransition)
+                    .id(s.rawValue)
                 }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .clipped()
+    }
+
+    private var pageTransition: AnyTransition {
+        guard !reduceMotion else { return .opacity }
+        let insertionEdge: Edge = navigationDirection == .forward ? .trailing : .leading
+        let removalEdge: Edge = navigationDirection == .forward ? .leading : .trailing
+        return .asymmetric(
+            insertion: .move(edge: insertionEdge).combined(with: .opacity),
+            removal: .move(edge: removalEdge).combined(with: .opacity)
+        )
     }
 
     @ViewBuilder
@@ -79,37 +109,34 @@ struct OnboardingView: View {
     }
 
     private var languagePage: some View {
-        VStack(spacing: 20) {
-            Spacer(minLength: 12)
+        VStack(spacing: 24) {
             AppLogo(size: 72)
+
             VStack(spacing: 8) {
                 Text(language.text("onboarding.language_title"))
                     .font(.title2.weight(.bold))
                     .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
                 Text(language.text("onboarding.language_subtitle"))
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
-                    .padding(.horizontal, 24)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            VStack(spacing: 10) {
+
+            VStack(spacing: 12) {
                 ForEach(AppLanguage.allCases) { option in
+                    let isSelected = languageCode == option.rawValue
                     Button {
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.82)) {
-                            languageCode = option.rawValue
-                        }
+                        languageCode = option.rawValue
                     } label: {
-                        HStack {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(option.displayName)
-                                    .font(.body.weight(.semibold))
-                                    .foregroundStyle(.primary)
-                                Text(option.nativeName)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
+                        HStack(spacing: 12) {
+                            Text(option.displayName)
+                                .font(.body.weight(.semibold))
+                                .foregroundStyle(.primary)
+                                .fixedSize(horizontal: false, vertical: true)
                             Spacer()
-                            if languageCode == option.rawValue {
+                            if isSelected {
                                 Image(systemName: "checkmark.circle.fill")
                                     .foregroundStyle(AppTheme.accent)
                                     .font(.title3)
@@ -120,84 +147,79 @@ struct OnboardingView: View {
                             }
                         }
                         .padding(.horizontal, 16)
-                        .padding(.vertical, 14)
+                        .frame(minHeight: 56)
                         .background(
                             RoundedRectangle(cornerRadius: 10, style: .continuous)
                                 .fill(Color(uiColor: .secondarySystemBackground))
                                 .overlay(
                                     RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                        .stroke(languageCode == option.rawValue ? AppTheme.accent : Color.clear, lineWidth: 1)
+                                        .stroke(isSelected ? AppTheme.accent : Color.secondary.opacity(0.12), lineWidth: 1)
                                 )
                         )
+                        .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                     }
                     .buttonStyle(.plain)
+                    .accessibilityAddTraits(isSelected ? .isSelected : [])
+                    .animation(motionAnimation, value: languageCode)
                 }
             }
-            .padding(.horizontal, 20)
-            Spacer(minLength: 12)
+
+            Text(language.text("onboarding.language_hint", language.displayName))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
         }
+        .frame(maxWidth: .infinity, alignment: .top)
     }
 
     private var welcomePage: some View {
-        VStack(spacing: 18) {
-            Spacer(minLength: 10)
-             ZStack {
-                 RoundedRectangle(cornerRadius: 10, style: .continuous)
-                     .fill(Color(uiColor: .secondarySystemBackground))
-                     .overlay(
-                         RoundedRectangle(cornerRadius: 10, style: .continuous)
-                             .stroke(AppTheme.accent.opacity(0.3), lineWidth: 1)
-                     )
-                     .frame(width: 72, height: 72)
-                 Image(systemName: "sparkles")
-                     .font(.system(size: 30, weight: .medium))
-                     .foregroundStyle(AppTheme.accent)
-             }
+        VStack(spacing: 20) {
+            featureIcon(systemName: "sparkles", color: AppTheme.accent)
+
             VStack(spacing: 10) {
                 Text(language.text("onboarding.welcome_title"))
                     .font(.title2.weight(.bold))
                     .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
                 Text(language.text("onboarding.welcome_message"))
                     .font(.body)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
-                    .padding(.horizontal, 24)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+
             Label(language.text("onboarding.welcome_badge"), systemImage: "checkmark.seal.fill")
-                 .font(.footnote.weight(.semibold))
-                 .foregroundStyle(AppTheme.accent)
-                 .padding(.horizontal, 14)
-                 .padding(.vertical, 8)
-                 .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-            Spacer(minLength: 10)
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(AppTheme.accent)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .background(
+                    Color(uiColor: .secondarySystemBackground),
+                    in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+                )
         }
+        .frame(maxWidth: .infinity, alignment: .top)
     }
 
     private var versionsPage: some View {
-        VStack(spacing: 16) {
-            Spacer(minLength: 8)
-             ZStack {
-                 RoundedRectangle(cornerRadius: 18, style: .continuous)
-                     .fill(Color(uiColor: .secondarySystemBackground))
-                     .overlay(
-                         RoundedRectangle(cornerRadius: 10, style: .continuous)
-                             .stroke(AppTheme.accent.opacity(0.3), lineWidth: 1)
-                     )
-                     .frame(width: 72, height: 72)
-                 Image(systemName: "iphone.gen2")
-                     .font(.system(size: 30, weight: .medium))
-                    .foregroundStyle(AppTheme.accent)
-            }
+        VStack(spacing: 20) {
+            featureIcon(systemName: "iphone.gen2", color: AppTheme.accent)
+
             VStack(spacing: 8) {
                 Text(language.text("onboarding.versions_title"))
                     .font(.title3.weight(.bold))
                     .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
                 Text(language.text("onboarding.versions_subtitle"))
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
-                    .padding(.horizontal, 22)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+
             VStack(alignment: .leading, spacing: 10) {
                 versionRow(icon: "checkmark.circle.fill", title: "iOS 17", value: ExploitSupportPolicy.verifiedIOS17Range, color: .green)
                 versionRow(icon: "checkmark.circle.fill", title: "iOS 18", value: ExploitSupportPolicy.verifiedIOS18Range, color: .green)
@@ -210,77 +232,121 @@ struct OnboardingView: View {
                         Text(language.text("onboarding.beta")).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
                     }
                     ForEach(ExploitSupportPolicy.verifiedIOS27Builds, id: \.build) { v in
-                        HStack {
-                            Text("Beta \(v.beta)" + (v.publicBeta.map { " / Public \($0)" } ?? ""))
-                                .font(.caption.weight(.medium)).foregroundStyle(.secondary)
-                            Spacer()
-                            Text(v.build).font(.caption.monospaced()).foregroundStyle(.secondary)
+                        let betaLabel = language.text("onboarding.developer_beta", "\(v.beta)")
+                            + (v.publicBeta.map {
+                                " · " + language.text("onboarding.public_beta", "\($0)")
+                            } ?? "")
+                        ViewThatFits(in: .horizontal) {
+                            HStack(spacing: 12) {
+                                Text(betaLabel)
+                                Spacer()
+                                Text(v.build)
+                                    .font(.caption.monospaced().weight(.medium))
+                            }
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(betaLabel)
+                                Text(v.build)
+                                    .font(.caption.monospaced().weight(.medium))
+                            }
                         }
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.secondary)
                         .padding(.leading, 24)
                     }
                 }
                 .padding(12)
-                 .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .background(
+                    Color(uiColor: .secondarySystemBackground),
+                    in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+                )
             }
-            .padding(.horizontal, 20)
+
             Text(language.text("onboarding.versions_footer", AppInfo.osVersion, AppInfo.osBuild))
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
-                .padding(.horizontal, 24)
-            Spacer(minLength: 8)
+                .fixedSize(horizontal: false, vertical: true)
         }
+        .frame(maxWidth: .infinity, alignment: .top)
     }
 
     private var installPage: some View {
-        VStack(spacing: 16) {
-            Spacer(minLength: 8)
-             ZStack {
-                 RoundedRectangle(cornerRadius: 10, style: .continuous)
-                     .fill(Color(uiColor: .secondarySystemBackground))
-                     .overlay(
-                         RoundedRectangle(cornerRadius: 10, style: .continuous)
-                             .stroke(Color.orange.opacity(0.4), lineWidth: 1)
-                     )
-                     .frame(width: 72, height: 72)
-                 Image(systemName: "exclamationmark.shield.fill")
-                     .font(.system(size: 30, weight: .medium))
-                    .foregroundStyle(.orange)
-            }
+        VStack(spacing: 20) {
+            featureIcon(systemName: "exclamationmark.shield.fill", color: .orange)
+
             VStack(spacing: 8) {
                 Text(language.text("onboarding.install_title"))
                     .font(.title3.weight(.bold))
                     .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
                 Text(language.text("onboarding.install_message"))
                     .font(.body)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
-                    .padding(.horizontal, 22)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+
             VStack(alignment: .leading, spacing: 10) {
                 installBullet(icon: "checkmark.seal.fill", text: language.text("onboarding.install_ok"), color: .green)
                 installBullet(icon: "xmark.octagon.fill", text: language.text("onboarding.install_bad"), color: .red)
                 installBullet(icon: "exclamationmark.triangle.fill", text: language.text("onboarding.install_jailbreak"), color: .orange)
             }
             .padding(14)
-             .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-            .padding(.horizontal, 20)
+            .background(
+                Color(uiColor: .secondarySystemBackground),
+                in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+            )
+
             Text(language.text("onboarding.install_footer"))
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
-                .padding(.horizontal, 24)
-            Spacer(minLength: 8)
+                .fixedSize(horizontal: false, vertical: true)
         }
+        .frame(maxWidth: .infinity, alignment: .top)
+    }
+
+    private func featureIcon(systemName: String, color: Color) -> some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color(uiColor: .secondarySystemBackground))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(color.opacity(0.3), lineWidth: 1)
+                )
+            Image(systemName: systemName)
+                .font(.system(size: 28, weight: .medium))
+                .foregroundStyle(color)
+        }
+        .frame(width: 72, height: 72)
+        .accessibilityHidden(true)
     }
 
     private func versionRow(icon: String, title: String, value: String, color: Color) -> some View {
-        HStack {
-            Image(systemName: icon).foregroundStyle(color)
-            Text(title).font(.subheadline.weight(.semibold))
-            Spacer()
-            Text(value).font(.subheadline.monospaced()).foregroundStyle(.secondary)
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 10) {
+                Image(systemName: icon).foregroundStyle(color)
+                Text(title).fontWeight(.semibold)
+                Spacer()
+                Text(value)
+                    .font(.subheadline.monospaced())
+                    .foregroundStyle(.secondary)
+            }
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 10) {
+                    Image(systemName: icon)
+                        .foregroundStyle(color)
+                    Text(title)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(.primary)
+                }
+                Text(value)
+                    .font(.subheadline.monospaced())
+                    .foregroundStyle(.secondary)
+                    .padding(.leading, 26)
+            }
         }
+        .font(.subheadline)
         .padding(12)
         .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
@@ -290,6 +356,8 @@ struct OnboardingView: View {
             Image(systemName: icon)
                 .foregroundStyle(color)
                 .font(.body.weight(.semibold))
+                .frame(width: 20)
+                .accessibilityHidden(true)
             Text(text)
                 .font(.subheadline)
                 .foregroundStyle(.primary)
@@ -299,52 +367,66 @@ struct OnboardingView: View {
 
     private var controls: some View {
         VStack(spacing: 12) {
-            HStack(spacing: 12) {
-                if step != .language {
-                    Button {
-                        withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) {
-                            if let prev = step.prev { step = prev }
-                        }
-                    } label: {
-                        Label(language.text("common.back"), systemImage: "chevron.left")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.large)
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 12) {
+                    controlButtons
                 }
-
-                Button {
-                    if let next = step.next {
-                        withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) {
-                            step = next
-                        }
-                    } else {
-                        withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
-                            onComplete()
-                        }
-                    }
-                } label: {
-                    HStack(spacing: 6) {
-                        Text(language.text(step == .install ? "common.finish" : "common.next"))
-                        if step != .install {
-                            Image(systemName: "chevron.right").font(.caption.weight(.semibold))
-                        }
-                    }
-                    .frame(maxWidth: .infinity)
+                VStack(spacing: 10) {
+                    controlButtons
                 }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
             }
+            .frame(maxWidth: 560)
             .padding(.horizontal, 20)
-
-            if step == .language {
-                Text(language.text("onboarding.language_hint"))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
         }
-        .padding(.vertical, 16)
+        .padding(.top, 12)
+        .padding(.bottom, 10)
+        .frame(maxWidth: .infinity)
         .background(.bar)
+        .overlay(alignment: .top) {
+            Divider()
+        }
+    }
+
+    @ViewBuilder
+    private var controlButtons: some View {
+        if step != .language {
+            Button {
+                guard let previousStep = step.prev else { return }
+                navigate(to: previousStep, direction: .backward)
+            } label: {
+                Label(language.text("common.back"), systemImage: "chevron.left")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.large)
+        }
+
+        Button {
+            if let nextStep = step.next {
+                navigate(to: nextStep, direction: .forward)
+            } else {
+                onComplete()
+            }
+        } label: {
+            HStack(spacing: 6) {
+                Text(language.text(step == .install ? "common.finish" : "common.next"))
+                if step != .install {
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.semibold))
+                        .accessibilityHidden(true)
+                }
+            }
+            .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.borderedProminent)
+        .controlSize(.large)
+    }
+
+    private func navigate(to destination: OnboardingStep, direction: OnboardingNavigationDirection) {
+        withAnimation(motionAnimation) {
+            navigationDirection = direction
+            step = destination
+        }
     }
 }
 

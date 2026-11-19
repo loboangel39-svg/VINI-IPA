@@ -322,6 +322,34 @@ enum PatchTransaction {
         }
     }
 
+    static func inspectRestore(
+        receipt: PatchTransactionReceipt,
+        containerResolver: (String) throws -> URL,
+        fileManager: FileManager = .default
+    ) throws -> PatchRestoreInspection {
+        do {
+            let journal = try activeJournal(for: receipt)
+            guard journal.status == .applied else {
+                return PatchRestoreInspection(changedTargets: [])
+            }
+            let roots = try resolvedRoots(
+                journal: journal,
+                containerResolver: containerResolver
+            )
+            let resolved = try resolvedRecords(
+                journal.records,
+                transactionDirectory: receipt.journalURL.deletingLastPathComponent(),
+                roots: roots,
+                fileManager: fileManager
+            )
+            return PatchRestoreInspection(
+                changedTargets: try changedTargets(in: resolved, fileManager: fileManager)
+            )
+        } catch {
+            throw PatchPackageError.restoreFailed
+        }
+    }
+
     static func restore(
         receipt: PatchTransactionReceipt,
         allowChangedTargets: Bool = false,
@@ -379,34 +407,6 @@ enum PatchTransaction {
         } catch let error as PatchPackageError {
             if case .restoreTargetsChanged = error { throw error }
             throw PatchPackageError.restoreFailed
-        } catch {
-            throw PatchPackageError.restoreFailed
-        }
-    }
-
-    static func inspectRestore(
-        receipt: PatchTransactionReceipt,
-        containerResolver: (String) throws -> URL,
-        fileManager: FileManager = .default
-    ) throws -> PatchRestoreInspection {
-        do {
-            let journal = try activeJournal(for: receipt)
-            guard journal.status == .applied else {
-                return PatchRestoreInspection(changedTargets: [])
-            }
-            let roots = try resolvedRoots(
-                journal: journal,
-                containerResolver: containerResolver
-            )
-            let resolved = try resolvedRecords(
-                journal.records,
-                transactionDirectory: receipt.journalURL.deletingLastPathComponent(),
-                roots: roots,
-                fileManager: fileManager
-            )
-            return PatchRestoreInspection(
-                changedTargets: try changedTargets(in: resolved, fileManager: fileManager)
-            )
         } catch {
             throw PatchPackageError.restoreFailed
         }

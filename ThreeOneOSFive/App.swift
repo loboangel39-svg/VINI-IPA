@@ -6,161 +6,19 @@ struct ThreeOneOSFiveApp: App {
     @StateObject private var appState = AppState()
     @StateObject private var patchDraftCoordinator = PatchDraftCoordinator()
     @StateObject private var fileOperationCoordinator = FileOperationCoordinator()
-    @StateObject private var patchManager = PatchManager.shared
     @StateObject private var patchStore = PatchProjectStore()
+    @StateObject private var repositoryStore = PackageRepositoryStore()
     @AppStorage(AppLanguage.storageKey) private var languageCode = AppLanguage.english.rawValue
     @State private var showOnboarding = OnboardingStore.shouldShow()
     @State private var showAttribution = false
     @State private var updateOffer: AppUpdateChecker.Offer?
-    @AppStorage("isLoggedIn") private var isLoggedIn = false
-    @AppStorage("sessionExpiresAt") private var sessionExpiresAt: Double = 0
-    @AppStorage("currentLicenseKey") private var currentLicenseKey: String = ""
-    @State private var isCheckingAutoLogin = true
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     init() {
         setupLogCapture()
-        log("app: 3105 launching - iOS \(AppInfo.osVersion) (\(AppInfo.osBuild)) \(AppInfo.machineName)")
-    }
-
-    var body: some Scene {
-        WindowGroup {
-            Group {
-                if isCheckingAutoLogin {
-                    // Pantalla de carga mientras verifica auto-login
-                    ProgressView("VINI V2")
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else if isLoggedIn {
-                    mainContent
-                } else {
-                    LoginView(onLoginSuccess: { license, expiresAt in
-                        currentLicenseKey = license
-                        isLoggedIn = true
-                        if let expiresAt = expiresAt {
-                            sessionExpiresAt = expiresAt.timeIntervalSince1970
-                        } else {
-                            sessionExpiresAt = 0
-                        }
-                        // Sync patches via PatchManager (VINI V2)
-                        Task {
-                            await patchManager.syncPatches()
-                            await patchStore.loadAssignedPatches()
-                        }
-                    })
-                }
-            }
-            .task {
-                // Intentar auto-login al iniciar
-                await attemptAutoLogin()
-                
-                if isLoggedIn {
-                    await patchManager.syncPatches()
-                    await patchStore.loadAssignedPatches()
-                }
-            }
-        }
-    }
-    
-    // MARK: - Auto-Login
-    // Intenta login automático con credenciales guardadas en Keychain.
-    // Esto permite que al reinstalar la app, el usuario no necesite ingresar nueva licencia.
-    
-    private func attemptAutoLogin() async {
-        // Si ya está logueado, verificar sesión
-        if isLoggedIn {
-            await checkSessionValidityAsync()
-            await MainActor.run { isCheckingAutoLogin = false }
-            return
-        }
-        
-        // Intentar auto-login con Keychain
-        await withCheckedContinuation { continuation in
-            LoginManager.tryAutoLogin { success, licenseKey, expiresAt in
-                Task { @MainActor in
-                    if success, let license = licenseKey {
-                        currentLicenseKey = license
-                        isLoggedIn = true
-                        if let expiresAt = expiresAt {
-                            sessionExpiresAt = expiresAt.timeIntervalSince1970
-                        }
-                        log("app: auto-login successful")
-                    } else {
-                        log("app: auto-login failed, showing login screen")
-                    }
-                    isCheckingAutoLogin = false
-                    continuation.resume()
-                }
-            }
-        }
-    }
-
-    private func checkSessionValidity() {
-        guard isLoggedIn else { return }
-
-        if sessionExpiresAt > 0 {
-            let expirationDate = Date(timeIntervalSince1970: sessionExpiresAt)
-            if Date() > expirationDate {
-                logout()
-                log("app: session expired locally")
-                return
-            }
-        }
-
-        if !currentLicenseKey.isEmpty {
-            LoginManager.verifyLicense(licenseKey: currentLicenseKey) { isValid in
-                if !isValid {
-                    self.logout()
-                    log("app: license invalidated on server")
-                }
-            }
-        }
-    }
-    
-    private func checkSessionValidityAsync() async {
-        guard isLoggedIn else { return }
-
-        if sessionExpiresAt > 0 {
-            let expirationDate = Date(timeIntervalSince1970: sessionExpiresAt)
-            if Date() > expirationDate {
-                await MainActor.run { logout() }
-                log("app: session expired locally")
-                return
-            }
-        }
-
-        if !currentLicenseKey.isEmpty {
-            await withCheckedContinuation { continuation in
-                LoginManager.verifyLicense(licenseKey: currentLicenseKey) { isValid in
-                    if !isValid {
-                        Task { @MainActor in
-                            logout()
-                            log("app: license invalidated on server")
-                        }
-                    }
-                    continuation.resume()
-                }
-            }
-        }
-    }
-
-    private func logout() {
-        isLoggedIn = false
-        sessionExpiresAt = 0
-        currentLicenseKey = ""
-        RemotePatchService.shared.clearAuth()
-        LoginManager.clearSession()
-        log("app: user logged out")
-    }
-    
-    /// Logout completo: borra TODAS las credenciales incluyendo Keychain.
-    /// Requiere nueva licencia para volver a entrar.
-    func forceLogout() {
-        isLoggedIn = false
-        sessionExpiresAt = 0
-        currentLicenseKey = ""
-        RemotePatchService.shared.clearAuth()
-        LoginManager.clearAllCredentials()
-        log("app: force logout - all credentials cleared")
+        WQIntegratedInitialize()
+        log("app: 3105 launching — iOS \(AppInfo.osVersion) (\(AppInfo.osBuild)) \(AppInfo.machineName)")
     }
 
     private var language: AppLanguage {
@@ -174,72 +32,68 @@ struct ThreeOneOSFiveApp: App {
         }
     }
 
-    @ViewBuilder
-    private var mainContent: some View {
-        ZStack {
-            ContentView()
-                .environmentObject(appState)
-                .environmentObject(patchDraftCoordinator)
-                .environmentObject(fileOperationCoordinator)
-                .environmentObject(patchStore)
-                .environmentObject(patchManager)
-                .environment(\.appLanguage, language)
-                .environment(\.locale, language.locale)
-                .opacity(showOnboarding ? 0 : 1)
-                .allowsHitTesting(!showOnboarding)
+    var body: some Scene {
+        WindowGroup {
+            ZStack {
+                ContentView()
+                    .environmentObject(appState)
+                    .environmentObject(patchDraftCoordinator)
+                    .environmentObject(fileOperationCoordinator)
+                    .environmentObject(patchStore)
+                    .environmentObject(repositoryStore)
+                    .environment(\.appLanguage, language)
+                    .environment(\.locale, language.locale)
+                    .opacity(showOnboarding ? 0 : 1)
+                    .allowsHitTesting(!showOnboarding)
 
-            if showOnboarding {
-                OnboardingView {
-                    OnboardingStore.markCompleted()
-                    withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
-                        showOnboarding = false
+                if showOnboarding {
+                    OnboardingView {
+                        OnboardingStore.markCompleted()
+                        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.24)) {
+                            showOnboarding = false
+                        }
+                        appState.detectSupport()
+                        checkForUpdate()
                     }
+                    .environment(\.appLanguage, language)
+                    .environment(\.locale, language.locale)
+                    .transition(
+                        reduceMotion
+                            ? .opacity
+                            : .opacity.combined(with: .scale(scale: 0.98))
+                    )
+                    .zIndex(1)
+                }
+            }
+            .displayIdentityAttribution(isPresented: $showAttribution, enabled: !showOnboarding)
+            .sheet(isPresented: $showAttribution) {
+                DisplayAttributionSheet()
+            }
+            .alert(item: $updateOffer) { offer in
+                Alert(
+                    title: Text(language.text("update.title")),
+                    message: Text(language.text("update.message", offer.version)),
+                    primaryButton: .default(Text(language.text("update.agree"))) {
+                        UIApplication.shared.open(offer.url)
+                    },
+                    secondaryButton: .cancel(Text(language.text("update.dismiss"))) {
+                        AppUpdateChecker.dismiss(version: offer.version)
+                    }
+                )
+            }
+            .onAppear {
+                if !showOnboarding {
                     appState.detectSupport()
                     checkForUpdate()
                 }
-                .environment(\.appLanguage, language)
-                .environment(\.locale, language.locale)
-                .transition(.opacity.combined(with: .scale(scale: 0.98)))
-                .zIndex(1)
             }
-        }
-        .displayIdentityAttribution(isPresented: $showAttribution, enabled: !showOnboarding)
-        .sheet(isPresented: $showAttribution) {
-            DisplayAttributionSheet()
-        }
-        .alert(item: $updateOffer) { offer in
-            Alert(
-                title: Text(language.text("update.title")),
-                message: Text(language.text("update.message", offer.version)),
-                primaryButton: .default(Text(language.text("update.agree"))) {
-                    UIApplication.shared.open(offer.url)
-                },
-                secondaryButton: .cancel(Text(language.text("update.dismiss"))) {
-                    AppUpdateChecker.dismiss(version: offer.version)
-                }
-            )
-        }
-        .onAppear {
-            if !showOnboarding {
+            .onChange(of: scenePhase) { phase in
+                guard phase == .active, !showOnboarding else { return }
                 appState.detectSupport()
-                checkForUpdate()
             }
-        }
-        .onChange(of: scenePhase) { phase in
-            guard phase == .active else { return }
-            checkSessionValidity()
-            if isLoggedIn && !showOnboarding {
-                appState.detectSupport()
-                // Sync patches cuando la app vuelve a primer plano
-                // para detectar patches revocados
-                Task {
-                    await patchManager.syncPatches()
-                    await patchStore.loadAssignedPatches()
-                }
+            .onOpenURL { url in
+                patchDraftCoordinator.presentImport(url)
             }
-        }
-        .onOpenURL { url in
-            patchDraftCoordinator.presentImport(url)
         }
     }
 }
@@ -307,6 +161,8 @@ class AppState: ObservableObject {
     private func refreshKernelExploitStatus() {
         guard !kernelExploitRunning else { return }
 
+        // iOS < 26: kernel R/W success persists (no sandbox probe)
+        // iOS >= 26: verify full sandbox escape is still active
         if KernelExploit.requiresSandboxEscape {
             if KernelExploit.hasSandboxAccess() {
                 if !exploitStatus.isSuccess {
@@ -335,13 +191,13 @@ class AppState: ObservableObject {
                 if ok {
                     self.exploitStatus = .success(method: "kexploit")
                     if KernelExploit.requiresSandboxEscape {
-                        log("app: kernel exploit success - sandbox access verified")
+                        log("app: kernel exploit success — sandbox access verified")
                     } else {
-                        log("app: kernel exploit success - kernel access active")
+                        log("app: kernel exploit success — kernel access active")
                     }
                 } else {
                     self.exploitStatus = .failed(method: "kexploit", code: -1)
-                    log("app: kernel exploit failed - relaunch the app before retrying")
+                    log("app: kernel exploit failed — relaunch the app before retrying")
                 }
             }
         }

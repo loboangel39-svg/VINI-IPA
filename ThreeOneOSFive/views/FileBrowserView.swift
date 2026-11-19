@@ -35,11 +35,22 @@ struct FileBrowserView: View {
     @State private var transferSession: FileTransferSession?
     @State private var transferConflict: FileTransferConflict?
     @State private var deleteTargets: [FileEntry] = []
+    @AppStorage(FileBrowserSortOrder.storageKey)
+    private var sortOrderRaw = FileBrowserSortOrder.nameAscending.rawValue
 
     private var filteredEntries: [FileEntry] {
         let query = fileSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !query.isEmpty else { return entries }
-        return entries.filter { $0.name.localizedCaseInsensitiveContains(query) }
+        let filtered = query.isEmpty
+            ? entries
+            : entries.filter { $0.name.localizedCaseInsensitiveContains(query) }
+        return FileBrowserSortPolicy.sorted(
+            filtered,
+            order: sortOrder,
+            name: \.name,
+            isDirectory: \.isDirectory,
+            size: \.size,
+            modifiedAt: \.modifiedAt
+        )
     }
 
     private var selectedEntries: [FileEntry] {
@@ -128,6 +139,9 @@ struct FileBrowserView: View {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     FilesTabToolbarButton(session: filesTabSession)
                 }
+            }
+            ToolbarItem(placement: .navigationBarTrailing) {
+                sortMenu
             }
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button(isSelecting
@@ -351,6 +365,27 @@ struct FileBrowserView: View {
                 dismissButton: .default(Text(language.text("common.done")))
             )
         }
+    }
+
+    private var sortOrder: FileBrowserSortOrder {
+        FileBrowserSortOrder(rawValue: sortOrderRaw) ?? .nameAscending
+    }
+
+    private var sortMenu: some View {
+        Menu {
+            Picker(language.text("browser.sort"), selection: $sortOrderRaw) {
+                ForEach(FileBrowserSortOrder.allCases) { order in
+                    Label(
+                        language.text(order.localizationKey),
+                        systemImage: order.systemImage
+                    )
+                    .tag(order.rawValue)
+                }
+            }
+        } label: {
+            Image(systemName: "arrow.up.arrow.down")
+        }
+        .accessibilityLabel(language.text("browser.sort"))
     }
 
     @ViewBuilder
@@ -1141,26 +1176,35 @@ struct FileBrowserView: View {
         let path = currentPath
         let targetBundleID = bundleID
         DispatchQueue.global(qos: .userInitiated).async {
+            var accessSession: ContainerAccessSession?
             if shouldGrant {
-                var handle: Int64 = -1
-                if ContainerAccessPolicy.shouldAttemptMCM(bundleID: targetBundleID),
-                   let targetBundleID {
-                    var activationError: NSString?
-                    handle = MCMActivateContainer(2, targetBundleID, false, &activationError)
-                    let detail = activationError.map { String($0) } ?? "none"
-                    log("filebrowser: MCM activate \(targetBundleID) -> \(handle), detail=\(detail)")
-                }
-                if handle < 0 {
-                    handle = ContainerStore.grantContainerAccess(path)
-                    log("filebrowser: traversal grant \(path) -> \(handle)")
+                do {
+                    accessSession = try ContainerAccessCoordinator.acquire(
+                        bundleID: targetBundleID, containerPath: path, operation: .read
+                    ).get()
+                    log("filebrowser: shared access provider=\(accessSession?.provider ?? "none") path=\(path)")
+                } catch {
+                    log("filebrowser: shared access unavailable path=\(path) detail=\(error.localizedDescription)")
                 }
             }
+            _ = accessSession
             let loadedEntries = ContainerStore.listFiles(at: path)
             DispatchQueue.main.async {
                 guard currentPath == path else { return }
                 entries = loadedEntries
                 selectedEntryIDs.formIntersection(Set(loadedEntries.map(\.id)))
                 isLoadingEntries = false
+            }
+            for directory in loadedEntries where directory.isDirectory {
+                let summary = try? FileBrowserMetadataScanner.directorySummary(
+                    at: URL(fileURLWithPath: directory.path, isDirectory: true)
+                )
+                DispatchQueue.main.async {
+                    guard currentPath == path,
+                          let index = entries.firstIndex(where: { $0.id == directory.id })
+                    else { return }
+                    entries[index] = directory.withDirectorySummary(summary)
+                }
             }
         }
     }
@@ -1457,6 +1501,35 @@ private struct FileEntryRow: View {
         return AppTheme.accent
     }
 
+    private var detailText: String {
+        var components: [String] = []
+        if entry.isDirectory {
+            switch entry.size {
+            case -1:
+                components.append(language.text("browser.calculating_size"))
+            case -2:
+                components.append(language.text("browser.size_unavailable"))
+            default:
+                components.append(entry.sizeText)
+            }
+            if let childCount = entry.childCount {
+                components.append(language.text("browser.children_count", Int64(childCount)))
+            }
+        } else {
+            components.append(entry.sizeText)
+        }
+        if let modifiedAt = entry.modifiedAt {
+            components.append(
+                DateFormatter.localizedString(
+                    from: modifiedAt,
+                    dateStyle: .short,
+                    timeStyle: .short
+                )
+            )
+        }
+        return components.joined(separator: " · ")
+    }
+
     var body: some View {
         HStack(spacing: 11) {
             AppRowIcon(
@@ -1471,9 +1544,11 @@ private struct FileEntryRow: View {
                     .font(.subheadline.weight(.semibold))
                     .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
                     .truncationMode(.middle)
-                Text(entry.isDirectory ? language.text("browser.folder") : entry.sizeText)
+                Text(detailText)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
             }
 
             Spacer(minLength: 4)

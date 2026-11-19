@@ -25,11 +25,40 @@ struct FileEntry: Identifiable, Hashable {
     let path: String
     let isDirectory: Bool
     let size: Int64
+    let modifiedAt: Date?
+    let childCount: Int?
 
     var id: String { path }
     var sizeText: String {
-        if isDirectory { return "—" }
+        guard size >= 0 else { return "—" }
         return ByteCountFormatter.string(fromByteCount: size, countStyle: .file)
+    }
+
+    init(
+        name: String,
+        path: String,
+        isDirectory: Bool,
+        size: Int64,
+        modifiedAt: Date? = nil,
+        childCount: Int? = nil
+    ) {
+        self.name = name
+        self.path = path
+        self.isDirectory = isDirectory
+        self.size = size
+        self.modifiedAt = modifiedAt
+        self.childCount = childCount
+    }
+
+    func withDirectorySummary(_ summary: FileBrowserDirectorySummary?) -> FileEntry {
+        FileEntry(
+            name: name,
+            path: path,
+            isDirectory: isDirectory,
+            size: summary?.byteCount ?? -2,
+            modifiedAt: modifiedAt,
+            childCount: summary?.childCount
+        )
     }
 }
 
@@ -74,6 +103,16 @@ enum ContainerStore {
         let detail = lookupError.map(String.init) ?? "unavailable"
         log("patch: MHA-C2 could not resolve \(bundleID), detail=\(detail)")
 
+        if #available(iOS 26.0, *) {
+            wq_load_display_names()
+            for path in wq_ls_container_paths(nil) ?? [] {
+                guard isApplicationContainerPath(path),
+                      wq_bundle_id_for_container(path) == bundleID else { continue }
+                log("patch: WQFiles resolved \(bundleID)")
+                return ContainerDiscoveryMerger.canonicalPath(path)
+            }
+        }
+
         // Fallback for iOS builds where MCM refuses to hand out sandbox
         // tokens (e.g. iOS 18.1.x): scan the app-data root with the inode
         // walk and read each container's MCM metadata plist directly. The
@@ -87,7 +126,7 @@ enum ContainerStore {
 
     static func resolveAppContainerPathByMetadataScan(bundleID: String) -> String? {
         // iOS < 26: kernel R/W is enough, no need to require full sandbox escape
-        if KernelExploit.requiresSandboxEscape, !KernelExploit.hasSandboxAccess() {
+        if !shouldUseBadQuery, KernelExploit.requiresSandboxEscape, !KernelExploit.hasSandboxAccess() {
             log("patch: metadata scan skipped — sandbox access not active")
             return nil
         }
@@ -413,7 +452,7 @@ enum ContainerStore {
 
     // MARK: Filesystem discovery
 
-    static func enumerateDirectories(path: String, maxInode: Int64 = 2_000_000) -> [String] {
+    static func enumerateDirectories(path: String, maxInode: Int64 = 0) -> [String] {
         let clean = path.hasSuffix("/") ? String(path.dropLast()) : path
         guard clean.hasPrefix("/") else { return [] }
 
@@ -421,8 +460,12 @@ enum ContainerStore {
             return names.map { (clean as NSString).appendingPathComponent($0) }
         }
 
+        if #available(iOS 26.0, *) {
+            return wq_enumerate(clean, maxInode, nil, nil) ?? []
+        }
+
         var pathC = clean.utf8CString.map { Int8($0) }
-        guard let result = bad_query_list(&pathC, maxInode) else {
+        guard let result = bad_query_list(&pathC, maxInode == 0 ? 2_000_000 : maxInode) else {
             log("enumerate: NULL for \(clean)")
             return []
         }
@@ -461,7 +504,8 @@ enum ContainerStore {
         let metadataPath = metadataPath(for: containerPath)
 
         var data: Data?
-        if let fd = fopen(metadataPath, "r") {
+        if #available(iOS 26.0, *) { data = wq_read(metadataPath, 65536, nil) }
+        if data == nil, let fd = fopen(metadataPath, "r") {
             var buffer = [UInt8](repeating: 0, count: 65536)
             var bytes: [UInt8] = []
             while true {
@@ -693,8 +737,19 @@ enum ContainerStore {
             let full = (path as NSString).appendingPathComponent(item)
             var isDir: ObjCBool = false
             guard fm.fileExists(atPath: full, isDirectory: &isDir) else { continue }
-            let size = isDir.boolValue ? 0 : ((try? fm.attributesOfItem(atPath: full)[.size] as? Int64) ?? 0)
-            entries.append(FileEntry(name: item, path: full, isDirectory: isDir.boolValue, size: size))
+            let attributes = try? fm.attributesOfItem(atPath: full)
+            let size = isDir.boolValue
+                ? -1
+                : (attributes?[.size] as? NSNumber)?.int64Value ?? 0
+            entries.append(
+                FileEntry(
+                    name: item,
+                    path: full,
+                    isDirectory: isDir.boolValue,
+                    size: size,
+                    modifiedAt: attributes?[.modificationDate] as? Date
+                )
+            )
         }
         return entries.sorted {
             if $0.isDirectory != $1.isDirectory { return $0.isDirectory }

@@ -15,7 +15,14 @@
 		3105A206 /* SBX.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3105A026; };
 		3105A207 /* MG.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3105A027; };
 		3105A209 /* bad_query.c in Sources */ = {isa = PBXBuildFile; fileRef = 3105A029; };
+		3105A212 /* worse_query.m in Sources */ = {isa = PBXBuildFile; fileRef = 3105A032; };
+		3105A213 /* worse_query_adapter.m in Sources */ = {isa = PBXBuildFile; fileRef = 3105A033; };
+		3105A244 /* WQLaunchServicesPhase1.m in Sources */ = {isa = PBXBuildFile; fileRef = 3105A117; };
+		3105A245 /* WQBundleIdentityCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3105A119; };
+		3105A246 /* WQIdentityHealth.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3105A123; };
 		3105A210 /* mcm_bridge.m in Sources */ = {isa = PBXBuildFile; fileRef = 3105A030; };
+		3105A242 /* ContainerAccessCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3105A114; };
+		3105A243 /* WQFilesIdentityResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3105A115; };
 		3105A220 /* kexploit_opa334.m in Sources */ = {isa = PBXBuildFile; fileRef = 3105A080; };
 		3105A221 /* offsets.m in Sources */ = {isa = PBXBuildFile; fileRef = 3105A081; };
 		3105A222 /* krw.m in Sources */ = {isa = PBXBuildFile; fileRef = 3105A082; };
@@ -64,24 +71,36 @@
 		3105H200 /* AppTabNavigationState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3105H100; };
 		3105I200 /* FilesTabControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3105I100; };
 		3105I201 /* FilesTabSwitcherView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3105I101; };
-		3105L200 /* LoginManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3105L100; };
-		3105T200 /* TokenRefreshManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3105T100; };
-		3105L201 /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3105L101; };
-		3105M201 /* PatchSyncManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3105M101; };
-		3105P200 /* PatchDownloadService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3105P100; };
-		3105P201 /* PatchManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3105P101; };
-		3105P202 /* PatchStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3105P102; };
-		3105P203 /* RemotePatchService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3105P103; };
-		3105S200 /* MessageService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3105S100; };
-		3105K200 /* RemoteConfigService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3105K100; };
-		3105V200 /* MessagesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3105V100; };
-		3105V201 /* ConfigView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3105V101; };
-		3105V202 /* RemotePatchesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3105V102; };
-		3105K201 /* KeychainManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3105K101; };
+		3105K200 /* FileBrowserMetadata.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3105K100; };
+		3105L200 /* PackageRepositoryModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3105L100; };
+		3105L201 /* PackageRepositoryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3105L101; };
+		3105L202 /* RepositoryMarketplaceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3105L102; };
+		3105L203 /* RepositoryHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3105L103; };
+		3105L204 /* RepositorySourcesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3105L104; };
+		3105L205 /* RepositoryPresentationSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3105L105; };
 		3105A233 /* ContainerStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3105A104; };
 		3105A234 /* AppDataBrowserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3105A105; };
 		3105A228 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = 3105A120; };
 		3105A211 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 3105A031; };
+		AB1050010000000000000001 /* WQAccess.m in Sources */ = {isa = PBXBuildFile; fileRef = AB1050000000000000000001; };
+		AB1050010000000000000004 /* WQApps.m in Sources */ = {isa = PBXBuildFile; fileRef = AB1050000000000000000004; };
+		AB1050010000000000000007 /* WQArchive.m in Sources */ = {isa = PBXBuildFile; fileRef = AB1050000000000000000007; };
+		AB1050010000000000000009 /* WQCache.m in Sources */ = {isa = PBXBuildFile; fileRef = AB1050000000000000000009; };
+		AB105001000000000000000C /* WQCore.m in Sources */ = {isa = PBXBuildFile; fileRef = AB105000000000000000000C; };
+		AB1050010000000000000010 /* WQEmbedded.m in Sources */ = {isa = PBXBuildFile; fileRef = AB1050000000000000000010; };
+		AB1050010000000000000012 /* WQHealth.m in Sources */ = {isa = PBXBuildFile; fileRef = AB1050000000000000000012; };
+		AB1050010000000000000014 /* WQHexViewer.m in Sources */ = {isa = PBXBuildFile; fileRef = AB1050000000000000000014; };
+		AB1050010000000000000017 /* WQLaunchServices.m in Sources */ = {isa = PBXBuildFile; fileRef = AB1050000000000000000017; };
+		AB1050010000000000000019 /* WQLocalization.m in Sources */ = {isa = PBXBuildFile; fileRef = AB1050000000000000000019; };
+		AB105001000000000000001B /* WQMediaStream.m in Sources */ = {isa = PBXBuildFile; fileRef = AB105000000000000000001B; };
+		AB105001000000000000001D /* WQPlistEditor.m in Sources */ = {isa = PBXBuildFile; fileRef = AB105000000000000000001D; };
+		AB1050010000000000000020 /* WQSharing.m in Sources */ = {isa = PBXBuildFile; fileRef = AB1050000000000000000020; };
+		AB1050010000000000000022 /* WQSQLiteSave.m in Sources */ = {isa = PBXBuildFile; fileRef = AB1050000000000000000022; };
+		AB1050010000000000000025 /* WQSQLiteViewer.m in Sources */ = {isa = PBXBuildFile; fileRef = AB1050000000000000000025; };
+		AB1050010000000000000027 /* WQSyntax.m in Sources */ = {isa = PBXBuildFile; fileRef = AB1050000000000000000027; };
+		AB1050010000000000000029 /* WQTrash.m in Sources */ = {isa = PBXBuildFile; fileRef = AB1050000000000000000029; };
+		AB105001000000000000002B /* WQUI.m in Sources */ = {isa = PBXBuildFile; fileRef = AB105000000000000000002B; };
+		AB1050020000000000000002 = {isa = PBXBuildFile; fileRef = AB1050020000000000000001; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -95,6 +114,10 @@
 		3105A027 /* MG.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MG.swift; sourceTree = "<group>"; };
 		3105A029 /* bad_query.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = bad_query.c; sourceTree = "<group>"; };
 		3105A030 /* mcm_bridge.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = mcm_bridge.m; sourceTree = "<group>"; };
+		3105A032 /* worse_query.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = worse_query.m; sourceTree = "<group>"; };
+		3105A034 /* worse_query.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = worse_query.h; sourceTree = "<group>"; };
+		3105A033 /* worse_query_adapter.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = worse_query_adapter.m; sourceTree = "<group>"; };
+		3105A035 /* worse_query_adapter.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = worse_query_adapter.h; sourceTree = "<group>"; };
 		3105A031 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		3105A040 /* bad_query.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = bad_query.h; sourceTree = "<group>"; };
 		3105A041 /* mcm_bridge.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = mcm_bridge.h; sourceTree = "<group>"; };
@@ -117,6 +140,13 @@
 		3105A098 /* DesignSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignSystem.swift; sourceTree = "<group>"; };
 		3105A099 /* Localization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Localization.swift; sourceTree = "<group>"; };
 		3105A104 /* ContainerStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContainerStore.swift; sourceTree = "<group>"; };
+		3105A114 /* ContainerAccessCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContainerAccessCoordinator.swift; sourceTree = "<group>"; };
+		3105A115 /* WQFilesIdentityResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WQFilesIdentityResolver.swift; sourceTree = "<group>"; };
+		3105A116 /* 3105-Experimental.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "3105-Experimental.entitlements"; sourceTree = "<group>"; };
+		3105A117 /* WQLaunchServicesPhase1.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WQLaunchServicesPhase1.m; sourceTree = "<group>"; };
+		3105A118 /* WQLaunchServicesPhase1.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WQLaunchServicesPhase1.h; sourceTree = "<group>"; };
+		3105A119 /* WQBundleIdentityCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WQBundleIdentityCoordinator.swift; sourceTree = "<group>"; };
+		3105A123 /* WQIdentityHealth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WQIdentityHealth.swift; sourceTree = "<group>"; };
 		3105A105 /* AppDataBrowserView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDataBrowserView.swift; sourceTree = "<group>"; };
 		3105A106 /* AppIconHelper.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = AppIconHelper.m; sourceTree = "<group>"; };
 		3105A107 /* AppIconHelper.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AppIconHelper.h; sourceTree = "<group>"; };
@@ -161,24 +191,61 @@
 		3105H100 /* AppTabNavigationState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppTabNavigationState.swift; sourceTree = "<group>"; };
 		3105I100 /* FilesTabControls.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilesTabControls.swift; sourceTree = "<group>"; };
 		3105I101 /* FilesTabSwitcherView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilesTabSwitcherView.swift; sourceTree = "<group>"; };
-		3105L100 /* LoginManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginManager.swift; sourceTree = "<group>"; };
-		3105T100 /* TokenRefreshManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenRefreshManager.swift; sourceTree = "<group>"; };
-		3105L101 /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
-		3105M101 /* PatchSyncManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatchSyncManager.swift; sourceTree = "<group>"; };
-		3105P100 /* PatchDownloadService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatchDownloadService.swift; sourceTree = "<group>"; };
-		3105P101 /* PatchManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatchManager.swift; sourceTree = "<group>"; };
-		3105P102 /* PatchStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatchStorage.swift; sourceTree = "<group>"; };
-		3105P103 /* RemotePatchService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemotePatchService.swift; sourceTree = "<group>"; };
-		3105S100 /* MessageService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageService.swift; sourceTree = "<group>"; };
-		3105K100 /* RemoteConfigService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteConfigService.swift; sourceTree = "<group>"; };
-		3105K101 /* KeychainManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainManager.swift; sourceTree = "<group>"; };
-		3105V100 /* MessagesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessagesView.swift; sourceTree = "<group>"; };
-		3105V101 /* ConfigView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigView.swift; sourceTree = "<group>"; };
-		3105V102 /* RemotePatchesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemotePatchesView.swift; sourceTree = "<group>"; };
+		3105K100 /* FileBrowserMetadata.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileBrowserMetadata.swift; sourceTree = "<group>"; };
+		3105L100 /* PackageRepositoryModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PackageRepositoryModels.swift; sourceTree = "<group>"; };
+		3105L101 /* PackageRepositoryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PackageRepositoryStore.swift; sourceTree = "<group>"; };
+		3105L102 /* RepositoryMarketplaceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RepositoryMarketplaceView.swift; sourceTree = "<group>"; };
+		3105L103 /* RepositoryHomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RepositoryHomeView.swift; sourceTree = "<group>"; };
+		3105L104 /* RepositorySourcesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RepositorySourcesView.swift; sourceTree = "<group>"; };
+		3105L105 /* RepositoryPresentationSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RepositoryPresentationSupport.swift; sourceTree = "<group>"; };
 		3105A121 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/Localizable.strings; sourceTree = "<group>"; };
 		3105A122 /* vi */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = vi; path = vi.lproj/Localizable.strings; sourceTree = "<group>"; };
 		3105B123 /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/Localizable.strings"; sourceTree = "<group>"; };
-		3105C124 /* es */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = es; path = es.lproj/Localizable.strings; sourceTree = "<group>"; };
+		AB1050000000000000000000 /* WQAccess.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WQAccess.h; sourceTree = "<group>"; };
+		AB1050000000000000000001 /* WQAccess.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WQAccess.m; sourceTree = "<group>"; };
+		AB1050000000000000000002 /* WQAccessSafety.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WQAccessSafety.h; sourceTree = "<group>"; };
+		AB1050000000000000000003 /* WQApps.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WQApps.h; sourceTree = "<group>"; };
+		AB1050000000000000000004 /* WQApps.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WQApps.m; sourceTree = "<group>"; };
+		AB1050000000000000000005 /* WQAppsSupport.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WQAppsSupport.h; sourceTree = "<group>"; };
+		AB1050000000000000000006 /* WQArchive.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WQArchive.h; sourceTree = "<group>"; };
+		AB1050000000000000000007 /* WQArchive.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WQArchive.m; sourceTree = "<group>"; };
+		AB1050000000000000000008 /* WQCache.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WQCache.h; sourceTree = "<group>"; };
+		AB1050000000000000000009 /* WQCache.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WQCache.m; sourceTree = "<group>"; };
+		AB105000000000000000000A /* WQCacheSafety.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WQCacheSafety.h; sourceTree = "<group>"; };
+		AB105000000000000000000B /* WQCore.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WQCore.h; sourceTree = "<group>"; };
+		AB105000000000000000000C /* WQCore.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WQCore.m; sourceTree = "<group>"; };
+		AB105000000000000000000D /* WQDir.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WQDir.h; sourceTree = "<group>"; };
+		AB105000000000000000000E /* WQEditing.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WQEditing.h; sourceTree = "<group>"; };
+		AB105000000000000000000F /* WQEmbedded.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WQEmbedded.h; sourceTree = "<group>"; };
+		AB1050000000000000000010 /* WQEmbedded.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WQEmbedded.m; sourceTree = "<group>"; };
+		AB1050000000000000000011 /* WQHealth.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WQHealth.h; sourceTree = "<group>"; };
+		AB1050000000000000000012 /* WQHealth.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WQHealth.m; sourceTree = "<group>"; };
+		AB1050000000000000000013 /* WQHexViewer.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WQHexViewer.h; sourceTree = "<group>"; };
+		AB1050000000000000000014 /* WQHexViewer.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WQHexViewer.m; sourceTree = "<group>"; };
+		AB1050000000000000000015 /* WQHexViewerHelpers.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WQHexViewerHelpers.h; sourceTree = "<group>"; };
+		AB1050000000000000000016 /* WQLaunchServices.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WQLaunchServices.h; sourceTree = "<group>"; };
+		AB1050000000000000000017 /* WQLaunchServices.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WQLaunchServices.m; sourceTree = "<group>"; };
+		AB1050000000000000000018 /* WQLocalization.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WQLocalization.h; sourceTree = "<group>"; };
+		AB1050000000000000000019 /* WQLocalization.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WQLocalization.m; sourceTree = "<group>"; };
+		AB105000000000000000001A /* WQMediaStream.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WQMediaStream.h; sourceTree = "<group>"; };
+		AB105000000000000000001B /* WQMediaStream.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WQMediaStream.m; sourceTree = "<group>"; };
+		AB105000000000000000001C /* WQPlistEditor.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WQPlistEditor.h; sourceTree = "<group>"; };
+		AB105000000000000000001D /* WQPlistEditor.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WQPlistEditor.m; sourceTree = "<group>"; };
+		AB105000000000000000001E /* WQPlistEditorSupport.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WQPlistEditorSupport.h; sourceTree = "<group>"; };
+		AB105000000000000000001F /* WQSharing.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WQSharing.h; sourceTree = "<group>"; };
+		AB1050000000000000000020 /* WQSharing.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WQSharing.m; sourceTree = "<group>"; };
+		AB1050000000000000000021 /* WQSQLiteSave.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WQSQLiteSave.h; sourceTree = "<group>"; };
+		AB1050000000000000000022 /* WQSQLiteSave.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WQSQLiteSave.m; sourceTree = "<group>"; };
+		AB1050000000000000000023 /* WQSQLiteSupport.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WQSQLiteSupport.h; sourceTree = "<group>"; };
+		AB1050000000000000000024 /* WQSQLiteViewer.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WQSQLiteViewer.h; sourceTree = "<group>"; };
+		AB1050000000000000000025 /* WQSQLiteViewer.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WQSQLiteViewer.m; sourceTree = "<group>"; };
+		AB1050000000000000000026 /* WQSyntax.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WQSyntax.h; sourceTree = "<group>"; };
+		AB1050000000000000000027 /* WQSyntax.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WQSyntax.m; sourceTree = "<group>"; };
+		AB1050000000000000000028 /* WQTrash.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WQTrash.h; sourceTree = "<group>"; };
+		AB1050000000000000000029 /* WQTrash.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WQTrash.m; sourceTree = "<group>"; };
+		AB105000000000000000002A /* WQUI.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WQUI.h; sourceTree = "<group>"; };
+		AB105000000000000000002B /* WQUI.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WQUI.m; sourceTree = "<group>"; };
+		AB1050020000000000000001 = {isa = PBXFileReference; lastKnownFileType = wrapper.cfbundle; path = WQFilesResources.bundle; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -196,6 +263,7 @@
 			isa = PBXGroup;
 			children = (
 				3105A401 /* ThreeOneOSFive */,
+                AB1050020000000000000003,
 				3105A402 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -204,6 +272,7 @@
 			isa = PBXGroup;
 			children = (
 				3105A050 /* ThreeOneOSFive-Bridging-Header.h */,
+                AB1050020000000000000001,
 				3105A060 /* Info.plist */,
 				3105A020 /* App.swift */,
 				3105A021 /* ContentView.swift */,
@@ -211,10 +280,6 @@
 				3105A404 /* views */,
 				3105A405 /* helpers */,
 				3105A406 /* kexploit */,
-				3105P400 /* Patches */,
-				3105S400 /* Messages */,
-				3105K400 /* Config */,
-				3105A407 /* Authentication */,
 				3105A120 /* Localizable.strings */,
 				3105A031 /* Assets.xcassets */,
 			);
@@ -234,6 +299,12 @@
 			children = (
 				3105A029 /* bad_query.c */,
 				3105A040 /* bad_query.h */,
+				3105A032 /* worse_query.m */,
+				3105A034 /* worse_query.h */,
+				3105A033 /* worse_query_adapter.m */,
+				3105A035 /* worse_query_adapter.h */,
+				3105A117 /* WQLaunchServicesPhase1.m */,
+				3105A118 /* WQLaunchServicesPhase1.h */,
 				3105A030 /* mcm_bridge.m */,
 				3105A041 /* mcm_bridge.h */,
 				3105F100 /* wallpaper_zip.c */,
@@ -258,10 +329,9 @@
 				3105E101 /* CleanerView.swift */,
 				3105F106 /* WallpaperLabView.swift */,
 				3105F108 /* OnboardingView.swift */,
-				3105L101 /* LoginView.swift */,
-				3105V100 /* MessagesView.swift */,
-				3105V101 /* ConfigView.swift */,
-				3105V102 /* RemotePatchesView.swift */,
+				3105L102 /* RepositoryMarketplaceView.swift */,
+				3105L103 /* RepositoryHomeView.swift */,
+				3105L104 /* RepositorySourcesView.swift */,
 			);
 			path = views;
 			sourceTree = "<group>";
@@ -271,6 +341,11 @@
 			children = (
 				3105A099 /* Localization.swift */,
 				3105A104 /* ContainerStore.swift */,
+				3105A114 /* ContainerAccessCoordinator.swift */,
+				3105A115 /* WQFilesIdentityResolver.swift */,
+				3105A116 /* 3105-Experimental.entitlements */,
+				3105A119 /* WQBundleIdentityCoordinator.swift */,
+				3105A123 /* WQIdentityHealth.swift */,
 				3105A108 /* ContainerIdentityResolver.swift */,
 				3105A109 /* ContainerBrowserLogic.swift */,
 				3105A110 /* FileReplacementService.swift */,
@@ -278,6 +353,10 @@
 				3105G100 /* ZIPArchiveWriter.swift */,
 				3105G102 /* ZIPArchiveExtractor.swift */,
 				3105G101 /* FileOperationCoordinator.swift */,
+				3105K100 /* FileBrowserMetadata.swift */,
+				3105L100 /* PackageRepositoryModels.swift */,
+				3105L101 /* PackageRepositoryStore.swift */,
+				3105L105 /* RepositoryPresentationSupport.swift */,
 				3105A113 /* SupportPolicy.swift */,
 				3105B114 /* PatchProjectModels.swift */,
 				3105B115 /* PatchPackageCodec.swift */,
@@ -306,9 +385,6 @@
 				3105A025 /* Utils.swift */,
 				3105A026 /* SBX.swift */,
 				3105A027 /* MG.swift */,
-				3105L100 /* LoginManager.swift */,
-				3105T100 /* TokenRefreshManager.swift */,
-				3105M101 /* PatchSyncManager.swift */,
 			);
 			path = helpers;
 			sourceTree = "<group>";
@@ -334,41 +410,52 @@
 			path = kexploit;
 			sourceTree = "<group>";
 		};
-		3105P400 /* Patches */ = {
-			isa = PBXGroup;
-			children = (
-				3105P100 /* PatchDownloadService.swift */,
-				3105P101 /* PatchManager.swift */,
-				3105P102 /* PatchStorage.swift */,
-				3105P103 /* RemotePatchService.swift */,
-			);
-			path = Patches;
-			sourceTree = "<group>";
-		};
-		3105S400 /* Messages */ = {
-			isa = PBXGroup;
-			children = (
-				3105S100 /* MessageService.swift */,
-			);
-			path = Messages;
-			sourceTree = "<group>";
-		};
-		3105K400 /* Config */ = {
-			isa = PBXGroup;
-			children = (
-				3105K100 /* RemoteConfigService.swift */,
-			);
-			path = Config;
-			sourceTree = "<group>";
-		};
-		3105A407 /* Authentication */ = {
-			isa = PBXGroup;
-			children = (
-				3105K101 /* KeychainManager.swift */,
-			);
-			path = Authentication;
-			sourceTree = "<group>";
-		};
+		AB1050020000000000000003 = {isa = PBXGroup; children = (
+				AB1050000000000000000000,
+				AB1050000000000000000001,
+				AB1050000000000000000002,
+				AB1050000000000000000003,
+				AB1050000000000000000004,
+				AB1050000000000000000005,
+				AB1050000000000000000006,
+				AB1050000000000000000007,
+				AB1050000000000000000008,
+				AB1050000000000000000009,
+				AB105000000000000000000A,
+				AB105000000000000000000B,
+				AB105000000000000000000C,
+				AB105000000000000000000D,
+				AB105000000000000000000E,
+				AB105000000000000000000F,
+				AB1050000000000000000010,
+				AB1050000000000000000011,
+				AB1050000000000000000012,
+				AB1050000000000000000013,
+				AB1050000000000000000014,
+				AB1050000000000000000015,
+				AB1050000000000000000016,
+				AB1050000000000000000017,
+				AB1050000000000000000018,
+				AB1050000000000000000019,
+				AB105000000000000000001A,
+				AB105000000000000000001B,
+				AB105000000000000000001C,
+				AB105000000000000000001D,
+				AB105000000000000000001E,
+				AB105000000000000000001F,
+				AB1050000000000000000020,
+				AB1050000000000000000021,
+				AB1050000000000000000022,
+				AB1050000000000000000023,
+				AB1050000000000000000024,
+				AB1050000000000000000025,
+				AB1050000000000000000026,
+				AB1050000000000000000027,
+				AB1050000000000000000028,
+				AB1050000000000000000029,
+				AB105000000000000000002A,
+				AB105000000000000000002B,
+			); path = Vendor/WQFiles; sourceTree = "<group>"; };
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -407,7 +494,6 @@
 				en,
 				vi,
 				"zh-Hans",
-				es,
 				Base,
 			);
 			mainGroup = 3105A400;
@@ -425,6 +511,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+                AB1050020000000000000002,
 				3105A211,
 				3105A228,
 			);
@@ -437,9 +524,29 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				AB1050010000000000000001,
+				AB1050010000000000000004,
+				AB1050010000000000000007,
+				AB1050010000000000000009,
+				AB105001000000000000000C,
+				AB1050010000000000000010,
+				AB1050010000000000000012,
+				AB1050010000000000000014,
+				AB1050010000000000000017,
+				AB1050010000000000000019,
+				AB105001000000000000001B,
+				AB105001000000000000001D,
+				AB1050010000000000000020,
+				AB1050010000000000000022,
+				AB1050010000000000000025,
+				AB1050010000000000000027,
+				AB1050010000000000000029,
+				AB105001000000000000002B,
 				3105A200, 3105A201, 3105A203, 3105A204,
-				3105T200,
 				3105A205, 3105A206, 3105A207, 3105A209,
+				3105A212, 3105A213, 3105A244,
+				3105A245,
+				3105A246,
 				3105A210, 3105A220, 3105A221, 3105A222, 3105A223,
 				3105A224, 3105A225,
 				3105A226,
@@ -451,6 +558,8 @@
 				3105A237,
 				3105A238,
 				3105A239,
+				3105A242,
+				3105A243,
 				3105A208,
 				3105J200,
 				3105J204,
@@ -486,19 +595,13 @@
 				3105H200,
 				3105I200,
 				3105I201,
+				3105K200,
 				3105L200,
 				3105L201,
-				3105M201,
-				3105P200,
-				3105P201,
-				3105P202,
-				3105P203,
-				3105S200,
-				3105K200,
-				3105V200,
-				3105V201,
-				3105V202,
-				3105K201,
+				3105L202,
+				3105L203,
+				3105L204,
+				3105L205,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -511,7 +614,6 @@
 				3105A121 /* en */,
 				3105A122 /* vi */,
 				3105B123 /* zh-Hans */,
-				3105C124 /* es */,
 			);
 			name = Localizable.strings;
 			sourceTree = "<group>";
@@ -526,7 +628,7 @@
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
 				CODE_SIGN_ENTITLEMENTS = "";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 7;
+				CURRENT_PROJECT_VERSION = 8;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -542,8 +644,8 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.1.1;
-				OTHER_LDFLAGS = "-lz";
+				MARKETING_VERSION = 2.0;
+				OTHER_LDFLAGS = "-lz -lsqlite3 -framework Security -framework AVKit -framework AVFoundation -framework UniformTypeIdentifiers";
 				PRODUCT_BUNDLE_IDENTIFIER = "com.apple.mobile.MobileHouseArrest";
 				PRODUCT_NAME = 3105;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -560,7 +662,7 @@
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
 				CODE_SIGN_ENTITLEMENTS = "";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 7;
+				CURRENT_PROJECT_VERSION = 8;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -576,8 +678,8 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.1.1;
-				OTHER_LDFLAGS = "-lz";
+				MARKETING_VERSION = 2.0;
+				OTHER_LDFLAGS = "-lz -lsqlite3 -framework Security -framework AVKit -framework AVFoundation -framework UniformTypeIdentifiers";
 				PRODUCT_BUNDLE_IDENTIFIER = "com.apple.mobile.MobileHouseArrest";
 				PRODUCT_NAME = 3105;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -586,6 +688,40 @@
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Release;
+		};
+		3105A603 /* ExperimentalRelease */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CODE_SIGN_ENTITLEMENTS = "ThreeOneOSFive/3105-Experimental.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 8;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = ThreeOneOSFive/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = 3105;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 2.0;
+				OTHER_LDFLAGS = "-lz -lsqlite3 -framework Security -framework AVKit -framework AVFoundation -framework UniformTypeIdentifiers";
+				PRODUCT_BUNDLE_IDENTIFIER = "com.apple.mobile.MobileHouseArrest";
+				PRODUCT_NAME = 3105;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "ThreeOneOSFive/ThreeOneOSFive-Bridging-Header.h";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = ExperimentalRelease;
 		};
 		3105AA01 /* Debug */ = {
 			isa = XCBuildConfiguration;
@@ -704,6 +840,61 @@
 			};
 			name = Release;
 		};
+		3105AA03 /* ExperimentalRelease */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = ExperimentalRelease;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -712,6 +903,7 @@
 			buildConfigurations = (
 				3105A601 /* Debug */,
 				3105A602 /* Release */,
+				3105A603 /* ExperimentalRelease */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
@@ -721,6 +913,7 @@
 			buildConfigurations = (
 				3105AA01 /* Debug */,
 				3105AA02 /* Release */,
+				3105AA03 /* ExperimentalRelease */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
