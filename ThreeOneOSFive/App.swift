@@ -7,6 +7,9 @@ struct ThreeOneOSFiveApp: App {
     @StateObject private var patchDraftCoordinator = PatchDraftCoordinator()
     @StateObject private var fileOperationCoordinator = FileOperationCoordinator()
     @StateObject private var patchStore = PatchProjectStore()
+    @StateObject private var remotePatchCoordinator = RemotePatchImportCoordinator()
+    @State private var sessionResolved = false
+    @State private var isAuthenticated = false
     @StateObject private var repositoryStore = PackageRepositoryStore()
     @AppStorage(AppLanguage.storageKey) private var languageCode = AppLanguage.english.rawValue
     @State private var showOnboarding = OnboardingStore.shouldShow()
@@ -35,16 +38,27 @@ struct ThreeOneOSFiveApp: App {
     var body: some Scene {
         WindowGroup {
             ZStack {
-                ContentView()
-                    .environmentObject(appState)
-                    .environmentObject(patchDraftCoordinator)
-                    .environmentObject(fileOperationCoordinator)
-                    .environmentObject(patchStore)
-                    .environmentObject(repositoryStore)
-                    .environment(\.appLanguage, language)
-                    .environment(\.locale, language.locale)
-                    .opacity(showOnboarding ? 0 : 1)
-                    .allowsHitTesting(!showOnboarding)
+                Group {
+                    if !sessionResolved {
+                        ProgressView()
+                    } else if isAuthenticated {
+                        ContentView()
+                            .environmentObject(appState)
+                            .environmentObject(patchDraftCoordinator)
+                            .environmentObject(fileOperationCoordinator)
+                            .environmentObject(patchStore)
+                            .environmentObject(repositoryStore)
+                            .environment(\.appLanguage, language)
+                            .environment(\.locale, language.locale)
+                    } else {
+                        LoginView { _, _ in
+                            isAuthenticated = true
+                            Task { await remotePatchCoordinator.sync(into: patchStore) }
+                        }
+                    }
+                }
+                .opacity(showOnboarding ? 0 : 1)
+                .allowsHitTesting(!showOnboarding)
 
                 if showOnboarding {
                     OnboardingView {
@@ -85,6 +99,7 @@ struct ThreeOneOSFiveApp: App {
                 if !showOnboarding {
                     appState.detectSupport()
                     checkForUpdate()
+                    resolveSession()
                 }
             }
             .onChange(of: scenePhase) { phase in
@@ -94,6 +109,31 @@ struct ThreeOneOSFiveApp: App {
             .onOpenURL { url in
                 patchDraftCoordinator.presentImport(url)
             }
+        }
+    }
+
+    private func resolveSession() {
+        guard !sessionResolved else { return }
+        if let token = KeychainManager.shared.loadAuthToken(), !token.isEmpty,
+           KeychainManager.shared.loadLicenseKey() != nil {
+            isAuthenticated = true
+            sessionResolved = true
+            Task {
+                await remotePatchCoordinator.sync(into: patchStore)
+            }
+        } else if KeychainManager.shared.hasSavedCredentials() {
+            LoginManager.tryAutoLogin { success, _, _ in
+                DispatchQueue.main.async {
+                    isAuthenticated = success
+                    sessionResolved = true
+                    if success {
+                        Task { await remotePatchCoordinator.sync(into: patchStore) }
+                    }
+                }
+            }
+        } else {
+            isAuthenticated = false
+            sessionResolved = true
         }
     }
 }

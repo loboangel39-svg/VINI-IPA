@@ -20,7 +20,6 @@ struct PatchProjectsView: View {
     @AppStorage(FeatureVisibility.cleanerStorageKey) private var cleanerEnabled = true
     @State private var showCreate = false
     @State private var showImporter = false
-    @State private var showRemoteImporter = false
     @State private var showWallpaperImporter = false
     @State private var showCleaner = false
     @State private var searchText = ""
@@ -170,11 +169,6 @@ struct PatchProjectsView: View {
                             Label(language.text("patch.import"), systemImage: "square.and.arrow.down")
                         }
                         Button {
-                            showRemoteImporter = true
-                        } label: {
-                            Label("Import Remote Patch", systemImage: "cloud.and.arrow.down")
-                        }
-                        Button {
                             showWallpaperImporter = true
                         } label: {
                             Label(
@@ -214,10 +208,6 @@ struct PatchProjectsView: View {
                     }
                 )
                 .ignoresSafeArea()
-            }
-            .sheet(isPresented: $showRemoteImporter) {
-                RemotePatchImportView()
-                    .environmentObject(store)
             }
             .sheet(isPresented: $showCreate) {
                 PatchProjectEditorView(
