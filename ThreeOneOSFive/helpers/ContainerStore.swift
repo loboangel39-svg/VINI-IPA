@@ -97,19 +97,47 @@ enum ContainerStore {
         var lookupError: NSString?
         if let path = MCMActivateContainerPath(2, bundleID, false, &lookupError),
            isApplicationContainerPath(path) {
-            log("patch: MHA-C2 resolved \(bundleID)")
-            return path
+            switch validatedContainerPath(path, bundleID: bundleID, source: "mha-c2") {
+            case .valid(let current):
+                log("[3105][IDENTITY] bundle=\(bundleID) source=mha-c2 selected=\(current) identity_verified=true")
+                return current
+            case .stale(let current):
+                log("[3105][IDENTITY] bundle=\(bundleID) source=mha-c2 candidate=\(current) stale_candidate=true")
+            case .inaccessible(let current, let error):
+                log("[3105][IDENTITY] bundle=\(bundleID) source=mha-c2 candidate=\(current) path_status=access_denied errno=\(error)")
+            case .invalid:
+                break
+            }
         }
         let detail = lookupError.map(String.init) ?? "unavailable"
         log("patch: MHA-C2 could not resolve \(bundleID), detail=\(detail)")
 
         if #available(iOS 26.0, *) {
             wq_load_display_names()
+            var matches: [String] = []
             for path in wq_ls_container_paths(nil) ?? [] {
-                guard isApplicationContainerPath(path),
-                      wq_bundle_id_for_container(path) == bundleID else { continue }
-                log("patch: WQFiles resolved \(bundleID)")
-                return ContainerDiscoveryMerger.canonicalPath(path)
+                guard isApplicationContainerPath(path) else { continue }
+                let canonical = ContainerDiscoveryMerger.canonicalPath(path)
+                guard wq_bundle_id_for_container(canonical) == bundleID else { continue }
+                switch validatedContainerPath(canonical, bundleID: bundleID, source: "wqfiles") {
+                case .valid(let current):
+                    matches.append(current)
+                    log("[3105][IDENTITY] bundle=\(bundleID) source=wqfiles candidate=\(current) path_status=existing")
+                case .stale(let current):
+                    log("[3105][IDENTITY] bundle=\(bundleID) source=wqfiles candidate=\(current) stale_candidate=true refresh=required")
+                case .inaccessible(let current, let error):
+                    log("[3105][IDENTITY] bundle=\(bundleID) source=wqfiles candidate=\(current) path_status=access_denied errno=\(error)")
+                case .invalid:
+                    continue
+                }
+            }
+            let uniqueMatches = Array(Set(matches))
+            if uniqueMatches.count == 1, let current = uniqueMatches.first {
+                log("[3105][IDENTITY] bundle=\(bundleID) source=wqfiles selected=\(current) identity_verified=true refresh=completed")
+                return current
+            }
+            if uniqueMatches.count > 1 {
+                log("[3105][IDENTITY] bundle=\(bundleID) source=wqfiles status=ambiguous candidates=\(uniqueMatches.count) selected=none")
             }
         }
 
@@ -141,9 +169,54 @@ enum ContainerStore {
                   metadata.bundleID == bundleID else { continue }
             let canonical = ContainerDiscoveryMerger.canonicalPath(dir)
             guard isApplicationContainerPath(canonical) else { continue }
-            return canonical
+            switch validatedContainerPath(canonical, bundleID: bundleID, source: "metadata-scan") {
+            case .valid(let current):
+                log("[3105][IDENTITY] bundle=\(bundleID) source=metadata-scan selected=\(current) identity_verified=true")
+                return current
+            case .stale(let current):
+                log("[3105][IDENTITY] bundle=\(bundleID) source=metadata-scan candidate=\(current) stale_candidate=true")
+            case .inaccessible(let current, let error):
+                log("[3105][IDENTITY] bundle=\(bundleID) source=metadata-scan candidate=\(current) path_status=access_denied errno=\(error)")
+            case .invalid:
+                continue
+            }
         }
         return nil
+    }
+
+    private enum ContainerPathValidation {
+        case valid(String)
+        case stale(String)
+        case inaccessible(String, Int32)
+        case invalid
+    }
+
+    private static func validatedContainerPath(
+        _ rawPath: String,
+        bundleID: String,
+        source: String
+    ) -> ContainerPathValidation {
+        let canonical = ContainerDiscoveryMerger.canonicalPath(rawPath)
+        guard isApplicationContainerPath(canonical),
+              let uuid = UUID(uuidString: (canonical as NSString).lastPathComponent) else {
+            log("[3105][IDENTITY] bundle=\(bundleID) source=\(source) candidate=\(canonical) identity_verified=false path_status=invalid")
+            return .invalid
+        }
+        _ = uuid
+        var info = stat()
+        errno = 0
+        let result = canonical.withCString { lstat($0, &info) }
+        guard result == 0 else {
+            let error = errno
+            if error == ENOENT || error == ENOTDIR {
+                return .stale(canonical)
+            }
+            return .inaccessible(canonical, error)
+        }
+        guard (info.st_mode & S_IFMT) == S_IFDIR else {
+            return .invalid
+        }
+        return .valid(canonical)
     }
 
     // MARK: Primary — MobileInstallation / LSApplicationWorkspace
