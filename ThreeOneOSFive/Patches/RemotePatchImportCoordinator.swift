@@ -47,12 +47,14 @@ final class RemotePatchImportCoordinator: ObservableObject {
         do {
             log("[PATCH] catalog request")
             let catalog = try await RemotePatchService.shared.fetchAvailablePatches()
+            let authorizedPatchIDs = Set(catalog.map(\.id))
             patches = catalog.filter {
                 let fileKey = $0.fileKey?.split(separator: "?").first.map(String.init)?.lowercased() ?? ""
                 let fileName = fileKey.split(separator: "/").last.map(String.init) ?? fileKey
                 return fileName.hasSuffix(".3105") || $0.type.lowercased() == "3105" || $0.name.lowercased().hasSuffix(".3105")
             }
             log("[PATCH] catalog result count=\(catalog.count), valid3105=\(patches.count)")
+            store.removeRevokedRemotePackages(authorizedPatchIDs: authorizedPatchIDs)
             for patch in patches {
                 guard importingID == nil else { break }
                 importingID = patch.id
@@ -81,7 +83,16 @@ final class RemotePatchImportCoordinator: ObservableObject {
                 let existing = PatchProjectLibrary.load().contains { $0.id == summary.packageID }
                 if existing {
                     log("[PATCH] duplicate skipped package=\(summary.packageID.uuidString)")
-                } else if store.importPackage(data: data, allowTargetOverlap: true) {
+                } else if store.importPackage(
+                    data: data,
+                    origin: PatchPackageOrigin(
+                        repositoryName: "VINI Remote",
+                        repositoryURL: URL(string: "https://vini-v2-api.loboangel39.workers.dev")!,
+                        packageIdentifier: patch.id,
+                        remotePatchID: patch.id
+                    ),
+                    allowTargetOverlap: true
+                ) {
                     while store.isBusy {
                         try await Task.sleep(nanoseconds: 100_000_000)
                     }

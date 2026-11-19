@@ -267,7 +267,8 @@ final class PackageRepositoryStore: ObservableObject {
                     let origin = PatchPackageOrigin(
                         repositoryName: record.sourceName,
                         repositoryURL: record.sourceURL,
-                        packageIdentifier: record.package.identifier
+                        packageIdentifier: record.package.identifier,
+                        remotePatchID: nil
                     )
                     guard patchStore.importPackage(
                         data: data,

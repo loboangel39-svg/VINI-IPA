@@ -156,6 +156,31 @@ struct PatchPackageOrigin: Codable, Equatable, Hashable {
     let repositoryName: String
     let repositoryURL: URL
     let packageIdentifier: String
+    let remotePatchID: String?
+
+    private enum CodingKeys: String, CodingKey {
+        case repositoryName, repositoryURL, packageIdentifier, remotePatchID
+    }
+
+    init(
+        repositoryName: String,
+        repositoryURL: URL,
+        packageIdentifier: String,
+        remotePatchID: String? = nil
+    ) {
+        self.repositoryName = repositoryName
+        self.repositoryURL = repositoryURL
+        self.packageIdentifier = packageIdentifier
+        self.remotePatchID = remotePatchID
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        repositoryName = try container.decode(String.self, forKey: .repositoryName)
+        repositoryURL = try container.decode(URL.self, forKey: .repositoryURL)
+        packageIdentifier = try container.decode(String.self, forKey: .packageIdentifier)
+        remotePatchID = try container.decodeIfPresent(String.self, forKey: .remotePatchID)
+    }
 }
 
 struct EncodedPatchPackage {

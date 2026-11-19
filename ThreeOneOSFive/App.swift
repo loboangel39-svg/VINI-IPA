@@ -194,6 +194,7 @@ struct ThreeOneOSFiveApp: App {
         switch valid {
         case .valid:
             log("[AUTH] session check accepted")
+            synchronizeRemotePatches()
         case .revoked:
             log("[AUTH] session check revoked; showing login")
             logout()

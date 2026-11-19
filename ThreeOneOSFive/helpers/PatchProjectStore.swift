@@ -300,6 +300,16 @@ final class PatchProjectStore: ObservableObject {
         }
     }
 
+    @discardableResult
+    func removeRevokedRemotePackages(authorizedPatchIDs: Set<String>) -> Int {
+        let removed = PatchProjectLibrary.removeRevokedRemotePackages(
+            authorizedPatchIDs: authorizedPatchIDs
+        )
+        reload()
+        log("[PATCH] revoked remote removal removed=\(removed) remaining=\(items.count)")
+        return removed
+    }
+
     func synchronizeWorkspace(projectID: UUID, reportsSuccess: Bool = false) {
         guard let item = items.first(where: { $0.id == projectID }),
               item.summary.schemaVersion >= 2,

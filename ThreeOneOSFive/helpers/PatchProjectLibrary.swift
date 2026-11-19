@@ -311,6 +311,24 @@ enum PatchProjectLibrary {
         }
     }
 
+    static func removeRevokedRemotePackages(
+        authorizedPatchIDs: Set<String>,
+        fileManager: FileManager = .default
+    ) -> Int {
+        var removed = 0
+        for item in load(fileManager: fileManager) {
+            guard let remotePatchID = item.origin?.remotePatchID,
+                  !authorizedPatchIDs.contains(remotePatchID) else { continue }
+            do {
+                try delete(item, fileManager: fileManager)
+                removed += 1
+            } catch {
+                log("[PATCH] revoked remote retained package=\(item.id.uuidString) reason=active-or-protected")
+            }
+        }
+        return removed
+    }
+
     static func synchronizeWorkspace(
         item: PatchLibraryItem,
         fileManager: FileManager = .default
