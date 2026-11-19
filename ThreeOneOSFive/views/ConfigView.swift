@@ -4,10 +4,10 @@ import SwiftUI
 // Muestra la configuración remota obtenida del servidor.
 
 struct ConfigView: View {
-    @AppStorage(AppLanguage.storageKey) private var languageCode = AppLanguage.english.rawValue
+    @AppStorage(AppLanguage.storageKey) private var languageCode = AppLanguage.spanish.rawValue
     @StateObject private var configService = RemoteConfigService.shared
     
-    private var language: AppLanguage { AppLanguage(rawValue: languageCode) ?? .english }
+    private var language: AppLanguage { AppLanguage(rawValue: languageCode) ?? .spanish }
     
     var body: some View {
         NavigationStack {

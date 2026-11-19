@@ -4,10 +4,10 @@ import SwiftUI
 // Muestra mensajes del servidor (info, warnings, updates, etc.)
 
 struct MessagesView: View {
-    @AppStorage(AppLanguage.storageKey) private var languageCode = AppLanguage.english.rawValue
+    @AppStorage(AppLanguage.storageKey) private var languageCode = AppLanguage.spanish.rawValue
     @StateObject private var messageService = MessageService.shared
     
-    private var language: AppLanguage { AppLanguage(rawValue: languageCode) ?? .english }
+    private var language: AppLanguage { AppLanguage(rawValue: languageCode) ?? .spanish }
     
     var body: some View {
         NavigationStack {

@@ -4,6 +4,7 @@ enum AppLanguage: String, CaseIterable, Identifiable {
     static let storageKey = "appLanguage"
 
     case english = "en"
+    case spanish = "es"
     case vietnamese = "vi"
     case simplifiedChinese = "zh-Hans"
 
@@ -13,6 +14,7 @@ enum AppLanguage: String, CaseIterable, Identifiable {
     var displayName: String {
         switch self {
         case .english: return "English"
+        case .spanish: return "Español"
         case .vietnamese: return "Tiếng Việt"
         case .simplifiedChinese: return "简体中文"
         }
@@ -36,7 +38,7 @@ enum AppLanguage: String, CaseIterable, Identifiable {
 }
 
 private struct AppLanguageEnvironmentKey: EnvironmentKey {
-    static let defaultValue = AppLanguage.english
+    static let defaultValue = AppLanguage.spanish
 }
 
 extension EnvironmentValues {

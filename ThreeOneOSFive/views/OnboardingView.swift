@@ -14,12 +14,12 @@ private enum OnboardingNavigationDirection {
 
 struct OnboardingView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @AppStorage(AppLanguage.storageKey) private var languageCode = AppLanguage.english.rawValue
+    @AppStorage(AppLanguage.storageKey) private var languageCode = AppLanguage.spanish.rawValue
     @State private var step: OnboardingStep = .language
     @State private var navigationDirection: OnboardingNavigationDirection = .forward
     var onComplete: () -> Void
 
-    private var language: AppLanguage { AppLanguage(rawValue: languageCode) ?? .english }
+    private var language: AppLanguage { AppLanguage(rawValue: languageCode) ?? .spanish }
     private var motionAnimation: Animation? {
         reduceMotion ? nil : .easeInOut(duration: 0.24)
     }

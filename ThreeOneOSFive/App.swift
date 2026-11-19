@@ -14,7 +14,7 @@ struct ThreeOneOSFiveApp: App {
     @State private var isCheckingAutoLogin = true
     @State private var isCheckingSession = false
     @StateObject private var repositoryStore = PackageRepositoryStore()
-    @AppStorage(AppLanguage.storageKey) private var languageCode = AppLanguage.english.rawValue
+    @AppStorage(AppLanguage.storageKey) private var languageCode = AppLanguage.spanish.rawValue
     // Temporarily disconnected from navigation; retained for reversible restoration.
     @State private var showOnboarding = false
     @State private var showAttribution = false
@@ -28,7 +28,7 @@ struct ThreeOneOSFiveApp: App {
     }
 
     private var language: AppLanguage {
-        AppLanguage(rawValue: languageCode) ?? .english
+        AppLanguage(rawValue: languageCode) ?? .spanish
     }
 
     var body: some Scene {
