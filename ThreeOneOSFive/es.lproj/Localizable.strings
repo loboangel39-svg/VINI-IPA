@@ -75,7 +75,11 @@
 "dashboard.features_footer" = "Activa Limpiador o Fondos de pantalla para mostrarlo en la navegación de la app.";
 
 "tab.home" = "Inicio";
+"tab.new" = "Nuevos";
+"tab.sources" = "Fuentes";
+"tab.installed" = "Instaladas";
 "tab.files" = "Archivos";
+"tab.search" = "Buscar";
 "tab.patches" = "Parches";
 "tab.cleaner" = "Limpiador";
 
@@ -240,6 +244,8 @@
 "kernel.auto_run" = "Ejecutar automáticamente al iniciar";
 "kernel.failed_requires_relaunch" = "Relanza la app antes de reintentar.";
 "settings.supported_versions_footer" = "Solo las compilaciones exactas listadas arriba están habilitadas. Otras compilaciones de iOS 27 se marcan como no compatibles hasta que se verifiquen.";
+"settings.developer_mode" = "Modo desarrollador";
+"settings.developer_mode_footer" = "El modo desarrollador añade Archivos a la navegación principal. Archivos puede explorar y modificar contenedores de aplicaciones.";
 "settings.sandbox_token" = "Token del sandbox";
 "settings.generate_token" = "Generar token";
 "settings.token_footer" = "Disponible después de que el acceso del exploit tenga éxito.";
@@ -441,6 +447,7 @@
 "browser.tab_name" = "Nombre de pestaña";
 "browser.tab_name_message" = "Introduce un nombre para esta pestaña.";
 "browser.open_new_tab" = "Abrir en nueva pestaña";
+"repository.cleaner_subtitle" = "Revisar y eliminar cachés de apps y archivos temporales.";
 
 "tab.wallpapers" = "Fondos de pantalla";
 "tab.messages" = "Mensajes";
