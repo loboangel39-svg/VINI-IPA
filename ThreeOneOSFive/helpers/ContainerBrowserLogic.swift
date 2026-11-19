@@ -21,6 +21,15 @@ struct FileContainerPhysicalIdentity: Equatable {
     }
 }
 
+struct UnidentifiedContainer: Identifiable, Hashable {
+    let containerPath: String
+    let source: String
+    let reason: String
+
+    var id: String { containerPath }
+    var uuid: String { (containerPath as NSString).lastPathComponent }
+}
+
 enum FileContainerValidation {
     enum Result: Equatable {
         case valid(FileContainerPhysicalIdentity)

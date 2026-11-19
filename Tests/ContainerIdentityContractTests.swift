@@ -13,6 +13,7 @@ struct ContainerIdentityContractTests {
         testMissingMetadataDoesNotBecomeUninstalled()
         testCanonicalPathsAndMergeOrder()
         testUUIDsAreNotPresentedAsApps()
+        testUnknownContainerIsNotAnAppIdentity()
 
         if failures == 0 {
             print("PASS: all ContainerIdentity contract tests")
@@ -184,6 +185,19 @@ struct ContainerIdentityContractTests {
             "A UUID must not become a display name"
         )
         print("PASS: UUIDs are not presented as app identities")
+    }
+
+    private static func testUnknownContainerIsNotAnAppIdentity() {
+        let unknown = UnidentifiedContainer(
+            containerPath: "/private/var/mobile/Containers/Data/Application/AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE",
+            source: "filesystem/inode",
+            reason: "identity_unresolved"
+        )
+        require(UUID(uuidString: unknown.uuid) != nil, "Unknown container keeps its UUID")
+        require(!ContainerPresentationPolicy.shouldShow(bundleID: unknown.uuid),
+                "Unknown UUID must not be presented as a Bundle ID")
+        require(unknown.reason == "identity_unresolved", "Unknown reason remains explicit")
+        print("PASS: unknown containers remain diagnostic-only")
     }
 
     private static func require(_ condition: Bool, _ message: String) {

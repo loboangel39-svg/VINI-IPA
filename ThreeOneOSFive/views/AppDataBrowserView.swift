@@ -7,6 +7,7 @@ struct AppDataBrowserView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var apps: [InstalledApp] = []
+    @State private var unidentifiedContainers: [UnidentifiedContainer] = []
     @State private var isLoading = false
     @State private var isResolving = false
     @State private var searchText = ""
@@ -24,6 +25,16 @@ struct AppDataBrowserView: View {
         let q = searchText.lowercased()
         return apps.filter {
             $0.name.lowercased().contains(q) || $0.bundleID.lowercased().contains(q)
+        }
+    }
+
+    private var filteredUnidentifiedContainers: [UnidentifiedContainer] {
+        guard !searchText.isEmpty else { return unidentifiedContainers }
+        let query = searchText.lowercased()
+        return unidentifiedContainers.filter {
+            $0.uuid.lowercased().contains(query) ||
+            $0.source.lowercased().contains(query) ||
+            $0.reason.lowercased().contains(query)
         }
     }
 
@@ -173,6 +184,26 @@ struct AppDataBrowserView: View {
                 .foregroundStyle(.secondary)
                 .textCase(nil)
             }
+
+            if !filteredUnidentifiedContainers.isEmpty {
+                Section {
+                    ForEach(filteredUnidentifiedContainers) { container in
+                        unidentifiedContainerRow(container)
+                    }
+                } header: {
+                    HStack {
+                        Text("Contenedores sin identificar (\(filteredUnidentifiedContainers.count))")
+                        Spacer()
+                        Image(systemName: "questionmark.circle")
+                    }
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .textCase(nil)
+                } footer: {
+                    Text("IDENTIDAD DESCONOCIDA · solo diagnóstico; no se permiten operaciones de parcheo")
+                        .font(.caption2)
+                }
+            }
         }
         .listStyle(.insetGrouped)
         .environment(\.defaultMinListRowHeight, 48)
@@ -221,6 +252,32 @@ struct AppDataBrowserView: View {
         }
         .padding(.vertical, 2)
         .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 12))
+    }
+
+    private func unidentifiedContainerRow(_ container: UnidentifiedContainer) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: "folder.badge.questionmark")
+                .font(.system(size: AppTheme.rowIconSize, weight: .medium))
+                .foregroundStyle(.secondary)
+                .frame(width: AppTheme.appIconSize, height: AppTheme.appIconSize)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(container.uuid)
+                    .font(.caption.monospaced())
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                Text("IDENTIDAD DESCONOCIDA")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.orange)
+                Text("Fuente: \(container.source) · \(container.reason)")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+            Spacer()
+        }
+        .padding(.vertical, 4)
+        .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 12))
+        .accessibilityLabel("Contenedor sin identificar \(container.uuid)")
     }
 
     private func openInNewTabButton(_ destination: FileBrowserDestination) -> some View {
@@ -396,12 +453,28 @@ struct AppDataBrowserView: View {
             }
             log("files-diagnostic stage=final candidates=\(allKnownApps.count + inferredFilesystemApps.count) " +
                 "presented=\(result.count) hiddenUnknown=\(allKnownApps.count + inferredFilesystemApps.count - result.count)")
+            let identifiedFilePaths = Set((allKnownApps + inferredFilesystemApps).map {
+                ContainerDiscoveryMerger.canonicalPath($0.containerPath)
+            })
+            let unknownContainers = filesystemApps.compactMap { app -> UnidentifiedContainer? in
+                let path = ContainerDiscoveryMerger.canonicalPath(app.containerPath)
+                guard !identifiedFilePaths.contains(path) else { return nil }
+                guard case .valid = FileContainerValidation.validate(path: path) else { return nil }
+                return UnidentifiedContainer(
+                    containerPath: path,
+                    source: "filesystem/inode",
+                    reason: "Bundle ID y metadatos no resueltos"
+                )
+            }.sorted { $0.uuid.localizedCaseInsensitiveCompare($1.uuid) == .orderedAscending }
+            log("files-diagnostic stage=unidentified candidates=\(unknownContainers.count) " +
+                "source=filesystem/inode reason=identity_unresolved")
             result.sort {
                 $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending
             }
 
             DispatchQueue.main.async {
                 apps = result
+                unidentifiedContainers = unknownContainers
                 isLoading = false
                 isResolving = false
                 if result.isEmpty {
