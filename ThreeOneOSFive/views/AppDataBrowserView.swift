@@ -274,6 +274,9 @@ struct AppDataBrowserView: View {
                 to: ContainerStore.installedAppsFromAPI(),
                 catalog: bundleMetadata
             )
+            log("files-diagnostic source=api candidates=\(apiApps.count) " +
+                "resolved=\(apiApps.filter { ContainerPresentationPolicy.shouldShow(bundleID: $0.bundleID) }.count) " +
+                "unknown=\(apiApps.filter { !ContainerPresentationPolicy.shouldShow(bundleID: $0.bundleID) }.count)")
             if apiApps.isEmpty {
                 log("browser: installed-app API unavailable; trying MCM class-2 enumeration...")
             }
@@ -282,21 +285,35 @@ struct AppDataBrowserView: View {
                 identifiers: dynamicIdentifiers,
                 bundleMetadata: bundleMetadata
             )
-            let filesystemApps = ContainerStore.containersFromFilesystem().filter { app in
+            log("files-diagnostic source=mcm candidates=\(mcmApps.count) " +
+                "resolved=\(mcmApps.filter { ContainerPresentationPolicy.shouldShow(bundleID: $0.bundleID) }.count) " +
+                "unknown=\(mcmApps.filter { !ContainerPresentationPolicy.shouldShow(bundleID: $0.bundleID) }.count)")
+            let filesystemCandidates = ContainerStore.containersFromFilesystem()
+            var filesystemMissing = 0
+            var filesystemReplaced = 0
+            var filesystemInvalid = 0
+            let filesystemApps = filesystemCandidates.filter { app in
                 switch FileContainerValidation.validate(path: app.containerPath) {
                 case .valid:
                     return true
                 case .missing:
+                    filesystemMissing += 1
                     log("browser: discarded missing container path=\(app.containerPath)")
                     return false
                 case .replaced:
+                    filesystemReplaced += 1
                     log("browser: discarded replaced container path=\(app.containerPath)")
                     return false
                 case .invalidPath:
+                    filesystemInvalid += 1
                     log("browser: discarded invalid container path=\(app.containerPath)")
                     return false
                 }
             }
+            log("files-diagnostic source=filesystem candidates=\(filesystemCandidates.count) " +
+                "accepted=\(filesystemApps.count) unknown=\(filesystemApps.count) " +
+                "discardedMissing=\(filesystemMissing) discardedReplaced=\(filesystemReplaced) " +
+                "discardedInvalid=\(filesystemInvalid)")
             let baseIdentifiedApps = mcmApps + apiApps
             var result = ContainerDiscoveryMerger.merge(
                 enumerated: filesystemApps,
@@ -309,6 +326,8 @@ struct AppDataBrowserView: View {
             let preliminary = result.filter {
                 ContainerPresentationPolicy.shouldShow(bundleID: $0.bundleID)
             }
+            log("files-diagnostic stage=preliminary candidates=\(result.count) presented=\(preliminary.count) " +
+                "hiddenUnknown=\(result.count - preliminary.count)")
             DispatchQueue.main.async {
                 apps = preliminary
                 isLoading = false
@@ -357,6 +376,8 @@ struct AppDataBrowserView: View {
                     ContainerDiscoveryMerger.canonicalPath($0.containerPath)
                 )
             }
+            log("files-diagnostic stage=inference input=\(unmatchedFilesystemApps.count) " +
+                "knownPaths=\(identifiedPaths.count)")
             let inferredFilesystemApps = ContainerStore.inferUnidentifiedApps(
                 in: unmatchedFilesystemApps,
                 knownApps: allKnownApps,
@@ -373,6 +394,8 @@ struct AppDataBrowserView: View {
             result = result.filter {
                 ContainerPresentationPolicy.shouldShow(bundleID: $0.bundleID)
             }
+            log("files-diagnostic stage=final candidates=\(allKnownApps.count + inferredFilesystemApps.count) " +
+                "presented=\(result.count) hiddenUnknown=\(allKnownApps.count + inferredFilesystemApps.count - result.count)")
             result.sort {
                 $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending
             }
