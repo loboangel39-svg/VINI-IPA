@@ -81,13 +81,15 @@ final class RemotePatchImportCoordinator: ObservableObject {
                 let existing = PatchProjectLibrary.load().contains { $0.id == summary.packageID }
                 if existing {
                     log("[PATCH] duplicate skipped package=\(summary.packageID.uuidString)")
-                } else if store.importPackage(data: data) {
+                } else if store.importPackage(data: data, allowTargetOverlap: true) {
                     while store.isBusy {
                         try await Task.sleep(nanoseconds: 100_000_000)
                     }
                     store.reload()
                     log("[PATCH] library count after=\(store.items.count) unique packageIDs=\(Set(store.items.map(\.id)).count)")
-                    if store.passwordRequest != nil {
+                    if store.lastImportSucceeded == false {
+                        log("[PATCH] import result=failed package=\(summary.packageID.uuidString)")
+                    } else if store.passwordRequest != nil {
                         log("[PATCH] import pending password package=\(summary.packageID.uuidString)")
                     } else {
                         log("[PATCH] import completed package=\(summary.packageID.uuidString) installedCount=\(store.items.count)")

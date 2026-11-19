@@ -206,13 +206,14 @@ enum PatchProjectLibrary {
         summary: PatchPackageSummary,
         existingURL: URL?,
         origin: PatchPackageOrigin? = nil,
+        allowTargetOverlap: Bool = false,
         fileManager: FileManager = .default
     ) throws {
         let authorCopy = isAuthorCopy(
             packageID: summary.packageID,
             fileManager: fileManager
         )
-        if let occupiedPath = overlappingTargetPath(
+        if !allowTargetOverlap, let occupiedPath = overlappingTargetPath(
             in: decoded.project,
             excludingPackageID: summary.packageID,
             fileManager: fileManager

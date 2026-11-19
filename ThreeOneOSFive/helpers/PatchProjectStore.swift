@@ -27,6 +27,7 @@ final class PatchProjectStore: ObservableObject {
     @Published var passwordRequest: PatchPasswordRequest?
     @Published var alert: PatchStoreAlert?
     @Published var unlockErrorKey: String?
+    @Published private(set) var lastImportSucceeded: Bool?
 
     private struct PendingUnlock {
         let data: Data
@@ -135,10 +136,12 @@ final class PatchProjectStore: ObservableObject {
     func importPackage(
         data: Data,
         password: String? = nil,
-        origin: PatchPackageOrigin? = nil
+        origin: PatchPackageOrigin? = nil,
+        allowTargetOverlap: Bool = false
     ) -> Bool {
         guard !isBusy else { return false }
         isBusy = true
+        lastImportSucceeded = nil
         Task.detached(priority: .userInitiated) { [weak self] in
             do {
                 let summary = try PatchPackageCodec.inspect(data)
@@ -148,7 +151,8 @@ final class PatchProjectStore: ObservableObject {
                     summary: summary,
                     existingURL: existingURL,
                     password: password,
-                    origin: origin
+                    origin: origin,
+                    allowTargetOverlap: allowTargetOverlap
                 ) {
                     await self?.requestPassword(pending: pending)
                 } else {
@@ -357,7 +361,8 @@ final class PatchProjectStore: ObservableObject {
         summary: PatchPackageSummary,
         existingURL: URL?,
         password: String? = nil,
-        origin: PatchPackageOrigin? = nil
+        origin: PatchPackageOrigin? = nil,
+        allowTargetOverlap: Bool = false
     ) throws -> PendingUnlock? {
         if let key = try PatchKeyStore.load(for: summary) {
             let decoded = try PatchPackageCodec.decode(data, contentKey: key)
@@ -366,7 +371,8 @@ final class PatchProjectStore: ObservableObject {
                 decoded: decoded,
                 summary: summary,
                 existingURL: existingURL,
-                origin: origin
+                origin: origin,
+                allowTargetOverlap: allowTargetOverlap
             )
             return nil
         }
@@ -376,7 +382,8 @@ final class PatchProjectStore: ObservableObject {
                     data: data,
                     summary: summary,
                     existingURL: existingURL,
-                    origin: origin
+                    origin: origin,
+                    allowTargetOverlap: allowTargetOverlap
                 )
             }
             let decoded = try PatchPackageCodec.decode(data, password: password)
@@ -385,9 +392,10 @@ final class PatchProjectStore: ObservableObject {
                 try PatchProjectLibrary.installImportedPackage(
                     data: data,
                     decoded: decoded,
-                    summary: summary,
-                    existingURL: existingURL,
-                    origin: origin
+                summary: summary,
+                existingURL: existingURL,
+                origin: origin,
+                allowTargetOverlap: allowTargetOverlap
                 )
             } catch {
                 try? PatchKeyStore.delete(for: summary)
@@ -415,11 +423,14 @@ final class PatchProjectStore: ObservableObject {
     private func finishOperation(successMessageKey: String) {
         reload()
         log("[PATCH] reload count=\(items.count) unique packageIDs=\(Set(items.map(\.id)).count)")
+        lastImportSucceeded = true
         isBusy = false
         alert = PatchStoreAlert(titleKey: "common.done", messageKey: successMessageKey)
     }
 
     private func failOperation(_ error: PatchPackageError) {
+        lastImportSucceeded = false
+        log("[PATCH] import result=failed reason=\(error.localizationKey)")
         isBusy = false
         present(error)
     }
