@@ -127,6 +127,24 @@ struct ThreeOneOSFiveApp: App {
             if isLoggedIn { synchronizeRemotePatches() }
             return
         }
+        if KeychainManager.shared.loadAuthToken() != nil {
+            let storedSessionValid = await withCheckedContinuation { continuation in
+                LoginManager.verifyStoredSession { valid in
+                    if !valid {
+                        LoginManager.clearSession()
+                        isLoggedIn = false
+                        currentLicenseKey = ""
+                        sessionExpiresAt = 0
+                        log("[AUTH] stored session revoked; manual login required")
+                    }
+                    continuation.resume(returning: valid)
+                }
+            }
+            if !storedSessionValid {
+                isCheckingAutoLogin = false
+                return
+            }
+        }
         await withCheckedContinuation { continuation in
             LoginManager.tryAutoLogin { success, license, expiresAt in
                 Task { @MainActor in

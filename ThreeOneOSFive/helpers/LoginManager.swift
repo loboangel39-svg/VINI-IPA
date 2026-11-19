@@ -163,6 +163,24 @@ final class LoginManager {
             }
         }
     }
+
+    /// Verifies an existing JWT before considering the saved license for autologin.
+    /// A revoked token must stop the automatic re-binding path.
+    static func verifyStoredSession(completion: @escaping (Bool) -> Void) {
+        guard let token = KeychainManager.shared.loadAuthToken(),
+              let url = URL(string: "\(workerURL)/api/app/session") else {
+            completion(false)
+            return
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.timeoutInterval = 10
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        URLSession.shared.dataTask(with: request) { data, response, _ in
+            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+            DispatchQueue.main.async { completion(status == 200 && data != nil) }
+        }.resume()
+    }
     
     /// Limpia la sesión del usuario (pero NO borra el license key del Keychain para permitir re-login)
     static func clearSession() {

@@ -1222,6 +1222,11 @@ export default {
       if (path === '/api/app/validate-license' && method === 'POST') {
         return handleAppValidateLicense(request, env, corsHeaders);
       }
+      if (path === '/api/app/session' && method === 'GET') {
+        const auth = await verifyAppAuth(request, env);
+        if (!auth.valid) return Response.json({ valid: false, error: 'Session revoked' }, { status: 401, headers: corsHeaders });
+        return Response.json({ valid: true, licenseExpiresAt: auth.user.license_expires_at || null }, { headers: corsHeaders });
+      }
 
       // App endpoints que requieren license auth
       if (path.startsWith('/api/app/')) {
@@ -1409,7 +1414,7 @@ async function verifyAppAuth(request, env) {
 
   const token = authHeader.split(' ')[1];
 
-  // El token es un JWT simple que contiene { userId, licenseKey, hwid, exp }
+    // El token incluye la generación de sesión vigente del usuario.
   try {
     const parts = token.split('.');
     if (parts.length !== 3) return { valid: false };
@@ -1424,6 +1429,9 @@ async function verifyAppAuth(request, env) {
     const user = await env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(payload.userId).first();
     if (!user) return { valid: false };
     if (!user.is_active || user.is_paused || user.is_blocked) return { valid: false };
+    if (Number(payload.sessionVersion) !== Number(user.session_version || 1)) return { valid: false };
+    if (!payload.hwid || !user.hwid || payload.hwid !== user.hwid) return { valid: false };
+    if (user.license_expires_at && new Date(user.license_expires_at) < new Date()) return { valid: false };
 
     return { valid: true, userId: payload.userId, hwid: payload.hwid, user };
   } catch {
@@ -1478,14 +1486,19 @@ async function handleAppValidateLicense(request, env, headers) {
     return Response.json({ valid: false, error: 'HWID mismatch. Contact admin to reset.' }, { status: 403, headers });
   }
 
-  // Registrar HWID si no está registrado
+  // Vinculación atómica: no puede sobrescribir el HWID reclamado por otro dispositivo.
   if (!user.hwid || user.hwid === '') {
-    await env.DB.prepare('UPDATE users SET hwid = ? WHERE id = ?').bind(hwid, user.id).run();
+    const claimed = await env.DB.prepare(
+      "UPDATE users SET hwid = ? WHERE id = ? AND (hwid = '' OR hwid IS NULL)"
+    ).bind(hwid, user.id).run();
+    if (!claimed.meta || claimed.meta.changes !== 1) {
+      return Response.json({ valid: false, error: 'HWID binding conflict. Try again.' }, { status: 409, headers });
+    }
   }
 
   // Generar token de sesión (24h)
   const exp = Date.now() + 86400000; // 24 horas
-  const token = await createJWT({ userId: user.id, licenseKey, hwid, exp }, env);
+  const token = await createJWT({ userId: user.id, licenseKey, hwid, sessionVersion: Number(user.session_version || 1), exp }, env);
 
   // Registrar actividad
   await logActivity(env, 'app_login', `User ${user.username} logged in`);
@@ -1789,7 +1802,9 @@ async function handleTogglePause(id, env, headers) {
 }
 
 async function handleResetHWID(id, env, headers) {
-  await env.DB.prepare('UPDATE users SET hwid = ? WHERE id = ?').bind('', id).run();
+  await env.DB.prepare(
+    "UPDATE users SET hwid = '', session_version = COALESCE(session_version, 1) + 1 WHERE id = ?"
+  ).bind(id).run();
   await logActivity(env, 'hwid_reset', `User ${id} HWID reset`);
   return Response.json({ success: true }, { headers });
 }

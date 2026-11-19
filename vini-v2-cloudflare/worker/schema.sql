@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
   username TEXT NOT NULL UNIQUE,
   hwid TEXT DEFAULT '',
+  session_version INTEGER NOT NULL DEFAULT 1,
   license_key TEXT DEFAULT '',
   is_premium INTEGER DEFAULT 0,
   is_active INTEGER DEFAULT 1,

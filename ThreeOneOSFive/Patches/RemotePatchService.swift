@@ -89,12 +89,14 @@ struct RemotePatchInfo: Codable, Identifiable {
     let description: String
     let version: String
     let type: String
+    let fileKey: String?
     let status: String?
     let createdAt: String?
     let updatedAt: String?
     
     enum CodingKeys: String, CodingKey {
         case id, name, description, version, type, status
+        case fileKey = "file_key"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
     }
