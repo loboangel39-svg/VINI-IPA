@@ -120,7 +120,7 @@ final class PatchDownloadService {
 
     /// Downloads package bytes for the original import pipeline without
     /// persisting them in RemotePatches. The caller owns the import decision.
-    func downloadPackageData(patchId: String) async throws -> Data {
+    func downloadPackageData(patchId: String) async throws -> RemotePackageDownload {
         let url = URL(string: "\(workerURL)/api/app/patches/\(patchId)/download")!
         var request = URLRequest(url: url)
         request.timeoutInterval = downloadTimeout
@@ -140,7 +140,9 @@ final class PatchDownloadService {
             )
         }
         guard !data.isEmpty else { throw PatchDownloadError.emptyResponse }
-        return data
+        let contentKey = http.value(forHTTPHeaderField: "X-Content-Key")
+            .flatMap { Self.hexToData($0) }
+        return RemotePackageDownload(data: data, contentKey: contentKey)
     }
     
     /// Limpia archivos temporales de descargas fallidas
@@ -157,6 +159,11 @@ struct PatchDownloadResult {
     let version: String
     let name: String
     let fileSize: Int
+    let contentKey: Data?
+}
+
+struct RemotePackageDownload {
+    let data: Data
     let contentKey: Data?
 }
 

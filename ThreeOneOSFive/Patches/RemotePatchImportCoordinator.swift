@@ -24,8 +24,12 @@ final class RemotePatchImportCoordinator: ObservableObject {
         importingID = patch.id
         defer { importingID = nil }
         do {
-            let data = try await PatchDownloadService.shared.downloadPackageData(patchId: patch.id)
-            guard store.importPackage(data: data) else {
+            let download = try await PatchDownloadService.shared.downloadPackageData(patchId: patch.id)
+            let summary = try PatchPackageCodec.inspect(download.data)
+            if let contentKey = download.contentKey {
+                try PatchKeyStore.store(contentKey, for: summary)
+            }
+            guard store.importPackage(data: download.data) else {
                 throw RemotePatchError.networkError
             }
             errorMessage = nil
@@ -52,14 +56,23 @@ final class RemotePatchImportCoordinator: ObservableObject {
                     try await Task.sleep(nanoseconds: 100_000_000)
                 }
                 log("[PATCH] download started id=\(patch.id)")
-                let data = try await PatchDownloadService.shared.downloadPackageData(patchId: patch.id)
-                log("[PATCH] download completed id=\(patch.id) bytes=\(data.count)")
+                let download = try await PatchDownloadService.shared.downloadPackageData(patchId: patch.id)
+                let data = download.data
+                log("[PATCH] download completed id=\(patch.id) bytes=\(data.count) contentKey=\(download.contentKey != nil)")
                 guard let summary = try? PatchPackageCodec.inspect(data) else {
                     log("[PATCH] package inspection rejected id=\(patch.id)")
                     importingID = nil
                     continue
                 }
                 log("[PATCH] package inspection accepted id=\(patch.id) package=\(summary.packageID.uuidString)")
+                if let contentKey = download.contentKey {
+                    do {
+                        try PatchKeyStore.store(contentKey, for: summary)
+                        log("[PATCH] content key stored for package=\(summary.packageID.uuidString)")
+                    } catch {
+                        log("[PATCH] content key rejected for package=\(summary.packageID.uuidString)")
+                    }
+                }
                 let existing = PatchProjectLibrary.load().contains { $0.id == summary.packageID }
                 if existing {
                     log("[PATCH] duplicate skipped package=\(summary.packageID.uuidString)")
