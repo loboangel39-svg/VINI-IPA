@@ -26,6 +26,7 @@ final class RemotePatchService {
         guard let httpResponse = response as? HTTPURLResponse else {
             throw RemotePatchError.networkError
         }
+        log("[PATCH] catalog HTTP \(httpResponse.statusCode)")
         
         // AUTO-REFRESH: Si el servidor envía un nuevo token, actualizarlo
         TokenRefreshManager.shared.handleTokenRefresh(from: httpResponse)
@@ -39,6 +40,7 @@ final class RemotePatchService {
         }
         
         let decoded = try JSONDecoder().decode(PatchesResponse.self, from: data)
+        log("[PATCH] catalog decoded count=\(decoded.patches.count)")
         return decoded.patches
     }
     

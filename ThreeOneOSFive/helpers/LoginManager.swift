@@ -8,6 +8,11 @@ struct LoginResponse {
 }
 
 final class LoginManager {
+    enum StoredSessionResult {
+        case valid
+        case revoked
+        case networkError
+    }
     
     // MARK: - VINI V2 API URL
     private static let workerURL = "https://vini-v2-api.loboangel39.workers.dev"
@@ -166,19 +171,25 @@ final class LoginManager {
 
     /// Verifies an existing JWT before considering the saved license for autologin.
     /// A revoked token must stop the automatic re-binding path.
-    static func verifyStoredSession(completion: @escaping (Bool) -> Void) {
+    static func verifyStoredSession(completion: @escaping (StoredSessionResult) -> Void) {
         guard let token = KeychainManager.shared.loadAuthToken(),
               let url = URL(string: "\(workerURL)/api/app/session") else {
-            completion(false)
+            completion(.revoked)
             return
         }
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.timeoutInterval = 10
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        URLSession.shared.dataTask(with: request) { data, response, _ in
+        URLSession.shared.dataTask(with: request) { data, response, error in
+            if error != nil || data == nil {
+                DispatchQueue.main.async { completion(.networkError) }
+                return
+            }
             let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-            DispatchQueue.main.async { completion(status == 200 && data != nil) }
+            DispatchQueue.main.async {
+                completion(status == 200 ? .valid : (status == 401 ? .revoked : .networkError))
+            }
         }.resume()
     }
     

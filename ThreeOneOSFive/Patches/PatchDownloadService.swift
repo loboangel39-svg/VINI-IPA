@@ -131,6 +131,7 @@ final class PatchDownloadService {
         guard let http = response as? HTTPURLResponse else {
             throw PatchDownloadError.invalidResponse
         }
+        log("[PATCH] package HTTP \(http.statusCode)")
         TokenRefreshManager.shared.handleTokenRefresh(from: http)
         if http.statusCode == 401 { throw PatchDownloadError.unauthorized }
         guard (200..<300).contains(http.statusCode) else {
@@ -142,6 +143,7 @@ final class PatchDownloadService {
         guard !data.isEmpty else { throw PatchDownloadError.emptyResponse }
         let contentKey = http.value(forHTTPHeaderField: "X-Content-Key")
             .flatMap { Self.hexToData($0) }
+        log("[PATCH] package response bytes=\(data.count) contentKeyPresent=\(contentKey != nil)")
         return RemotePackageDownload(data: data, contentKey: contentKey)
     }
     

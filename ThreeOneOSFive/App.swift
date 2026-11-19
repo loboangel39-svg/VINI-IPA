@@ -12,6 +12,7 @@ struct ThreeOneOSFiveApp: App {
     @AppStorage("sessionExpiresAt") private var sessionExpiresAt: Double = 0
     @AppStorage("currentLicenseKey") private var currentLicenseKey = ""
     @State private var isCheckingAutoLogin = true
+    @State private var isCheckingSession = false
     @StateObject private var repositoryStore = PackageRepositoryStore()
     @AppStorage(AppLanguage.storageKey) private var languageCode = AppLanguage.english.rawValue
     // Temporarily disconnected from navigation; retained for reversible restoration.
@@ -112,7 +113,9 @@ struct ThreeOneOSFiveApp: App {
             .onChange(of: scenePhase) { phase in
                 guard phase == .active, !showOnboarding else { return }
                 appState.detectSupport()
-                if isLoggedIn { checkSessionValidity() }
+                if isLoggedIn, !isCheckingSession {
+                    Task { await checkSessionValidityAsync() }
+                }
             }
             .onOpenURL { url in
                 patchDraftCoordinator.presentImport(url)
@@ -129,18 +132,23 @@ struct ThreeOneOSFiveApp: App {
         }
         if KeychainManager.shared.loadAuthToken() != nil {
             let storedSessionValid = await withCheckedContinuation { continuation in
-                LoginManager.verifyStoredSession { valid in
-                    if !valid {
+                LoginManager.verifyStoredSession { result in
+                    if case .revoked = result {
                         LoginManager.clearSession()
                         isLoggedIn = false
                         currentLicenseKey = ""
                         sessionExpiresAt = 0
                         log("[AUTH] stored session revoked; manual login required")
                     }
-                    continuation.resume(returning: valid)
+                    continuation.resume(returning: result)
                 }
             }
-            if !storedSessionValid {
+            if case .revoked = storedSessionValid {
+                isCheckingAutoLogin = false
+                return
+            }
+            if case .networkError = storedSessionValid {
+                log("[AUTH] stored session check unavailable; showing login without rebinding")
                 isCheckingAutoLogin = false
                 return
             }
@@ -168,38 +176,30 @@ struct ThreeOneOSFiveApp: App {
         Task { await remotePatchCoordinator.sync(into: patchStore) }
     }
 
-    private func checkSessionValidity() {
-        guard isLoggedIn else { return }
-        if sessionExpiresAt > 0, Date() > Date(timeIntervalSince1970: sessionExpiresAt) {
-            logout()
-            return
-        }
-        guard !currentLicenseKey.isEmpty else { return }
-        LoginManager.verifyLicense(licenseKey: currentLicenseKey) { valid in
-            if !valid { DispatchQueue.main.async { logout() } }
-        }
-    }
-
     private func checkSessionValidityAsync() async {
-        guard isLoggedIn else { return }
+        guard isLoggedIn, !isCheckingSession else { return }
+        isCheckingSession = true
+        defer { isCheckingSession = false }
         if sessionExpiresAt > 0, Date() > Date(timeIntervalSince1970: sessionExpiresAt) {
             logout()
             log("[AUTH] local expiration rejected session")
             return
         }
-        guard !currentLicenseKey.isEmpty else {
-            logout()
-            log("[AUTH] missing license rejected session")
-            return
-        }
-        log("[AUTH] server validation started")
+        log("[AUTH] session check started")
         let valid = await withCheckedContinuation { continuation in
-            LoginManager.verifyLicense(licenseKey: currentLicenseKey) { result in
+            LoginManager.verifyStoredSession { result in
                 continuation.resume(returning: result)
             }
         }
-        log("[AUTH] server validation result=\(valid ? "accepted" : "rejected")")
-        if !valid { logout() }
+        switch valid {
+        case .valid:
+            log("[AUTH] session check accepted")
+        case .revoked:
+            log("[AUTH] session check revoked; showing login")
+            logout()
+        case .networkError:
+            log("[AUTH] session check unavailable; keeping current session")
+        }
     }
 
     private func logout() {
