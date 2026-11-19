@@ -74,11 +74,6 @@ struct SettingsView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("iOS 27.0")
                             .font(.body)
-                        ForEach(ExploitSupportPolicy.verifiedIOS27Builds, id: \.build) { version in
-                            Text(versionLabel(version))
-                            .font(.caption.monospaced())
-                            .foregroundStyle(.secondary)
-                        }
                         Text(language.text("settings.worse_query_ios27_range"))
                             .font(.caption)
                             .foregroundStyle(.secondary)

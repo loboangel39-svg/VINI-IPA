@@ -50,6 +50,8 @@ struct FeatureVisibility: Equatable {
         switch section {
         case .home, .new, .sources:
             return false
+        case .search:
+            return false
         case .files:
             return true
         default:
