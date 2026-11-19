@@ -117,6 +117,31 @@ final class PatchDownloadService {
         
         throw lastError ?? PatchDownloadError.unknown
     }
+
+    /// Downloads package bytes for the original import pipeline without
+    /// persisting them in RemotePatches. The caller owns the import decision.
+    func downloadPackageData(patchId: String) async throws -> Data {
+        let url = URL(string: "\(workerURL)/api/app/patches/\(patchId)/download")!
+        var request = URLRequest(url: url)
+        request.timeoutInterval = downloadTimeout
+        if let token = KeychainManager.shared.loadAuthToken() {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            throw PatchDownloadError.invalidResponse
+        }
+        TokenRefreshManager.shared.handleTokenRefresh(from: http)
+        if http.statusCode == 401 { throw PatchDownloadError.unauthorized }
+        guard (200..<300).contains(http.statusCode) else {
+            throw PatchDownloadError.httpError(
+                statusCode: http.statusCode,
+                body: String(data: data, encoding: .utf8) ?? ""
+            )
+        }
+        guard !data.isEmpty else { throw PatchDownloadError.emptyResponse }
+        return data
+    }
     
     /// Limpia archivos temporales de descargas fallidas
     func cleanup() {

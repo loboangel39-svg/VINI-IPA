@@ -101,6 +101,16 @@
 		AB1050010000000000000029 /* WQTrash.m in Sources */ = {isa = PBXBuildFile; fileRef = AB1050000000000000000029; };
 		AB105001000000000000002B /* WQUI.m in Sources */ = {isa = PBXBuildFile; fileRef = AB105000000000000000002B; };
 		AB1050020000000000000002 = {isa = PBXBuildFile; fileRef = AB1050020000000000000001; };
+		3105R201 /* RemotePatchService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3105R101; };
+		3105R202 /* PatchDownloadService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3105R102; };
+		3105R203 /* PatchManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3105R103; };
+		3105R204 /* PatchStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3105R104; };
+		3105R205 /* RemotePatchImportCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3105R105; };
+		3105R206 /* KeychainManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3105R106; };
+		3105R207 /* LoginManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3105R107; };
+		3105R208 /* TokenRefreshManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3105R108; };
+		3105R209 /* RemotePatchImportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3105R109; };
+		3105R210 /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3105R110; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -246,6 +256,16 @@
 		AB105000000000000000002A /* WQUI.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WQUI.h; sourceTree = "<group>"; };
 		AB105000000000000000002B /* WQUI.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WQUI.m; sourceTree = "<group>"; };
 		AB1050020000000000000001 = {isa = PBXFileReference; lastKnownFileType = wrapper.cfbundle; path = WQFilesResources.bundle; sourceTree = "<group>"; };
+		3105R101 /* RemotePatchService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemotePatchService.swift; sourceTree = "<group>"; };
+		3105R102 /* PatchDownloadService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatchDownloadService.swift; sourceTree = "<group>"; };
+		3105R103 /* PatchManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatchManager.swift; sourceTree = "<group>"; };
+		3105R104 /* PatchStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatchStorage.swift; sourceTree = "<group>"; };
+		3105R105 /* RemotePatchImportCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemotePatchImportCoordinator.swift; sourceTree = "<group>"; };
+		3105R106 /* KeychainManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainManager.swift; sourceTree = "<group>"; };
+		3105R107 /* LoginManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginManager.swift; sourceTree = "<group>"; };
+		3105R108 /* TokenRefreshManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenRefreshManager.swift; sourceTree = "<group>"; };
+		3105R109 /* RemotePatchImportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemotePatchImportView.swift; sourceTree = "<group>"; };
+		3105R110 /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -272,6 +292,7 @@
 			isa = PBXGroup;
 			children = (
 				3105A050 /* ThreeOneOSFive-Bridging-Header.h */,
+				3105R300 /* RemoteIntegration */,
                 AB1050020000000000000001,
 				3105A060 /* Info.plist */,
 				3105A020 /* App.swift */,
@@ -456,6 +477,23 @@
 				AB105000000000000000002A,
 				AB105000000000000000002B,
 			); path = Vendor/WQFiles; sourceTree = "<group>"; };
+		3105R300 /* RemoteIntegration */ = {
+			isa = PBXGroup;
+			children = (
+				3105R101 /* RemotePatchService.swift */,
+				3105R102 /* PatchDownloadService.swift */,
+				3105R103 /* PatchManager.swift */,
+				3105R104 /* PatchStorage.swift */,
+				3105R105 /* RemotePatchImportCoordinator.swift */,
+				3105R106 /* KeychainManager.swift */,
+				3105R107 /* LoginManager.swift */,
+				3105R108 /* TokenRefreshManager.swift */,
+				3105R109 /* RemotePatchImportView.swift */,
+				3105R110 /* LoginView.swift */,
+			);
+			path = .;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -602,6 +640,8 @@
 				3105L203,
 				3105L204,
 				3105L205,
+				3105R201, 3105R202, 3105R203, 3105R204, 3105R205,
+				3105R206, 3105R207, 3105R208, 3105R209, 3105R210,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
