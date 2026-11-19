@@ -256,16 +256,16 @@
 		AB105000000000000000002A /* WQUI.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WQUI.h; sourceTree = "<group>"; };
 		AB105000000000000000002B /* WQUI.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WQUI.m; sourceTree = "<group>"; };
 		AB1050020000000000000001 = {isa = PBXFileReference; lastKnownFileType = wrapper.cfbundle; path = WQFilesResources.bundle; sourceTree = "<group>"; };
-		3105R101 /* RemotePatchService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemotePatchService.swift; sourceTree = "<group>"; };
-		3105R102 /* PatchDownloadService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatchDownloadService.swift; sourceTree = "<group>"; };
-		3105R103 /* PatchManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatchManager.swift; sourceTree = "<group>"; };
-		3105R104 /* PatchStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatchStorage.swift; sourceTree = "<group>"; };
-		3105R105 /* RemotePatchImportCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemotePatchImportCoordinator.swift; sourceTree = "<group>"; };
-		3105R106 /* KeychainManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainManager.swift; sourceTree = "<group>"; };
-		3105R107 /* LoginManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginManager.swift; sourceTree = "<group>"; };
-		3105R108 /* TokenRefreshManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenRefreshManager.swift; sourceTree = "<group>"; };
-		3105R109 /* RemotePatchImportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemotePatchImportView.swift; sourceTree = "<group>"; };
-		3105R110 /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
+		3105R101 /* RemotePatchService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Patches/RemotePatchService.swift; sourceTree = "<group>"; };
+		3105R102 /* PatchDownloadService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Patches/PatchDownloadService.swift; sourceTree = "<group>"; };
+		3105R103 /* PatchManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Patches/PatchManager.swift; sourceTree = "<group>"; };
+		3105R104 /* PatchStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Patches/PatchStorage.swift; sourceTree = "<group>"; };
+		3105R105 /* RemotePatchImportCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Patches/RemotePatchImportCoordinator.swift; sourceTree = "<group>"; };
+		3105R106 /* KeychainManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Authentication/KeychainManager.swift; sourceTree = "<group>"; };
+		3105R107 /* LoginManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = helpers/LoginManager.swift; sourceTree = "<group>"; };
+		3105R108 /* TokenRefreshManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = helpers/TokenRefreshManager.swift; sourceTree = "<group>"; };
+		3105R109 /* RemotePatchImportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = views/RemotePatchImportView.swift; sourceTree = "<group>"; };
+		3105R110 /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = views/LoginView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
