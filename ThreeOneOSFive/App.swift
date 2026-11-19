@@ -8,8 +8,10 @@ struct ThreeOneOSFiveApp: App {
     @StateObject private var fileOperationCoordinator = FileOperationCoordinator()
     @StateObject private var patchStore = PatchProjectStore()
     @StateObject private var remotePatchCoordinator = RemotePatchImportCoordinator()
-    @State private var sessionResolved = false
-    @State private var isAuthenticated = false
+    @AppStorage("isLoggedIn") private var isLoggedIn = false
+    @AppStorage("sessionExpiresAt") private var sessionExpiresAt: Double = 0
+    @AppStorage("currentLicenseKey") private var currentLicenseKey = ""
+    @State private var isCheckingAutoLogin = true
     @StateObject private var repositoryStore = PackageRepositoryStore()
     @AppStorage(AppLanguage.storageKey) private var languageCode = AppLanguage.english.rawValue
     @State private var showOnboarding = OnboardingStore.shouldShow()
@@ -39,9 +41,10 @@ struct ThreeOneOSFiveApp: App {
         WindowGroup {
             ZStack {
                 Group {
-                    if !sessionResolved {
-                        ProgressView()
-                    } else if isAuthenticated {
+                    if isCheckingAutoLogin {
+                        ProgressView("VINI V2")
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    } else if isLoggedIn {
                         ContentView()
                             .environmentObject(appState)
                             .environmentObject(patchDraftCoordinator)
@@ -51,9 +54,11 @@ struct ThreeOneOSFiveApp: App {
                             .environment(\.appLanguage, language)
                             .environment(\.locale, language.locale)
                     } else {
-                        LoginView { _, _ in
-                            isAuthenticated = true
-                            Task { await remotePatchCoordinator.sync(into: patchStore) }
+                        LoginView { license, expiresAt in
+                            currentLicenseKey = license
+                            isLoggedIn = true
+                            sessionExpiresAt = expiresAt?.timeIntervalSince1970 ?? 0
+                            synchronizeRemotePatches()
                         }
                     }
                 }
@@ -68,6 +73,7 @@ struct ThreeOneOSFiveApp: App {
                         }
                         appState.detectSupport()
                         checkForUpdate()
+                        Task { await attemptAutoLogin() }
                     }
                     .environment(\.appLanguage, language)
                     .environment(\.locale, language.locale)
@@ -99,12 +105,13 @@ struct ThreeOneOSFiveApp: App {
                 if !showOnboarding {
                     appState.detectSupport()
                     checkForUpdate()
-                    resolveSession()
                 }
             }
+            .task { await attemptAutoLogin() }
             .onChange(of: scenePhase) { phase in
                 guard phase == .active, !showOnboarding else { return }
                 appState.detectSupport()
+                if isLoggedIn { checkSessionValidity() }
             }
             .onOpenURL { url in
                 patchDraftCoordinator.presentImport(url)
@@ -112,29 +119,56 @@ struct ThreeOneOSFiveApp: App {
         }
     }
 
-    private func resolveSession() {
-        guard !sessionResolved else { return }
-        if let token = KeychainManager.shared.loadAuthToken(), !token.isEmpty,
-           KeychainManager.shared.loadLicenseKey() != nil {
-            isAuthenticated = true
-            sessionResolved = true
-            Task {
-                await remotePatchCoordinator.sync(into: patchStore)
-            }
-        } else if KeychainManager.shared.hasSavedCredentials() {
-            LoginManager.tryAutoLogin { success, _, _ in
-                DispatchQueue.main.async {
-                    isAuthenticated = success
-                    sessionResolved = true
-                    if success {
-                        Task { await remotePatchCoordinator.sync(into: patchStore) }
+    private func attemptAutoLogin() async {
+        guard !showOnboarding else { return }
+        if isLoggedIn {
+            checkSessionValidity()
+            isCheckingAutoLogin = false
+            if isLoggedIn { synchronizeRemotePatches() }
+            return
+        }
+        await withCheckedContinuation { continuation in
+            LoginManager.tryAutoLogin { success, license, expiresAt in
+                Task { @MainActor in
+                    if success, let license {
+                        currentLicenseKey = license
+                        isLoggedIn = true
+                        sessionExpiresAt = expiresAt?.timeIntervalSince1970 ?? 0
+                        log("app: auto-login successful")
+                        synchronizeRemotePatches()
+                    } else {
+                        log("app: auto-login unavailable; showing original login")
                     }
+                    isCheckingAutoLogin = false
+                    continuation.resume()
                 }
             }
-        } else {
-            isAuthenticated = false
-            sessionResolved = true
         }
+    }
+
+    private func synchronizeRemotePatches() {
+        Task { await remotePatchCoordinator.sync(into: patchStore) }
+    }
+
+    private func checkSessionValidity() {
+        guard isLoggedIn else { return }
+        if sessionExpiresAt > 0, Date() > Date(timeIntervalSince1970: sessionExpiresAt) {
+            logout()
+            return
+        }
+        guard !currentLicenseKey.isEmpty else { return }
+        LoginManager.verifyLicense(licenseKey: currentLicenseKey) { valid in
+            if !valid { DispatchQueue.main.async { logout() } }
+        }
+    }
+
+    private func logout() {
+        isLoggedIn = false
+        sessionExpiresAt = 0
+        currentLicenseKey = ""
+        RemotePatchService.shared.clearAuth()
+        LoginManager.clearSession()
+        log("app: session expired or invalidated")
     }
 }
 
