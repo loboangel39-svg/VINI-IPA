@@ -62,10 +62,10 @@ struct ThreeOneOSFiveApp: App {
                         }
                     }
                 }
-                .opacity(showOnboarding ? 0 : 1)
-                .allowsHitTesting(!showOnboarding)
+                .opacity(showOnboarding && isLoggedIn ? 0 : 1)
+                .allowsHitTesting(!(showOnboarding && isLoggedIn))
 
-                if showOnboarding {
+                if showOnboarding && isLoggedIn {
                     OnboardingView {
                         OnboardingStore.markCompleted()
                         withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.24)) {
@@ -120,7 +120,6 @@ struct ThreeOneOSFiveApp: App {
     }
 
     private func attemptAutoLogin() async {
-        guard !showOnboarding else { return }
         if isLoggedIn {
             checkSessionValidity()
             isCheckingAutoLogin = false
