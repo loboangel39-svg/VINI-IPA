@@ -261,7 +261,7 @@
 "settings.current_version" = "Current version";
 "settings.verified_versions" = "Verified versions";
 "settings.worse_query_ios26_range" = "26.0–26.7.2";
-"settings.worse_query_ios27_range" = "27.0–27.2.1; beta 1: 24C5037i";
+"settings.worse_query_ios27_range" = "27.0–27.2.1";
 "settings.beta_build" = "Beta %lld · %@";
 "settings.developer_beta_build" = "Developer Beta %lld · %@";
 "settings.developer_public_beta_build" = "Developer Beta %lld / Public Beta %lld · %@";
