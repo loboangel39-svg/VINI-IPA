@@ -71,14 +71,10 @@ struct SettingsView: View {
                         "iOS 26",
                         value: language.text("settings.worse_query_ios26_range")
                     )
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("iOS 27.0")
-                            .font(.body)
-                        Text(language.text("settings.worse_query_ios27_range"))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    .padding(.vertical, 2)
+                    LabeledContent(
+                        "iOS 27",
+                        value: language.text("settings.worse_query_ios27_range")
+                    )
                 } header: {
                     Text(language.text("settings.verified_versions"))
                 } footer: {
