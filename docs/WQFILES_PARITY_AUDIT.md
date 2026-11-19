@@ -97,3 +97,65 @@ La comparación correcta requiere registrar, sin contenido privado:
 
 No se implementa en esta auditoría ningún mecanismo de escape, cambio de
 permisos, nuevo proveedor, App Group o entitlement. Patches permanece intacto.
+
+## Anexo A — evidencia Erosion/PathLeak
+
+Fuente: `Erosion-Log-11-18-2026-193215.txt`.
+
+Erosion v0.3.1 registra iOS 27.2.1 / iPhone14,3 y el mismo App Group:
+
+```text
+(wq) Using app group: group.pigtjing.top
+(fs) pathleaking /var/mobile/Containers/Data/InternalDaemon
+(fs) got 32 paths via pathleak
+(fs) pathleaking /var/mobile/Containers/Data/Application
+(fs) got 302 paths via pathleak
+```
+
+VINI-IPA registró para `Data/Application` 266 entradas por el fallback inode.
+La diferencia es de 36 entradas, pero no prueba que sean 36 aplicaciones: los
+dos mecanismos pueden contar tipos de objeto, raíces, duplicados o ventanas
+temporales diferentes.
+
+| Dimensión | Erosion/PathLeak | WQFiles | VINI-IPA | Estado |
+|---|---|---|---|---|
+| `Data/Application` | 302 paths | `wq_enumerate` con límite dinámico/cache | 266 UUIDs por inode | Conjuntos aún no comparados |
+| `InternalDaemon` | 32 paths | `wq_enumerate` si el acceso lo permite | Fuera del inventario principal | Cobertura distinta |
+| `Bundle/Application` | No demostrado por el log | Asociación separada de bundles `.app` | Fallback no accesible en el log | Pendiente |
+| `PluginKitPlugin` | No demostrado | WQFiles separa extensiones/plugins | Sin evidencia de inclusión | Pendiente |
+| Identidad xattr | Se intenta después de PathLeak | `wq_container_label` consulta xattr | No se consulta xattr | Omisión confirmada |
+| Autorización | PathLeak devuelve paths | `wq_grant` verifica apertura efectiva | Grants individuales parciales | Etapa distinta de enumeración |
+
+### `errno 93`
+
+El log contiene 1.779 errores:
+
+```text
+failed to read xattr: Attribute not found (errno 93)
+```
+
+Ese error significa que el atributo no existe en ese objeto. No demuestra que
+el contenedor no exista. La integración debe distinguir `ENOATTR`/errno 93 de
+`EACCES`/`EPERM` y de una ruta inexistente o reemplazada.
+
+### Dependencias y efectos
+
+La integración actual no contiene la cadena completa de `wq_container_label`:
+xattr, etiquetas LS/API, consultas ContainerManager por varias clases, resolver
+registrado y metadata fallback. Tampoco contiene el ciclo completo de
+`wq_enumerate` con límite dinámico, cache, generaciones y publicación ligada a
+identidad. WQFiles además puede explorar `InternalDaemon`, mientras Files solo
+publica el inventario principal de `Data/Application`.
+
+Estas diferencias afectan cobertura de enumeración, asociación de identidad y
+navegación. No autorizan copiar `wq_grant`, cambiar App Groups, añadir
+entitlements ni alterar proveedores protegidos.
+
+No se inspeccionó la implementación interna de PathLeak de Erosion; el log solo
+prueba sus resultados. Por ello no se afirma equivalencia algorítmica con
+`wq_enumerate` ni se atribuye ninguna ruta a `com.dts.freefireth` o
+`com.dts.freefiremax`.
+
+La siguiente validación debe comparar conjuntos normalizados registrando solo
+raíz, UUID, device/inode, estado de existencia, estado de acceso y resultado de
+cada fuente de identidad. No se declara resuelta la compatibilidad.
