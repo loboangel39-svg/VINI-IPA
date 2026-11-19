@@ -48,3 +48,18 @@ enum ExploitSupportPolicy {
         return iOS27BetaNumber(for: build) != nil
     }
 }
+
+enum WorseQuerySupportPolicy {
+    static func isSupported(major: Int, minor: Int, patch: Int, build: String) -> Bool {
+        guard minor >= 0, patch >= 0 else { return false }
+
+        if major == 26 {
+            return minor < 7 || (minor == 7 && patch <= 2)
+        }
+
+        guard major == 27 else { return false }
+        if minor < 2 { return true }
+        if minor == 2 { return patch <= 1 }
+        return minor == 3 && patch == 0 && build == "24C5037i"
+    }
+}

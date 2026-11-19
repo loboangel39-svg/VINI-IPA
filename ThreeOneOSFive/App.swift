@@ -211,7 +211,13 @@ class AppState: ObservableObject {
 
     func detectSupport() {
         let v = AppInfo.versionTuple
-        let supported = ExploitSupportPolicy.isSupported(
+        let exploitSupported = ExploitSupportPolicy.isSupported(
+            major: v.major,
+            minor: v.minor,
+            patch: v.patch,
+            build: AppInfo.osBuild
+        )
+        let supported = exploitSupported || WorseQuerySupportPolicy.isSupported(
             major: v.major,
             minor: v.minor,
             patch: v.patch,
