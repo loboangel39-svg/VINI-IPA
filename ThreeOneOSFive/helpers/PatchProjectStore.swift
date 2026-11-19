@@ -34,6 +34,7 @@ final class PatchProjectStore: ObservableObject {
         let summary: PatchPackageSummary
         let existingURL: URL?
         let origin: PatchPackageOrigin?
+        let allowTargetOverlap: Bool
     }
 
     private var pendingUnlock: PendingUnlock?
@@ -234,7 +235,8 @@ final class PatchProjectStore: ObservableObject {
                 data: data,
                 summary: item.summary,
                 existingURL: item.packageURL,
-                origin: item.origin
+                origin: item.origin,
+                allowTargetOverlap: false
             )
             passwordRequest = PatchPasswordRequest(
                 summary: item.summary,
@@ -261,7 +263,8 @@ final class PatchProjectStore: ObservableObject {
                         decoded: decoded,
                         summary: pending.summary,
                         existingURL: pending.existingURL,
-                        origin: pending.origin
+                        origin: pending.origin,
+                        allowTargetOverlap: pending.allowTargetOverlap
                     )
                 } catch {
                     try? PatchKeyStore.delete(for: pending.summary)
