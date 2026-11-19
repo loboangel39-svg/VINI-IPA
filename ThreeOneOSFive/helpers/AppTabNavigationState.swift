@@ -51,7 +51,7 @@ struct FeatureVisibility: Equatable {
         case .home, .new, .sources:
             return false
         case .files:
-            return developerModeEnabled
+            return true
         default:
             return true
         }

@@ -260,6 +260,8 @@
 "settings.compatibility" = "Tương thích";
 "settings.current_version" = "Phiên bản hiện tại";
 "settings.verified_versions" = "Phiên bản đã xác minh";
+"settings.worse_query_ios26_range" = "Exploit: 26.0–26.6.1; worse_query: 26.0–26.7.2";
+"settings.worse_query_ios27_range" = "worse_query đã được ghi nhận: iOS 27.0–27.2.1; iOS 27.3 beta 1 (24C5037i)";
 "settings.beta_build" = "Beta %lld · %@";
 "settings.developer_beta_build" = "Developer Beta %lld · %@";
 "settings.developer_public_beta_build" = "Developer Beta %lld / Public Beta %lld · %@";
@@ -273,7 +275,7 @@
 "kernel.footer_warning" = "Chỉ chạy trong RAM (không tồn tại sau reboot). Nếu thất bại, hãy mở lại app rồi thử lại.";
 "kernel.auto_run" = "Tự chạy khi mở app";
 "kernel.failed_requires_relaunch" = "Mở lại app trước khi thử lại.";
-"settings.supported_versions_footer" = "Chỉ các build chính xác ở trên được bật. Build iOS 27 khác sẽ bị đánh dấu chưa hỗ trợ cho đến khi được xác minh.";
+"settings.supported_versions_footer" = "Các phiên bản của exploit gốc và các phiên bản worse_query được ghi nhận được hiển thị riêng; điều này không có nghĩa là mọi thiết bị đã được kiểm thử riêng lẻ.";
 "settings.sandbox_token" = "Token sandbox";
 "settings.generate_token" = "Tạo token";
 "settings.token_footer" = "Khả dụng sau khi exploit cấp quyền thành công.";
@@ -664,6 +666,6 @@
 "repository.all_source_packages" = "Tất cả gói";
 "repository.source_empty" = "Nguồn này chưa có gói khả dụng. Hãy bật hoặc làm mới nguồn rồi thử lại.";
 "settings.developer_mode" = "Chế độ nhà phát triển";
-"settings.developer_mode_footer" = "Chế độ nhà phát triển thêm mục Tệp vào thanh điều hướng chính. Tệp có thể duyệt và chỉnh sửa container ứng dụng.";
+"settings.developer_mode_footer" = "Tệp có sẵn trong thanh điều hướng chính. Chế độ nhà phát triển được giữ nguyên.";
 "wallpaper.package_details" = "Chi tiết gói";
 "wallpaper.package_files" = "%lld tệp";

@@ -260,6 +260,8 @@
 "settings.compatibility" = "Compatibility";
 "settings.current_version" = "Current version";
 "settings.verified_versions" = "Verified versions";
+"settings.worse_query_ios26_range" = "Exploit: 26.0–26.6.1; worse_query: 26.0–26.7.2";
+"settings.worse_query_ios27_range" = "Documented worse_query: iOS 27.0–27.2.1; iOS 27.3 beta 1 (24C5037i)";
 "settings.beta_build" = "Beta %lld · %@";
 "settings.developer_beta_build" = "Developer Beta %lld · %@";
 "settings.developer_public_beta_build" = "Developer Beta %lld / Public Beta %lld · %@";
@@ -273,7 +275,7 @@
 "kernel.footer_warning" = "In-memory only (not persistent). If it fails, relaunch the app before trying again.";
 "kernel.auto_run" = "Auto-run on launch";
 "kernel.failed_requires_relaunch" = "Relaunch the app before retrying.";
-"settings.supported_versions_footer" = "Only the exact builds listed above are enabled. Other iOS 27 builds are marked unsupported until verified.";
+"settings.supported_versions_footer" = "Versions for the original exploit and documented worse_query versions are shown separately; this does not mean every device was tested individually.";
 "settings.sandbox_token" = "Sandbox Token";
 "settings.generate_token" = "Generate Token";
 "settings.token_footer" = "Available after exploit access succeeds.";
@@ -664,6 +666,6 @@
 "repository.all_source_packages" = "All Packages";
 "repository.source_empty" = "This source has no available packages. Enable or refresh it and try again.";
 "settings.developer_mode" = "Developer Mode";
-"settings.developer_mode_footer" = "Developer Mode adds Files to the main navigation. Files can browse and modify application containers.";
+"settings.developer_mode_footer" = "Files is available in the main navigation. Developer Mode is preserved unchanged.";
 "wallpaper.package_details" = "Package Details";
 "wallpaper.package_files" = "%lld files";

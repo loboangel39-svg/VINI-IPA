@@ -53,25 +53,6 @@ struct SettingsView: View {
                     Text(language.text("settings.developer_mode_footer"))
                 }
 
-                if WallpaperFeatureSupportPolicy.isSupported(
-                    major: AppInfo.versionTuple.major
-                ) {
-                    Section {
-                        NavigationLink {
-                            WallpaperResetSettingsView()
-                        } label: {
-                            Label(
-                                language.text("wallpaper.reset"),
-                                systemImage: "arrow.counterclockwise"
-                            )
-                        }
-                    } header: {
-                        Text(language.text("tab.wallpapers"))
-                    } footer: {
-                        Text(language.text("wallpaper.reset_settings_footer"))
-                    }
-                }
-
                 Section(language.text("common.device")) {
                     LabeledContent(language.text("dashboard.hardware_model"), value: AppInfo.displayMachineName)
                     LabeledContent(language.text("settings.ios_version"), value: "\(AppInfo.osVersion) (\(AppInfo.osBuild))")
@@ -86,7 +67,10 @@ struct SettingsView: View {
                     }
                     LabeledContent("iOS 17", value: ExploitSupportPolicy.verifiedIOS17Range)
                     LabeledContent("iOS 18", value: ExploitSupportPolicy.verifiedIOS18Range)
-                    LabeledContent("iOS 26", value: ExploitSupportPolicy.verifiedIOS26Range)
+                    LabeledContent(
+                        "iOS 26",
+                        value: language.text("settings.worse_query_ios26_range")
+                    )
                     VStack(alignment: .leading, spacing: 8) {
                         Text("iOS 27.0")
                             .font(.body)
@@ -95,6 +79,9 @@ struct SettingsView: View {
                             .font(.caption.monospaced())
                             .foregroundStyle(.secondary)
                         }
+                        Text(language.text("settings.worse_query_ios27_range"))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
                     .padding(.vertical, 2)
                 } header: {
