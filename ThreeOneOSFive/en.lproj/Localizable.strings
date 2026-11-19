@@ -494,7 +494,7 @@
 "tab.explore" = "Explore";
 "tab.sources" = "Sources";
 "tab.installed" = "Installed";
-"installed.search" = "Search patches or wallpapers";
+"installed.search" = "Search apps";
 "installed.empty_title" = "Nothing Installed";
 "installed.empty_message" = "Import a .3105 patch or .tendies wallpaper package to begin.";
 "installed.loading" = "Loading installed items…";

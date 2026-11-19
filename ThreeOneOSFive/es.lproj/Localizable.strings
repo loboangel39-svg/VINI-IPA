@@ -78,6 +78,7 @@
 "tab.new" = "Nuevos";
 "tab.sources" = "Fuentes";
 "tab.installed" = "Instaladas";
+"installed.search" = "Buscar aplicaciones";
 "tab.files" = "Archivos";
 "tab.search" = "Buscar";
 "tab.patches" = "Parches";
