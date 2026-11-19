@@ -146,11 +146,6 @@ struct PatchProjectsView: View {
                             }
                         }
                     }
-                    if cleanerEnabled {
-                        Section(language.text("repository.utilities")) {
-                            cleanerRow
-                        }
-                    }
                 }
                 .listStyle(.insetGrouped)
             }
