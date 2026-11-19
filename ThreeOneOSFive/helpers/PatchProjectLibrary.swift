@@ -239,7 +239,7 @@ enum PatchProjectLibrary {
                 existingURL: existingURL,
                 fileManager: fileManager
             )
-            log("[PATCH] library saved packageID=\(summary.packageID.uuidString) file=\(savedURL?.lastPathComponent ?? \"unknown\")")
+            log("[PATCH] library saved packageID=\(summary.packageID.uuidString) file=\(savedURL?.lastPathComponent ?? "unknown")")
             if summary.schemaVersion >= 2 {
                 if PatchProjectAccessPolicy.shouldMaterializeWorkspace(
                     project: decoded.project,
