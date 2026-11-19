@@ -511,6 +511,62 @@ enum ContainerStore {
         return ContainerMetadata(bundleID: bundleID, displayName: displayName)
     }
 
+    private static func bundleIDFromContainerXattr(_ containerPath: String) -> String? {
+        let canonical = ContainerDiscoveryMerger.canonicalPath(containerPath)
+        let attribute = "com.apple.containermanager.identifier"
+
+        func read() -> (String?, Int32) {
+            errno = 0
+            var buffer = [UInt8](repeating: 0, count: 512)
+            let length = getxattr(canonical, attribute, &buffer, buffer.count - 1, 0, 0)
+            guard length > 0 else { return (nil, errno) }
+            buffer[length] = 0
+            return (String(cString: buffer), 0)
+        }
+
+        var result = read()
+        if let raw = result.0 {
+            let value = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard ContainerBundleCandidateResolver.isValidBundleIdentifier(value) else {
+                log("[FILES][IDENTITY] source=xattr status=invalid")
+                return nil
+            }
+            log("[FILES][IDENTITY] source=xattr status=accepted")
+            return value
+        }
+
+        if result.1 == ENOATTR {
+            log("[FILES][IDENTITY] source=xattr status=absent errno=93")
+        } else if result.1 == EACCES || result.1 == EPERM {
+            log("[FILES][IDENTITY] source=xattr status=access_denied errno=\(result.1)")
+        } else if result.1 != 0 {
+            log("[FILES][IDENTITY] source=xattr status=read_error errno=\(result.1)")
+        }
+
+        let handle = grantContainerAccess(canonical)
+        if handle >= 0 {
+            result = read()
+            releaseContainerAccess(handle)
+            if let raw = result.0 {
+                let value = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard ContainerBundleCandidateResolver.isValidBundleIdentifier(value) else {
+                    log("[FILES][IDENTITY] source=xattr_retry status=invalid")
+                    return nil
+                }
+                log("[FILES][IDENTITY] source=xattr_retry status=accepted")
+                return value
+            }
+            if result.1 == ENOATTR {
+                log("[FILES][IDENTITY] source=xattr_retry status=absent errno=93")
+            } else if result.1 == EACCES || result.1 == EPERM {
+                log("[FILES][IDENTITY] source=xattr_retry status=access_denied errno=\(result.1)")
+            } else if result.1 != 0 {
+                log("[FILES][IDENTITY] source=xattr_retry status=read_error errno=\(result.1)")
+            }
+        }
+        return nil
+    }
+
     static func metadataPath(for containerPath: String) -> String {
         (containerPath as NSString).appendingPathComponent(
             ".com.apple.mobile_container_manager.metadata.plist"
@@ -626,6 +682,20 @@ enum ContainerStore {
         launchServicesIdentifiers: Set<String>
     ) -> InstalledApp? {
         guard UUID(uuidString: fallback.bundleID) != nil else { return fallback }
+
+        if let bundleID = bundleIDFromContainerXattr(fallback.containerPath),
+           let identity = FileContainerPhysicalIdentity.capture(path: fallback.containerPath),
+           identity.stillNamesSameDirectory(at: fallback.containerPath) {
+            let info = appInfoForBundleID(bundleID) as? [String: Any] ?? [:]
+            log("[FILES][VALIDATION] status=accepted source=xattr")
+            return InstalledApp(
+                bundleID: bundleID,
+                name: info["name"] as? String ?? bundleID,
+                containerPath: fallback.containerPath,
+                version: info["version"] as? String ?? "",
+                icon: info["icon"] as? UIImage
+            )
+        }
 
         // Read the MCM metadata plist directly. With the sandbox escape
         // active the raw read succeeds even when every MCM/bad_query grant
