@@ -75,6 +75,10 @@
 "dashboard.kernel_inactive" = "Chưa hoạt động";
 "dashboard.enterprise_signing" = "3105 chỉ hoạt động khi được ký bằng chứng chỉ doanh nghiệp. Không hỗ trợ SideStore, AltStore, 3uTools hoặc LiveContainer.";
 "dashboard.features" = "Tính năng";
+"settings.license" = "Giấy phép";
+"settings.time_remaining" = "Thời gian";
+"settings.license_unavailable" = "Không có thông tin";
+"settings.license_expired" = "Đã hết hạn";
 "dashboard.features_footer" = "Bật Dọn dẹp hoặc Hình nền để hiển thị tính năng đó trong thanh điều hướng.";
 "tab.home" = "Trang chủ";
 "tab.new" = "Mới";

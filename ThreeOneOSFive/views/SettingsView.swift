@@ -6,9 +6,7 @@ struct SettingsView: View {
     @Environment(\.appLanguage) private var language
     @EnvironmentObject private var appState: AppState
     @AppStorage(AppLanguage.storageKey) private var languageCode = AppLanguage.spanish.rawValue
-    @AppStorage(FeatureVisibility.cleanerStorageKey) private var cleanerEnabled = true
-    @AppStorage(FeatureVisibility.developerModeStorageKey)
-    private var developerModeEnabled = false
+    @AppStorage("sessionExpiresAt") private var sessionExpiresAt: Double = 0
 
     var body: some View {
         NavigationStack {
@@ -38,19 +36,23 @@ struct SettingsView: View {
                 }
 
                 Section {
-                    Toggle(isOn: $cleanerEnabled) {
-                        Label(language.text("tab.cleaner"), systemImage: "sparkles")
+                    HStack {
+                        Label(language.text("settings.license"), systemImage: "sparkles")
+                        Spacer()
+                        Text(language.text("settings.license_unavailable"))
+                            .foregroundStyle(.secondary)
                     }
-                    Toggle(isOn: $developerModeEnabled) {
-                        Label(
-                            language.text("settings.developer_mode"),
-                            systemImage: "hammer.fill"
-                        )
+                    HStack {
+                        Label(language.text("settings.time_remaining"), systemImage: "hammer.fill")
+                        Spacer()
+                        TimelineView(.periodic(from: .now, by: 60)) { context in
+                            Text(remainingLicenseText(at: context.date))
+                                .foregroundStyle(.secondary)
+                                .monospacedDigit()
+                        }
                     }
                 } header: {
                     Text(language.text("dashboard.features"))
-                } footer: {
-                    Text(language.text("settings.developer_mode_footer"))
                 }
 
                 Section(language.text("common.device")) {
@@ -98,6 +100,20 @@ struct SettingsView: View {
         Bundle.main.object(forInfoDictionaryKey: "AppReleaseDisplayVersion") as? String
             ?? Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
             ?? "1.0"
+    }
+
+    private func remainingLicenseText(at date: Date) -> String {
+        guard sessionExpiresAt > 0 else {
+            return language.text("settings.license_unavailable")
+        }
+        let remaining = Int(Date(timeIntervalSince1970: sessionExpiresAt).timeIntervalSince(date))
+        guard remaining > 0 else {
+            return language.text("settings.license_expired")
+        }
+        let days = remaining / 86_400
+        let hours = (remaining % 86_400) / 3_600
+        let minutes = (remaining % 3_600) / 60
+        return "\(days)d \(hours)h \(minutes)m"
     }
 
     private func versionLabel(

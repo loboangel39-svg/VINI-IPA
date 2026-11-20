@@ -75,6 +75,10 @@
 "dashboard.kernel_inactive" = "Inactive";
 "dashboard.enterprise_signing" = "3105 only works when signed with an enterprise certificate. SideStore, AltStore, 3uTools and LiveContainer are not supported.";
 "dashboard.features" = "Features";
+"settings.license" = "License";
+"settings.time_remaining" = "Time";
+"settings.license_unavailable" = "Unavailable";
+"settings.license_expired" = "Expired";
 "dashboard.features_footer" = "Turn on Cleaner or Wallpapers to show it in the app navigation.";
 "tab.home" = "Home";
 "tab.new" = "New";

@@ -75,6 +75,10 @@
 "dashboard.kernel_inactive" = "未激活";
 "dashboard.enterprise_signing" = "3105 仅在使用企业证书签名时运行。不支持 SideStore、AltStore、3uTools 或 LiveContainer。";
 "dashboard.features" = "功能";
+"settings.license" = "许可证";
+"settings.time_remaining" = "剩余时间";
+"settings.license_unavailable" = "不可用";
+"settings.license_expired" = "已过期";
 "dashboard.features_footer" = "开启清理或壁纸后，该功能才会显示在应用导航中。";
 "tab.home" = "主页";
 "tab.new" = "最新";
