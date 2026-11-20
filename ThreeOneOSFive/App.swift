@@ -90,6 +90,7 @@ struct ThreeOneOSFiveApp: App {
                 }
             }
             .task { await attemptAutoLogin() }
+            .task { await refreshLicenseExpirationLoop() }
             .onChange(of: scenePhase) { phase in
                 guard phase == .active, !showOnboarding else { return }
                 appState.detectSupport()
@@ -174,7 +175,10 @@ struct ThreeOneOSFiveApp: App {
             }
         }
         switch valid {
-        case .valid:
+        case .valid(let licenseExpiration):
+            if let licenseExpiration {
+                licenseExpiresAt = licenseExpiration.timeIntervalSince1970
+            }
             log("[AUTH] session check accepted")
             synchronizeRemotePatches()
         case .revoked:
@@ -182,6 +186,14 @@ struct ThreeOneOSFiveApp: App {
             logout()
         case .networkError:
             log("[AUTH] session check unavailable; keeping current session")
+        }
+    }
+
+    private func refreshLicenseExpirationLoop() async {
+        while !Task.isCancelled {
+            try? await Task.sleep(nanoseconds: 60_000_000_000)
+            guard !Task.isCancelled, isLoggedIn else { continue }
+            await checkSessionValidityAsync()
         }
     }
 

@@ -10,7 +10,7 @@ struct LoginResponse {
 
 final class LoginManager {
     enum StoredSessionResult {
-        case valid
+        case valid(licenseExpiresAt: Date?)
         case revoked
         case networkError
     }
@@ -193,8 +193,17 @@ final class LoginManager {
                 return
             }
             let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+            let licenseExpiresAt: Date?
+            if status == 200, let data,
+               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                licenseExpiresAt = parseISO8601Date(json["licenseExpiresAt"] as? String)
+            } else {
+                licenseExpiresAt = nil
+            }
             DispatchQueue.main.async {
-                completion(status == 200 ? .valid : (status == 401 ? .revoked : .networkError))
+                completion(status == 200
+                    ? .valid(licenseExpiresAt: licenseExpiresAt)
+                    : (status == 401 ? .revoked : .networkError))
             }
         }.resume()
     }
