@@ -183,9 +183,7 @@ struct ThreeOneOSFiveApp: App {
             if let licenseExpiration {
                 licenseExpiresAt = licenseExpiration.timeIntervalSince1970
             }
-            if let plan {
-                licensePlan = plan
-            }
+            licensePlan = plan ?? ""
             log("[AUTH] session check accepted")
             synchronizeRemotePatches()
         case .revoked:
