@@ -674,32 +674,6 @@ private struct PatchProjectDetailView: View {
     var body: some View {
         List {
             if let item, let project = item.project {
-                Section(language.text("patch.information")) {
-                    if !project.author.isEmpty {
-                        patchInfoRow(
-                            label: language.text("patch.author"),
-                            value: project.author
-                        )
-                    }
-                    patchInfoRow(label: language.text("patch.privacy")) {
-                        Label(
-                            language.text(project.isPrivate
-                                ? "patch.private"
-                                : "patch.public"),
-                            systemImage: project.isPrivate
-                                ? "eye.slash.fill"
-                                : "eye"
-                        )
-                        .foregroundStyle(project.isPrivate ? AppTheme.accent : Color.secondary)
-                    }
-                    if let origin = item.origin {
-                        patchInfoRow(
-                            label: language.text("repository.source"),
-                            value: origin.repositoryName
-                        )
-                    }
-                }
-
                 if project.isPrivate && !item.canInspectContents {
                     Section {
                         VStack(spacing: 10) {
