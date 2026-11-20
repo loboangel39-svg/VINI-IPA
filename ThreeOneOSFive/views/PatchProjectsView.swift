@@ -494,16 +494,12 @@ private struct PatchProjectRow: View {
                 Text(item.project?.name ?? language.text("patch.locked_project"))
                     .font(.body.weight(.semibold))
                     .foregroundStyle(.primary)
-                    .lineLimit(1)
-                InstalledContentKindBadge(kind: .patch, language: language)
+                    .lineLimit(2)
                 if let author = item.project?.author, !author.isEmpty {
                     Text(language.text("patch.by_author", author))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
-                Text(rowDetail)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
             }
             Spacer()
             if item.summary.isPasswordProtected {
