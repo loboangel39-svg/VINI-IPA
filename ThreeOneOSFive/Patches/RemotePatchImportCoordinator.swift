@@ -109,6 +109,7 @@ final class RemotePatchImportCoordinator: ObservableObject {
                     } else if store.passwordRequest != nil {
                         log("[PATCH] import pending password package=\(summary.packageID.uuidString)")
                     } else {
+                        await Task.yield()
                         store.alert = nil
                         log("[PATCH] import completed package=\(summary.packageID.uuidString) installedCount=\(store.items.count)")
                     }
