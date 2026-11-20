@@ -71,7 +71,7 @@
 "dashboard.kernel_active" = "Activo";
 "dashboard.kernel_inactive" = "Inactivo";
 "dashboard.enterprise_signing" = "VINI solo funciona cuando se firma con un certificado empresarial. SideStore, AltStore, 3uTools y LiveContainer no son compatibles.";
-"dashboard.features" = "Funciones";
+"dashboard.features" = "Estado";
 "settings.license" = "Licencia";
 "settings.time_remaining" = "Tiempo";
 "settings.license_unavailable" = "No disponible";

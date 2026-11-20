@@ -37,13 +37,13 @@ struct SettingsView: View {
 
                 Section {
                     HStack {
-                        Label(language.text("settings.license"), systemImage: "sparkles")
+                        Label(language.text("settings.license"), systemImage: "checkmark.shield")
                         Spacer()
                         Text(language.text("settings.license_unavailable"))
                             .foregroundStyle(.secondary)
                     }
                     HStack {
-                        Label(language.text("settings.time_remaining"), systemImage: "hammer.fill")
+                        Label(language.text("settings.time_remaining"), systemImage: "hourglass")
                         Spacer()
                         TimelineView(.periodic(from: .now, by: 60)) { context in
                             Text(remainingLicenseText(at: context.date))
