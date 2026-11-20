@@ -2,7 +2,7 @@ import SwiftUI
 
 struct LoginView: View {
 
-    var onLoginSuccess: (String, Date?) -> Void
+    var onLoginSuccess: (String, Date?, Date?) -> Void
 
     @State private var licenseKey: String = ""
     @State private var isLoading: Bool = false
@@ -133,11 +133,11 @@ struct LoginView: View {
         errorMessage = nil
         isLoading = true
 
-        LoginManager.login(licenseKey: licenseKey) { success, message, expiresAt in
+        LoginManager.login(licenseKey: licenseKey) { success, message, expiresAt, licenseExpiresAt in
             DispatchQueue.main.async {
                 isLoading = false
                 if success {
-                    onLoginSuccess(licenseKey, expiresAt)
+                    onLoginSuccess(licenseKey, expiresAt, licenseExpiresAt)
                 } else {
                     errorMessage = message
                 }
@@ -147,5 +147,5 @@ struct LoginView: View {
 }
 
 #Preview {
-    LoginView(onLoginSuccess: { _, _ in })
+    LoginView(onLoginSuccess: { _, _, _ in })
 }

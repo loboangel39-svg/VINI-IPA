@@ -6,7 +6,7 @@ struct SettingsView: View {
     @Environment(\.appLanguage) private var language
     @EnvironmentObject private var appState: AppState
     @AppStorage(AppLanguage.storageKey) private var languageCode = AppLanguage.spanish.rawValue
-    @AppStorage("sessionExpiresAt") private var sessionExpiresAt: Double = 0
+    @AppStorage("licenseExpiresAt") private var licenseExpiresAt: Double = 0
 
     var body: some View {
         NavigationStack {
@@ -103,10 +103,10 @@ struct SettingsView: View {
     }
 
     private func remainingLicenseText(at date: Date) -> String {
-        guard sessionExpiresAt > 0 else {
+        guard licenseExpiresAt > 0 else {
             return language.text("settings.license_unavailable")
         }
-        let remaining = Int(Date(timeIntervalSince1970: sessionExpiresAt).timeIntervalSince(date))
+        let remaining = Int(Date(timeIntervalSince1970: licenseExpiresAt).timeIntervalSince(date))
         guard remaining > 0 else {
             return language.text("settings.license_expired")
         }

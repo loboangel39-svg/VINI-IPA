@@ -5,6 +5,7 @@ struct LoginResponse {
     let success: Bool
     let message: String
     let expiresAt: Date?
+    let licenseExpiresAt: Date?
 }
 
 final class LoginManager {
@@ -24,7 +25,7 @@ final class LoginManager {
     }
     
     /// Inicia sesión validando la licencia contra el Worker V2
-    static func login(licenseKey: String, completion: @escaping (Bool, String, Date?) -> Void) {
+    static func login(licenseKey: String, completion: @escaping (Bool, String, Date?, Date?) -> Void) {
         let hwid = getPersistentHWID()
         
         print("[AUTH] login validation started; hwid present=\(!hwid.isEmpty)")
@@ -33,9 +34,9 @@ final class LoginManager {
     }
     
     /// Valida licencia contra el Worker V2 API
-    private static func validateWithWorker(licenseKey: String, hwid: String, completion: @escaping (Bool, String, Date?) -> Void) {
+    private static func validateWithWorker(licenseKey: String, hwid: String, completion: @escaping (Bool, String, Date?, Date?) -> Void) {
         guard let url = URL(string: "\(workerURL)/api/app/validate-license") else {
-            completion(false, "Configuration error", nil)
+            completion(false, "Configuration error", nil, nil)
             return
         }
         
@@ -52,24 +53,24 @@ final class LoginManager {
         do {
             request.httpBody = try JSONSerialization.data(withJSONObject: body)
         } catch {
-            completion(false, "Request error", nil)
+            completion(false, "Request error", nil, nil)
             return
         }
         
         URLSession.shared.dataTask(with: request) { data, response, error in
             if let error = error {
                 print("[AUTH] login transport failure: \(error.localizedDescription)")
-                completion(false, "Connection error: \(error.localizedDescription)", nil)
+                completion(false, "Connection error: \(error.localizedDescription)", nil, nil)
                 return
             }
             
             guard let data = data else {
-                completion(false, "No response from server", nil)
+                completion(false, "No response from server", nil, nil)
                 return
             }
             
             guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-                completion(false, "Invalid server response", nil)
+                completion(false, "Invalid server response", nil, nil)
                 return
             }
             
@@ -92,17 +93,13 @@ final class LoginManager {
                 KeychainManager.shared.saveLicenseKey(licenseKey)
                 
                 // Parsear fecha de expiración
-                var expiresAt: Date? = nil
-                if let expiresStr = json["expiresAt"] as? String {
-                    let formatter = ISO8601DateFormatter()
-                    formatter.formatOptions = [.withInternetDateTime]
-                    expiresAt = formatter.date(from: expiresStr)
-                }
+                let expiresAt = parseISO8601Date(json["expiresAt"] as? String)
+                let licenseExpiresAt = parseISO8601Date(json["licenseExpiresAt"] as? String)
                 
-                completion(true, "Login successful", expiresAt)
+                completion(true, "Login successful", expiresAt, licenseExpiresAt)
             } else {
                 print("[AUTH] license validation rejected")
-                completion(false, errorMessage ?? "Invalid license", nil)
+                completion(false, errorMessage ?? "Invalid license", nil, nil)
             }
         }.resume()
     }
@@ -150,23 +147,32 @@ final class LoginManager {
     
     /// Intenta auto-login con credenciales guardadas en Keychain.
     /// Retorna true si hay credenciales y se puede intentar login.
-    static func tryAutoLogin(completion: @escaping (Bool, String?, Date?) -> Void) {
+    static func tryAutoLogin(completion: @escaping (Bool, String?, Date?, Date?) -> Void) {
         guard let licenseKey = KeychainManager.shared.loadLicenseKey() else {
-            completion(false, nil, nil)
+            completion(false, nil, nil, nil)
             return
         }
         
         print("[AUTH] auto-login started with saved credentials")
         
-        login(licenseKey: licenseKey) { success, message, expiresAt in
+        login(licenseKey: licenseKey) { success, message, expiresAt, licenseExpiresAt in
             if success {
                 print("[AUTH] auto-login accepted by server")
-                completion(true, licenseKey, expiresAt)
+                completion(true, licenseKey, expiresAt, licenseExpiresAt)
             } else {
                 print("[AUTH] auto-login rejected: \(message)")
-                completion(false, nil, nil)
+                completion(false, nil, nil, nil)
             }
         }
+    }
+
+    private static func parseISO8601Date(_ value: String?) -> Date? {
+        guard let value else { return nil }
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = formatter.date(from: value) { return date }
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter.date(from: value)
     }
 
     /// Verifies an existing JWT before considering the saved license for autologin.

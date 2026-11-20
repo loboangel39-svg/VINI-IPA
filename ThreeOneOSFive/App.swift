@@ -10,6 +10,7 @@ struct ThreeOneOSFiveApp: App {
     @StateObject private var remotePatchCoordinator = RemotePatchImportCoordinator()
     @AppStorage("isLoggedIn") private var isLoggedIn = false
     @AppStorage("sessionExpiresAt") private var sessionExpiresAt: Double = 0
+    @AppStorage("licenseExpiresAt") private var licenseExpiresAt: Double = 0
     @AppStorage("currentLicenseKey") private var currentLicenseKey = ""
     @State private var isCheckingAutoLogin = true
     @State private var isCheckingSession = false
@@ -48,10 +49,11 @@ struct ThreeOneOSFiveApp: App {
                             .environment(\.appLanguage, language)
                             .environment(\.locale, language.locale)
                     } else {
-                        LoginView { license, expiresAt in
+                        LoginView { license, expiresAt, licenseExpiration in
                             currentLicenseKey = license
                             isLoggedIn = true
                             sessionExpiresAt = expiresAt?.timeIntervalSince1970 ?? 0
+                            licenseExpiresAt = licenseExpiration?.timeIntervalSince1970 ?? 0
                             synchronizeRemotePatches()
                         }
                     }
@@ -116,6 +118,7 @@ struct ThreeOneOSFiveApp: App {
                         isLoggedIn = false
                         currentLicenseKey = ""
                         sessionExpiresAt = 0
+                        licenseExpiresAt = 0
                         log("[AUTH] stored session revoked; manual login required")
                     }
                     continuation.resume(returning: result)
@@ -132,12 +135,13 @@ struct ThreeOneOSFiveApp: App {
             }
         }
         await withCheckedContinuation { continuation in
-            LoginManager.tryAutoLogin { success, license, expiresAt in
+            LoginManager.tryAutoLogin { success, license, expiresAt, licenseExpiration in
                 Task { @MainActor in
                     if success, let license {
                         currentLicenseKey = license
                         isLoggedIn = true
                         sessionExpiresAt = expiresAt?.timeIntervalSince1970 ?? 0
+                        licenseExpiresAt = licenseExpiration?.timeIntervalSince1970 ?? 0
                         log("app: auto-login successful")
                         synchronizeRemotePatches()
                     } else {
@@ -184,6 +188,7 @@ struct ThreeOneOSFiveApp: App {
     private func logout() {
         isLoggedIn = false
         sessionExpiresAt = 0
+        licenseExpiresAt = 0
         currentLicenseKey = ""
         RemotePatchService.shared.clearAuth()
         LoginManager.clearSession()
