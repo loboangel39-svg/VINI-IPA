@@ -35,6 +35,7 @@ final class PatchProjectStore: ObservableObject {
         let existingURL: URL?
         let origin: PatchPackageOrigin?
         let allowTargetOverlap: Bool
+        let showSuccessAlert: Bool
     }
 
     private var pendingUnlock: PendingUnlock?
@@ -138,7 +139,8 @@ final class PatchProjectStore: ObservableObject {
         data: Data,
         password: String? = nil,
         origin: PatchPackageOrigin? = nil,
-        allowTargetOverlap: Bool = false
+        allowTargetOverlap: Bool = false,
+        showSuccessAlert: Bool = true
     ) -> Bool {
         guard !isBusy else { return false }
         isBusy = true
@@ -153,11 +155,15 @@ final class PatchProjectStore: ObservableObject {
                     existingURL: existingURL,
                     password: password,
                     origin: origin,
-                    allowTargetOverlap: allowTargetOverlap
+                    allowTargetOverlap: allowTargetOverlap,
+                    showSuccessAlert: showSuccessAlert
                 ) {
                     await self?.requestPassword(pending: pending)
                 } else {
-                    await self?.finishOperation(successMessageKey: "patch.imported_message")
+                    await self?.finishOperation(
+                        successMessageKey: "patch.imported_message",
+                        showSuccessAlert: showSuccessAlert
+                    )
                 }
             } catch let error as PatchPackageError {
                 await self?.failOperation(error)
@@ -236,7 +242,8 @@ final class PatchProjectStore: ObservableObject {
                 summary: item.summary,
                 existingURL: item.packageURL,
                 origin: item.origin,
-                allowTargetOverlap: false
+                allowTargetOverlap: false,
+                showSuccessAlert: true
             )
             passwordRequest = PatchPasswordRequest(
                 summary: item.summary,
@@ -271,7 +278,10 @@ final class PatchProjectStore: ObservableObject {
                     throw error
                 }
                 await self?.clearPendingUnlock()
-                await self?.finishOperation(successMessageKey: "patch.unlocked_message")
+                await self?.finishOperation(
+                    successMessageKey: "patch.unlocked_message",
+                    showSuccessAlert: pending.showSuccessAlert
+                )
             } catch let error as PatchPackageError {
                 await self?.failUnlock(error)
             } catch {
@@ -375,7 +385,8 @@ final class PatchProjectStore: ObservableObject {
         existingURL: URL?,
         password: String? = nil,
         origin: PatchPackageOrigin? = nil,
-        allowTargetOverlap: Bool = false
+        allowTargetOverlap: Bool = false,
+        showSuccessAlert: Bool = true
     ) throws -> PendingUnlock? {
         if let key = try PatchKeyStore.load(for: summary) {
             let decoded = try PatchPackageCodec.decode(data, contentKey: key)
@@ -396,7 +407,8 @@ final class PatchProjectStore: ObservableObject {
                     summary: summary,
                     existingURL: existingURL,
                     origin: origin,
-                    allowTargetOverlap: allowTargetOverlap
+                    allowTargetOverlap: allowTargetOverlap,
+                    showSuccessAlert: showSuccessAlert
                 )
             }
             let decoded = try PatchPackageCodec.decode(data, password: password)
@@ -433,12 +445,14 @@ final class PatchProjectStore: ObservableObject {
         unlockErrorKey = nil
     }
 
-    private func finishOperation(successMessageKey: String) {
+    private func finishOperation(successMessageKey: String, showSuccessAlert: Bool = true) {
         reload()
         log("[PATCH] reload count=\(items.count) unique packageIDs=\(Set(items.map(\.id)).count)")
         lastImportSucceeded = true
         isBusy = false
-        alert = PatchStoreAlert(titleKey: "common.done", messageKey: successMessageKey)
+        if showSuccessAlert {
+            alert = PatchStoreAlert(titleKey: "common.done", messageKey: successMessageKey)
+        }
     }
 
     private func failOperation(_ error: PatchPackageError) {

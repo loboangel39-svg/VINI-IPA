@@ -97,7 +97,8 @@ final class RemotePatchImportCoordinator: ObservableObject {
                         packageIdentifier: patch.id,
                         remotePatchID: patch.id
                     ),
-                    allowTargetOverlap: true
+                    allowTargetOverlap: true,
+                    showSuccessAlert: false
                 ) {
                     while store.isBusy {
                         try await Task.sleep(nanoseconds: 100_000_000)
@@ -109,8 +110,6 @@ final class RemotePatchImportCoordinator: ObservableObject {
                     } else if store.passwordRequest != nil {
                         log("[PATCH] import pending password package=\(summary.packageID.uuidString)")
                     } else {
-                        await Task.yield()
-                        store.alert = nil
                         log("[PATCH] import completed package=\(summary.packageID.uuidString) installedCount=\(store.items.count)")
                     }
                 } else {
