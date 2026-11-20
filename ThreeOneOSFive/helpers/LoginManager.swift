@@ -8,9 +8,15 @@ struct LoginResponse {
     let licenseExpiresAt: Date?
 }
 
+enum LicensePlan: String {
+    case basic = "Basic"
+    case premium = "Premium"
+    case exclusive = "Exclusive"
+}
+
 final class LoginManager {
     enum StoredSessionResult {
-        case valid(licenseExpiresAt: Date?)
+        case valid(licenseExpiresAt: Date?, licensePlan: String?)
         case revoked
         case networkError
     }
@@ -25,7 +31,7 @@ final class LoginManager {
     }
     
     /// Inicia sesión validando la licencia contra el Worker V2
-    static func login(licenseKey: String, completion: @escaping (Bool, String, Date?, Date?) -> Void) {
+    static func login(licenseKey: String, completion: @escaping (Bool, String, Date?, Date?, String?) -> Void) {
         let hwid = getPersistentHWID()
         
         print("[AUTH] login validation started; hwid present=\(!hwid.isEmpty)")
@@ -34,9 +40,9 @@ final class LoginManager {
     }
     
     /// Valida licencia contra el Worker V2 API
-    private static func validateWithWorker(licenseKey: String, hwid: String, completion: @escaping (Bool, String, Date?, Date?) -> Void) {
+    private static func validateWithWorker(licenseKey: String, hwid: String, completion: @escaping (Bool, String, Date?, Date?, String?) -> Void) {
         guard let url = URL(string: "\(workerURL)/api/app/validate-license") else {
-            completion(false, "Configuration error", nil, nil)
+            completion(false, "Configuration error", nil, nil, nil)
             return
         }
         
@@ -53,24 +59,24 @@ final class LoginManager {
         do {
             request.httpBody = try JSONSerialization.data(withJSONObject: body)
         } catch {
-            completion(false, "Request error", nil, nil)
+            completion(false, "Request error", nil, nil, nil)
             return
         }
         
         URLSession.shared.dataTask(with: request) { data, response, error in
             if let error = error {
                 print("[AUTH] login transport failure: \(error.localizedDescription)")
-                completion(false, "Connection error: \(error.localizedDescription)", nil, nil)
+                completion(false, "Connection error: \(error.localizedDescription)", nil, nil, nil)
                 return
             }
             
             guard let data = data else {
-                completion(false, "No response from server", nil, nil)
+                completion(false, "No response from server", nil, nil, nil)
                 return
             }
             
             guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-                completion(false, "Invalid server response", nil, nil)
+                completion(false, "Invalid server response", nil, nil, nil)
                 return
             }
             
@@ -95,11 +101,12 @@ final class LoginManager {
                 // Parsear fecha de expiración
                 let expiresAt = parseISO8601Date(json["expiresAt"] as? String)
                 let licenseExpiresAt = parseISO8601Date(json["licenseExpiresAt"] as? String)
+                let licensePlan = resolvedLicensePlan(from: json)
                 
-                completion(true, "Login successful", expiresAt, licenseExpiresAt)
+                completion(true, "Login successful", expiresAt, licenseExpiresAt, licensePlan)
             } else {
                 print("[AUTH] license validation rejected")
-                completion(false, errorMessage ?? "Invalid license", nil, nil)
+                completion(false, errorMessage ?? "Invalid license", nil, nil, nil)
             }
         }.resume()
     }
@@ -147,21 +154,21 @@ final class LoginManager {
     
     /// Intenta auto-login con credenciales guardadas en Keychain.
     /// Retorna true si hay credenciales y se puede intentar login.
-    static func tryAutoLogin(completion: @escaping (Bool, String?, Date?, Date?) -> Void) {
+    static func tryAutoLogin(completion: @escaping (Bool, String?, Date?, Date?, String?) -> Void) {
         guard let licenseKey = KeychainManager.shared.loadLicenseKey() else {
-            completion(false, nil, nil, nil)
+            completion(false, nil, nil, nil, nil)
             return
         }
         
         print("[AUTH] auto-login started with saved credentials")
         
-        login(licenseKey: licenseKey) { success, message, expiresAt, licenseExpiresAt in
+        login(licenseKey: licenseKey) { success, message, expiresAt, licenseExpiresAt, licensePlan in
             if success {
                 print("[AUTH] auto-login accepted by server")
-                completion(true, licenseKey, expiresAt, licenseExpiresAt)
+                completion(true, licenseKey, expiresAt, licenseExpiresAt, licensePlan)
             } else {
                 print("[AUTH] auto-login rejected: \(message)")
-                completion(false, nil, nil, nil)
+                completion(false, nil, nil, nil, nil)
             }
         }
     }
@@ -194,18 +201,32 @@ final class LoginManager {
             }
             let status = (response as? HTTPURLResponse)?.statusCode ?? 0
             let licenseExpiresAt: Date?
+            let licensePlan: String?
             if status == 200, let data,
                let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
                 licenseExpiresAt = parseISO8601Date(json["licenseExpiresAt"] as? String)
+                licensePlan = resolvedLicensePlan(from: json)
             } else {
                 licenseExpiresAt = nil
+                licensePlan = nil
             }
             DispatchQueue.main.async {
                 completion(status == 200
-                    ? .valid(licenseExpiresAt: licenseExpiresAt)
+                    ? .valid(licenseExpiresAt: licenseExpiresAt, licensePlan: licensePlan)
                     : (status == 401 ? .revoked : .networkError))
             }
         }.resume()
+    }
+
+    private static func resolvedLicensePlan(from json: [String: Any]) -> String? {
+        if let rawPlan = json["licensePlan"] as? String,
+           let plan = LicensePlan(rawValue: rawPlan) {
+            return plan.rawValue
+        }
+        if let isPremium = json["isPremium"] as? Bool {
+            return isPremium ? LicensePlan.premium.rawValue : LicensePlan.basic.rawValue
+        }
+        return nil
     }
     
     /// Limpia la sesión del usuario (pero NO borra el license key del Keychain para permitir re-login)

@@ -7,6 +7,7 @@ struct SettingsView: View {
     @EnvironmentObject private var appState: AppState
     @AppStorage(AppLanguage.storageKey) private var languageCode = AppLanguage.spanish.rawValue
     @AppStorage("licenseExpiresAt") private var licenseExpiresAt: Double = 0
+    @AppStorage("licensePlan") private var licensePlan = ""
 
     var body: some View {
         NavigationStack {
@@ -39,7 +40,7 @@ struct SettingsView: View {
                     HStack {
                         Label(language.text("settings.license"), systemImage: "checkmark.shield")
                         Spacer()
-                        Text(language.text("settings.license_unavailable"))
+                        Text(licensePlan.isEmpty ? language.text("settings.license_unavailable") : licensePlan)
                             .foregroundStyle(.secondary)
                     }
                     HStack {
