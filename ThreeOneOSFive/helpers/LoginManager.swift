@@ -49,6 +49,7 @@ final class LoginManager {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("license-plan-v1", forHTTPHeaderField: "X-VINI-Capabilities")
         request.timeoutInterval = 30
         
         let body: [String: String] = [
@@ -194,6 +195,7 @@ final class LoginManager {
         request.httpMethod = "GET"
         request.timeoutInterval = 10
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("license-plan-v1", forHTTPHeaderField: "X-VINI-Capabilities")
         URLSession.shared.dataTask(with: request) { data, response, error in
             if error != nil || data == nil {
                 DispatchQueue.main.async { completion(.networkError) }
@@ -222,9 +224,6 @@ final class LoginManager {
         if let rawPlan = json["licensePlan"] as? String,
            let plan = LicensePlan(rawValue: rawPlan) {
             return plan.rawValue
-        }
-        if let isPremium = json["isPremium"] as? Bool {
-            return isPremium ? LicensePlan.premium.rawValue : LicensePlan.basic.rawValue
         }
         return nil
     }

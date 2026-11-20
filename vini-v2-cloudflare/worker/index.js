@@ -1225,7 +1225,14 @@ export default {
       if (path === '/api/app/session' && method === 'GET') {
         const auth = await verifyAppAuth(request, env);
         if (!auth.valid) return Response.json({ valid: false, error: 'Session revoked' }, { status: 401, headers: corsHeaders });
-        return Response.json({ valid: true, licenseExpiresAt: auth.user.license_expires_at || null }, { headers: corsHeaders });
+        const response = {
+          valid: true,
+          licenseExpiresAt: auth.user.license_expires_at || null
+        };
+        if (isPlanContractEnabled(request, auth.user)) {
+          response.licensePlan = auth.user.license_plan;
+        }
+        return Response.json(response, { headers: corsHeaders });
       }
 
       // App endpoints que requieren license auth
@@ -1510,7 +1517,14 @@ async function handleAppValidateLicense(request, env, headers) {
     username: user.username,
     isPremium: !!user.is_premium,
     licenseExpiresAt: user.license_expires_at || null,
+    ...(isPlanContractEnabled(request, user) ? { licensePlan: user.license_plan } : {}),
   }, { headers });
+}
+
+function isPlanContractEnabled(request, user) {
+  return request.headers.get('X-VINI-Capabilities')?.split(',').some(
+    capability => capability.trim() === 'license-plan-v1'
+  ) && Number(user.license_plan_enabled) === 1;
 }
 
 // GET /api/app/config
@@ -1767,13 +1781,16 @@ async function handleCreateUser(request, env, headers) {
   const data = await request.json();
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
+  const licensePlan = normalizeLicensePlan(data.licensePlan, data.isPremium);
+  const planEnabled = data.licensePlanEnabled ? 1 : 0;
 
   await env.DB.prepare(
-    `INSERT INTO users (id, username, hwid, license_key, is_premium, is_active, is_paused, is_blocked, permissions, license_expires_at, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, 1, 0, 0, ?, ?, ?, ?)`
+    `INSERT INTO users (id, username, hwid, license_key, is_premium, license_plan, license_plan_enabled, is_active, is_paused, is_blocked, permissions, license_expires_at, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, 1, 0, 0, ?, ?, ?, ?)`
   ).bind(
     id, data.username, data.hwid || '', data.licenseKey || '',
-    data.isPremium ? 1 : 0, data.permissions || '{}', data.licenseExpiresAt || null, now, now
+    licensePlan === 'Basic' ? 0 : 1, licensePlan, planEnabled,
+    data.permissions || '{}', data.licenseExpiresAt || null, now, now
   ).run();
 
   await logActivity(env, 'user_created', `User ${data.username} created`);
@@ -1783,15 +1800,23 @@ async function handleCreateUser(request, env, headers) {
 async function handleUpdateUser(id, request, env, headers) {
   const data = await request.json();
   const now = new Date().toISOString();
+  const licensePlan = normalizeLicensePlan(data.licensePlan, data.isPremium);
+  const planEnabled = data.licensePlanEnabled ? 1 : 0;
 
   await env.DB.prepare(
-    `UPDATE users SET username = ?, hwid = ?, license_key = ?, is_premium = ?, permissions = ?, updated_at = ? WHERE id = ?`
+    `UPDATE users SET username = ?, hwid = ?, license_key = ?, is_premium = ?, license_plan = ?, license_plan_enabled = ?, permissions = ?, updated_at = ? WHERE id = ?`
   ).bind(data.username, data.hwid || '', data.licenseKey || '',
-    data.isPremium ? 1 : 0, data.permissions || '{}', now, id
+    licensePlan === 'Basic' ? 0 : 1, licensePlan, planEnabled,
+    data.permissions || '{}', now, id
   ).run();
 
   await logActivity(env, 'user_updated', `User ${id} updated`);
   return Response.json({ success: true }, { headers });
+}
+
+function normalizeLicensePlan(value, legacyIsPremium) {
+  if (value === 'Basic' || value === 'Premium' || value === 'Exclusive') return value;
+  return legacyIsPremium ? 'Premium' : 'Basic';
 }
 
 async function handleTogglePause(id, env, headers) {

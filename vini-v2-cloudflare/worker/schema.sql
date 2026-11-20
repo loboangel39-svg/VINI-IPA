@@ -8,6 +8,8 @@ CREATE TABLE IF NOT EXISTS users (
   session_version INTEGER NOT NULL DEFAULT 1,
   license_key TEXT DEFAULT '',
   is_premium INTEGER DEFAULT 0,
+  license_plan TEXT NOT NULL DEFAULT 'Basic',
+  license_plan_enabled INTEGER NOT NULL DEFAULT 0,
   is_active INTEGER DEFAULT 1,
   is_paused INTEGER DEFAULT 0,
   is_blocked INTEGER DEFAULT 0,

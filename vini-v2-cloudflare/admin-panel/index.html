@@ -531,6 +531,7 @@
                 <th>Licencia</th>
                 <th>Expira</th>
                 <th>Tipo</th>
+                <th>VINI 2.0</th>
                 <th>Estado</th>
                 <th>Acciones</th>
               </tr>
@@ -799,7 +800,7 @@
       const tbody = document.getElementById('usersTable');
       
       if (users.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:40px; color:#666;">No hay usuarios</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:40px; color:#666;">No hay usuarios</td></tr>';
         return;
       }
 
@@ -827,7 +828,8 @@
           <td data-label="HWID" style="font-family:monospace; font-size:12px;">${u.hwid || '-'}</td>
           <td data-label="Licencia" style="font-family:monospace; font-size:12px;" class="license-key-display">${u.license_key || '-'}</td>
           <td data-label="Expira">${expiresDisplay}</td>
-          <td data-label="Tipo">${u.is_premium ? '<span class="badge badge-premium">Premium</span>' : '<span class="badge badge-free">Free</span>'}</td>
+          <td data-label="Tipo">${u.license_plan || (u.is_premium ? 'Premium' : 'Basic')}</td>
+          <td data-label="VINI 2.0">${u.license_plan_enabled ? '<span class="badge badge-active">Habilitado</span>' : '<span class="badge badge-free">Legacy</span>'}</td>
           <td data-label="Estado">
             ${u.is_blocked ? '<span class="badge badge-blocked">Bloqueado</span>' : 
               u.is_paused ? '<span class="badge badge-paused">Pausado</span>' : 
@@ -888,10 +890,12 @@
           </div>
           <div class="form-group">
             <label>Tipo</label>
-            <select name="isPremium">
-              <option value="0">Free</option>
-              <option value="1">Premium</option>
+            <select name="licensePlan">
+              <option value="Basic">Basic</option>
+              <option value="Premium">Premium</option>
+              <option value="Exclusive">Exclusive</option>
             </select>
+            <label><input type="checkbox" name="licensePlanEnabled"> Habilitar contrato VINI-IPA 2.0</label>
           </div>
           <div class="form-actions">
             <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
@@ -910,7 +914,8 @@
           body: JSON.stringify({
             username: fd.get('username'),
             licenseKey: fd.get('licenseKey'),
-            isPremium: fd.get('isPremium') === '1',
+            licensePlan: fd.get('licensePlan'),
+            licensePlanEnabled: fd.get('licensePlanEnabled') === 'on',
             licenseExpiresAt: licenseExpiresAt,
           }),
         });
@@ -941,10 +946,12 @@
           </div>
           <div class="form-group">
             <label>Tipo</label>
-            <select name="isPremium">
-              <option value="0" ${!user.is_premium ? 'selected' : ''}>Free</option>
-              <option value="1" ${user.is_premium ? 'selected' : ''}>Premium</option>
+            <select name="licensePlan">
+              <option value="Basic" ${user.license_plan === 'Basic' || (!user.license_plan && !user.is_premium) ? 'selected' : ''}>Basic</option>
+              <option value="Premium" ${user.license_plan === 'Premium' || (!user.license_plan && user.is_premium) ? 'selected' : ''}>Premium</option>
+              <option value="Exclusive" ${user.license_plan === 'Exclusive' ? 'selected' : ''}>Exclusive</option>
             </select>
+            <label><input type="checkbox" name="licensePlanEnabled" ${user.license_plan_enabled ? 'checked' : ''}> Habilitar contrato VINI-IPA 2.0</label>
           </div>
           <div class="form-actions">
             <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
@@ -961,7 +968,8 @@
             username: fd.get('username'),
             hwid: fd.get('hwid'),
             licenseKey: fd.get('licenseKey'),
-            isPremium: fd.get('isPremium') === '1',
+            licensePlan: fd.get('licensePlan'),
+            licensePlanEnabled: fd.get('licensePlanEnabled') === 'on',
           }),
         });
         closeModal();
