@@ -212,8 +212,15 @@ final class LoginManager {
             let licenseExpiresAt: Date?
             let licensePlan: String?
             let accessState: ServerAccessState?
-            if status == 200, let data,
-               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            guard status == 200,
+                  let data,
+                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                DispatchQueue.main.async {
+                    completion(status == 401 ? .revoked : .networkError)
+                }
+                return
+            }
+            if status == 200 {
                 licenseExpiresAt = parseISO8601Date(json["licenseExpiresAt"] as? String)
                 licensePlan = resolvedLicensePlan(from: json)
                 accessState = parseAccessState(from: json)
@@ -223,9 +230,7 @@ final class LoginManager {
                 accessState = nil
             }
             DispatchQueue.main.async {
-                completion(status == 200
-                    ? .valid(licenseExpiresAt: licenseExpiresAt, licensePlan: licensePlan, accessState: accessState)
-                    : (status == 401 ? .revoked : .networkError))
+                completion(.valid(licenseExpiresAt: licenseExpiresAt, licensePlan: licensePlan, accessState: accessState))
             }
         }.resume()
     }

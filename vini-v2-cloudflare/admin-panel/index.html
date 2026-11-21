@@ -710,8 +710,10 @@
           ...options.headers,
         },
       });
-      if (res.status === 401) { logout(); return; }
-      return res.json();
+      const payload = await res.json().catch(() => ({}));
+      if (res.status === 401) { logout(); throw new Error(payload.error || 'Sesión administrativa inválida'); }
+      if (!res.ok) throw new Error(payload.error || `Solicitud rechazada (${res.status})`);
+      return payload;
     }
 
     // === AUTH ===

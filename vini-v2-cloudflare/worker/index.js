@@ -1203,7 +1203,7 @@ export default {
         headers: {
           'Access-Control-Allow-Origin': '*',
           'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-          'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+          'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-VINI-Capabilities',
         },
       });
     }
@@ -1523,8 +1523,10 @@ async function handleAppValidateLicense(request, env, headers) {
     return Response.json({ valid: false, error: 'Account paused' }, { status: 403, headers });
   }
 
-  // Verificar expiración de licencia
-  if (user.license_expires_at) {
+  const accessClient = isAccessStateClient(request, user);
+
+  // Verificar expiración de licencia (legacy contract remains unchanged).
+  if (user.license_expires_at && !accessClient) {
     const expiresAt = new Date(user.license_expires_at);
     if (expiresAt < new Date()) {
       return Response.json({ 
@@ -1550,6 +1552,13 @@ async function handleAppValidateLicense(request, env, headers) {
     }
   }
 
+  // V2 access-state clients must be allowed to authenticate while paused so
+  // they can receive the blocking state and recover after reactivation.
+  const access = accessClient ? await getAccessState(env, user) : null;
+  if (access?.status === 'expired') {
+    return Response.json({ valid: false, error: 'License expired', expiredAt: user.license_expires_at }, { status: 403, headers });
+  }
+
   // Generar token de sesión (24h)
   const exp = Date.now() + 86400000; // 24 horas
   const token = await createJWT({ userId: user.id, licenseKey, hwid, sessionVersion: Number(user.session_version || 1), exp }, env);
@@ -1565,6 +1574,7 @@ async function handleAppValidateLicense(request, env, headers) {
     isPremium: !!user.is_premium,
     licenseExpiresAt: user.license_expires_at || null,
     ...(isPlanContractEnabled(request, user) ? { licensePlan: user.license_plan } : {}),
+    ...(access ? { access, licenseExpiresAt: access.licenseExpiresAt } : {}),
   }, { headers });
 }
 
@@ -1794,10 +1804,10 @@ async function handleAppTelemetry(request, env, headers, appAuth) {
 
 async function handleLogin(request, env, headers) {
   const { username, password } = await request.json();
-  const adminUser = env.ADMIN_USERNAME || 'admin';
-  const adminPass = env.ADMIN_PASSWORD || 'vini2026';
+  const adminUser = env.ADMIN_USERNAME;
+  const adminPass = env.ADMIN_PASSWORD;
 
-  if (username === adminUser && password === adminPass) {
+  if (adminUser && adminPass && username === adminUser && password === adminPass) {
     const token = await createJWT({ user: username, exp: Date.now() + 86400000 }, env);
     return Response.json({ token, username }, { headers });
   }
@@ -1823,7 +1833,8 @@ async function verifyAuth(request, env) {
     const payload = JSON.parse(atob(parts[1]));
     if (payload.exp < Date.now()) return { valid: false };
 
-    const secret = env.JWT_SECRET || 'vini-jwt-secret-change-me';
+    const secret = env.JWT_SECRET;
+    if (!secret || !env.ADMIN_USERNAME || payload.user !== env.ADMIN_USERNAME) return { valid: false };
     const expectedSig = await hmacSign(`${parts[0]}.${parts[1]}`, secret);
     if (expectedSig !== parts[2]) return { valid: false };
 
@@ -1982,10 +1993,9 @@ async function logAccessEvent(env, event) {
 
 async function handleGetUsers(env, headers, url) {
   const search = url.searchParams.get('search') || '';
-  let query = 'SELECT * FROM users';
-  if (search) query += ` WHERE username LIKE '%${search}%' OR hwid LIKE '%${search}%'`;
-  query += ' ORDER BY created_at DESC';
-  const result = await env.DB.prepare(query).all();
+  const result = search
+    ? await env.DB.prepare('SELECT * FROM users WHERE username LIKE ? OR hwid LIKE ? ORDER BY created_at DESC').bind(`%${search}%`, `%${search}%`).all()
+    : await env.DB.prepare('SELECT * FROM users ORDER BY created_at DESC').all();
   return Response.json(result.results, { headers });
 }
 
@@ -2070,14 +2080,15 @@ async function handleToggleBlock(id, env, headers) {
 async function handleRenewLicense(id, request, env, headers) {
   const data = await request.json();
   const days = parseInt(data.days) || 30;
-  const user = await env.DB.prepare('SELECT username, provider_id, license_expires_at FROM users WHERE id = ?').bind(id).first();
+  const user = await env.DB.prepare('SELECT id, username, provider_id, license_expires_at FROM users WHERE id = ?').bind(id).first();
   
   if (!user) {
     return Response.json({ error: 'User not found' }, { status: 404, headers });
   }
 
   // Materialize an already-active suspension before applying the extension.
-  await getAccessState(env, user);
+  const materializedAccess = await getAccessState(env, user);
+  if (materializedAccess.licenseExpiresAt) user.license_expires_at = materializedAccess.licenseExpiresAt;
 
   // Calculate new expiration date
   let newExpiresAt;
