@@ -27,6 +27,14 @@ Date: 2026-11-21
 
 The pause was reproduced in staging by changing only the staging user's `is_paused` flag. No real license or production record was used.
 
+## Follow-up root cause reproduction
+
+The administrative V2 route is `/api/access-state/users/:id/pause` and writes `license_access_state.individual_pause`. The legacy table route is `/api/users/:id/pause` and writes `users.is_paused`.
+
+Before the follow-up correction, a test account with `license_plan_enabled = 0` returned `active` from the access-state calculation even after the V2 pause route. This was the first divergence: the pause was stored, but `getAccessState` exited through the legacy compatibility branch before reading access controls.
+
+The minimal staging correction passes an explicit access-state-client flag only from `/api/app/session`, the V2 app authorization gate, and `/api/app/validate-license`. Administrative and legacy calculations retain the pilot gate. After redeployment, the same `license_plan_enabled = 0` test account returned `license_paused`, then `active` after resume, with the same JWT.
+
 ## Client audit
 
 `LoginManager` sends `X-VINI-Capabilities: license-plan-v1,access-state-v1` on license validation and stored-session verification. `App.swift` routes `maintenance` and `license_paused` before `ContentView`. `clearSession()` is only reached for revoked/invalid session paths; an authenticated `license_paused` result returns from session validation without clearing the session.

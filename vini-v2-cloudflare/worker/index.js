@@ -1233,7 +1233,7 @@ export default {
           response.licensePlan = auth.user.license_plan;
         }
         if (isAccessStateClient(request, auth.user)) {
-          response.access = await getAccessState(env, auth.user);
+           response.access = await getAccessState(env, auth.user, true);
           response.licenseExpiresAt = response.access.licenseExpiresAt;
         }
         return Response.json(response, { headers: corsHeaders });
@@ -1246,7 +1246,7 @@ export default {
           return Response.json({ error: 'Unauthorized', valid: false }, { status: 401, headers: corsHeaders });
         }
         if (isAccessStateClient(request, appAuth.user)) {
-          const access = await getAccessState(env, appAuth.user);
+           const access = await getAccessState(env, appAuth.user, true);
           if (access.status !== 'active') {
             return Response.json({ error: 'Access unavailable', access }, { status: 423, headers: corsHeaders });
           }
@@ -1558,7 +1558,7 @@ async function handleAppValidateLicense(request, env, headers) {
 
   // V2 access-state clients must be allowed to authenticate while paused so
   // they can receive the blocking state and recover after reactivation.
-  const access = accessClient ? await getAccessState(env, user) : null;
+   const access = accessClient ? await getAccessState(env, user, true) : null;
   if (access?.status === 'expired') {
     return Response.json({ valid: false, error: 'License expired', expiredAt: user.license_expires_at }, { status: 403, headers });
   }
@@ -1594,12 +1594,12 @@ function isAccessStateClient(request, user) {
   );
 }
 
-async function getAccessState(env, user) {
+async function getAccessState(env, user, allowAccessStateClient = false) {
   const now = new Date();
   // The capability is independent from the plan contract. Disabled pilot
   // users receive an explicit active/legacy-compatible state, but no access
   // cause is applied until license_plan_enabled is enabled server-side.
-  if (Number(user.license_plan_enabled) !== 1) {
+  if (!allowAccessStateClient && Number(user.license_plan_enabled) !== 1) {
     return {
       status: user.license_expires_at && new Date(user.license_expires_at) < now ? 'expired' : 'active',
       causes: { globalLicensePause: false, globalMaintenance: false, providerMaintenance: false, licensePause: false },
