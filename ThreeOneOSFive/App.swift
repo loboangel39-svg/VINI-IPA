@@ -13,7 +13,7 @@ struct ThreeOneOSFiveApp: App {
     @AppStorage("licenseExpiresAt") private var licenseExpiresAt: Double = 0
     @AppStorage("licensePlan") private var licensePlan = ""
     @AppStorage("currentLicenseKey") private var currentLicenseKey = ""
-    @State private var accessState: ServerAccessState?
+    @StateObject private var accessCoordinator = AccessStateCoordinator()
     @State private var isCheckingAutoLogin = true
     @State private var isCheckingSession = false
     @StateObject private var repositoryStore = PackageRepositoryStore()
@@ -49,7 +49,7 @@ struct ThreeOneOSFiveApp: App {
                             sessionExpiresAt = expiresAt?.timeIntervalSince1970 ?? 0
                             licenseExpiresAt = licenseExpiration?.timeIntervalSince1970 ?? 0
                             licensePlan = plan ?? ""
-                            accessState = access
+                            accessCoordinator.apply(access)
                             if shouldSynchronizeRemotePatches(for: access) { synchronizeRemotePatches() }
                         }
                     }
@@ -103,11 +103,11 @@ struct ThreeOneOSFiveApp: App {
 
     @ViewBuilder
     private var authorizedRootContent: some View {
-        switch accessState?.status {
+        switch accessCoordinator.status {
         case "maintenance":
-            MaintenanceView(accessState: accessState, onRefresh: refreshAccessState)
+            MaintenanceView(accessState: accessCoordinator.state, onRefresh: refreshAccessState)
         case "license_paused":
-            PausedLicenseView(accessState: accessState, onRefresh: refreshAccessState)
+            PausedLicenseView(accessState: accessCoordinator.state, onRefresh: refreshAccessState)
         default:
             ContentView()
                 .environmentObject(appState)
@@ -141,7 +141,7 @@ struct ThreeOneOSFiveApp: App {
                         sessionExpiresAt = 0
                         licenseExpiresAt = 0
                         licensePlan = ""
-                        accessState = nil
+                        accessCoordinator.clear()
                         log("[AUTH] stored session revoked; manual login required")
                     }
                     continuation.resume(returning: result)
@@ -166,7 +166,7 @@ struct ThreeOneOSFiveApp: App {
                         sessionExpiresAt = expiresAt?.timeIntervalSince1970 ?? 0
                         licenseExpiresAt = licenseExpiration?.timeIntervalSince1970 ?? 0
                         licensePlan = plan ?? ""
-                        accessState = access
+                        accessCoordinator.apply(access)
                         log("app: auto-login successful")
                         if shouldSynchronizeRemotePatches(for: access) { synchronizeRemotePatches() }
                     } else {
@@ -215,7 +215,7 @@ struct ThreeOneOSFiveApp: App {
                 licenseExpiresAt = licenseExpiration.timeIntervalSince1970
             }
             licensePlan = plan ?? ""
-            accessState = access
+            accessCoordinator.apply(access)
             log("[AUTH] session access state: \(access?.status ?? "legacy")")
             if access?.status == "expired" || access?.status == "unauthorized" {
                 logout()
@@ -250,6 +250,7 @@ struct ThreeOneOSFiveApp: App {
         licenseExpiresAt = 0
         licensePlan = ""
         currentLicenseKey = ""
+        accessCoordinator.clear()
         RemotePatchService.shared.clearAuth()
         LoginManager.clearSession()
         log("app: session expired or invalidated")

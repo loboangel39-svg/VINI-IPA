@@ -15,6 +15,14 @@ struct ServerAccessState {
     let maintenanceMessage: String?
 }
 
+@MainActor
+final class AccessStateCoordinator: ObservableObject {
+    @Published private(set) var state: ServerAccessState?
+    var status: String? { state?.status }
+    func apply(_ nextState: ServerAccessState?) { state = nextState }
+    func clear() { state = nil }
+}
+
 enum LicensePlan: String {
     case basic = "Basic"
     case premium = "Premium"
