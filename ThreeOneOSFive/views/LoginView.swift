@@ -118,6 +118,7 @@ struct LoginView: View {
 
                 Spacer()
             }
+            .zIndex(1)
         }
     }
 

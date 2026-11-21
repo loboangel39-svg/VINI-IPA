@@ -184,6 +184,7 @@ struct ChristmasBackdrop: View {
             }
         }
         .allowsHitTesting(false)
+        .zIndex(-1)
     }
 }
 
