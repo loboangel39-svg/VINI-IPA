@@ -1482,7 +1482,11 @@ async function verifyAppAuth(request, env) {
     // Verificar que el usuario sigue activo
     const user = await env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(payload.userId).first();
     if (!user) return { valid: false };
-    if (!user.is_active || user.is_paused || user.is_blocked) return { valid: false };
+    // V2 access-state clients must remain authenticated while a license is
+    // paused so the session endpoint can return license_paused. Legacy
+    // clients retain the historical rejection contract.
+    if (!user.is_active || user.is_blocked) return { valid: false };
+    if (user.is_paused && !isAccessStateClient(request, user)) return { valid: false };
     if (Number(payload.sessionVersion) !== Number(user.session_version || 1)) return { valid: false };
     if (!payload.hwid || !user.hwid || payload.hwid !== user.hwid) return { valid: false };
     if (user.license_expires_at && new Date(user.license_expires_at) < new Date() && !isAccessStateClient(request, user)) return { valid: false };
@@ -1519,7 +1523,7 @@ async function handleAppValidateLicense(request, env, headers) {
   if (user.is_blocked) {
     return Response.json({ valid: false, error: 'Account blocked' }, { status: 403, headers });
   }
-  if (user.is_paused) {
+  if (user.is_paused && !isAccessStateClient(request, user)) {
     return Response.json({ valid: false, error: 'Account paused' }, { status: 403, headers });
   }
 
@@ -1616,7 +1620,7 @@ async function getAccessState(env, user) {
     globalLicensePause: Number(controls.global_license_pause) === 1,
     globalMaintenance: Number(controls.global_maintenance) === 1,
     providerMaintenance: Number(providerMaintenance?.enabled) === 1,
-    licensePause: Number(state?.individual_pause) === 1
+    licensePause: Number(state?.individual_pause) === 1 || Number(user.is_paused) === 1
   };
   const suspended = causes.globalLicensePause || causes.globalMaintenance || causes.providerMaintenance || causes.licensePause;
 
