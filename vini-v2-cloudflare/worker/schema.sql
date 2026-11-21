@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS users (
   is_premium INTEGER DEFAULT 0,
   license_plan TEXT NOT NULL DEFAULT 'Basic',
   license_plan_enabled INTEGER NOT NULL DEFAULT 0,
+  provider_id TEXT DEFAULT NULL,
   is_active INTEGER DEFAULT 1,
   is_paused INTEGER DEFAULT 0,
   is_blocked INTEGER DEFAULT 0,
@@ -71,6 +72,8 @@ CREATE TABLE IF NOT EXISTS activity_log (
   details TEXT DEFAULT '',
   created_at TEXT NOT NULL
 );
+
+-- Access-state tables are added by migrations/0004_access_state.sql.
 
 -- Config table
 CREATE TABLE IF NOT EXISTS config (

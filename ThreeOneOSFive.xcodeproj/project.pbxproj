@@ -111,6 +111,7 @@
 		3105R208 /* TokenRefreshManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3105R108; };
 		3105R209 /* RemotePatchImportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3105R109; };
 		3105R210 /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3105R110; };
+		3105R211 /* AccessStateViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3105R111; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -267,6 +268,7 @@
 		3105R108 /* TokenRefreshManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = helpers/TokenRefreshManager.swift; sourceTree = "<group>"; };
 		3105R109 /* RemotePatchImportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = views/RemotePatchImportView.swift; sourceTree = "<group>"; };
 		3105R110 /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = views/LoginView.swift; sourceTree = "<group>"; };
+		3105R111 /* AccessStateViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = views/AccessStateViews.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -354,6 +356,7 @@
 				3105L102 /* RepositoryMarketplaceView.swift */,
 				3105L103 /* RepositoryHomeView.swift */,
 				3105L104 /* RepositorySourcesView.swift */,
+				3105R111 /* AccessStateViews.swift */,
 			);
 			path = views;
 			sourceTree = "<group>";
@@ -643,6 +646,7 @@
 				3105L205,
 				3105R201, 3105R202, 3105R203, 3105R204, 3105R205,
 				3105R206, 3105R207, 3105R208, 3105R209, 3105R210,
+				3105R211,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

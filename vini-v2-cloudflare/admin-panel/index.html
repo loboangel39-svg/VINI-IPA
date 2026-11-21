@@ -539,6 +539,18 @@
             <tbody id="usersTable"></tbody>
           </table>
         </div>
+        <div class="card" style="margin-top:20px;">
+          <h3>Control de acceso VINI-IPA 2.0</h3>
+          <p style="color:#888;">Estas acciones no modifican permisos individuales de parches.</p>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+            <button class="btn btn-secondary" onclick="toggleAccessControl('global/license-pause')">Pausa global</button>
+            <button class="btn btn-secondary" onclick="toggleAccessControl('global/maintenance')">Mantenimiento global</button>
+            <select id="providerMaintenanceSelect" style="min-width:180px;"><option value="">Proveedor</option></select>
+            <button class="btn btn-secondary" onclick="createProvider()">Nuevo proveedor</button>
+            <button class="btn btn-secondary" onclick="toggleProviderMaintenance()">Mantenimiento proveedor</button>
+          </div>
+          <div id="accessControlStatus" style="margin-top:12px;color:#888;"></div>
+        </div>
       </div>
 
       <!-- Patches Page -->
@@ -838,6 +850,7 @@
           <td>
             <button class="btn btn-secondary btn-sm" onclick="editUser('${u.id}')">Editar</button>
             <button class="btn btn-primary btn-sm" onclick="showRenewModal('${u.id}', '${u.username}')">Renovar</button>
+            <button class="btn btn-secondary btn-sm" onclick="toggleLicensePause('${u.id}')">Pausa licencia</button>
             <button class="btn btn-secondary btn-sm" onclick="togglePause('${u.id}')">${u.is_paused ? 'Reactivar' : 'Pausar'}</button>
             <button class="btn btn-secondary btn-sm" onclick="resetHWID('${u.id}')">Reset HWID</button>
             <button class="btn btn-${u.is_blocked ? 'primary' : 'danger'} btn-sm" onclick="toggleBlock('${u.id}')">${u.is_blocked ? 'Desbloquear' : 'Bloquear'}</button>
@@ -846,6 +859,44 @@
         </tr>
         `;
       }).join('');
+      loadAccessControls();
+    }
+
+    async function loadAccessControls() {
+      const [pause, maintenance, providers] = await Promise.all([
+        api('/api/access-state/global/license-pause'),
+        api('/api/access-state/global/maintenance'),
+        api('/api/access-state/providers')
+      ]);
+      const select = document.getElementById('providerMaintenanceSelect');
+      if (select) select.innerHTML = '<option value="">Proveedor</option>' + providers.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+      const status = document.getElementById('accessControlStatus');
+      if (status) status.textContent = `Pausa global: ${pause.enabled ? 'activa' : 'inactiva'} · Mantenimiento global: ${maintenance.enabled ? 'activo' : 'inactivo'}`;
+    }
+
+    async function toggleAccessControl(kind) {
+      const current = await api(`/api/access-state/${kind}`);
+      const enabled = !current.enabled;
+      if (!confirm(`${enabled ? 'Activar' : 'Desactivar'} ${kind}?`)) return;
+      await api(`/api/access-state/${kind}`, { method: 'POST', body: JSON.stringify({ enabled }) });
+      loadAccessControls();
+    }
+
+    async function toggleProviderMaintenance() {
+      const providerId = document.getElementById('providerMaintenanceSelect').value;
+      if (!providerId) return;
+      const current = await api(`/api/access-state/providers/${providerId}/maintenance`);
+      const enabled = !current.enabled;
+      if (!confirm(`${enabled ? 'Activar' : 'Desactivar'} mantenimiento del proveedor?`)) return;
+      await api(`/api/access-state/providers/${providerId}/maintenance`, { method: 'POST', body: JSON.stringify({ enabled }) });
+      loadAccessControls();
+    }
+
+    async function createProvider() {
+      const name = prompt('Nombre del proveedor');
+      if (!name || !name.trim()) return;
+      await api('/api/access-state/providers', { method: 'POST', body: JSON.stringify({ name: name.trim() }) });
+      loadAccessControls();
     }
 
     function generateLicenseKey() {
@@ -928,6 +979,7 @@
       const users = await api('/api/users');
       const user = users.find(u => u.id === id);
       if (!user) return;
+      const providers = await api('/api/access-state/providers');
 
       showModal(`
         <h2>Editar Usuario</h2>
@@ -952,6 +1004,11 @@
               <option value="Exclusive" ${user.license_plan === 'Exclusive' ? 'selected' : ''}>Exclusive</option>
             </select>
             <label><input type="checkbox" name="licensePlanEnabled" ${user.license_plan_enabled ? 'checked' : ''}> Habilitar contrato VINI-IPA 2.0</label>
+            <label>Proveedor</label>
+            <select name="providerId">
+              <option value="">Sin proveedor</option>
+              ${providers.map(p => `<option value="${p.id}" ${user.provider_id === p.id ? 'selected' : ''}>${p.name}</option>`).join('')}
+            </select>
           </div>
           <div class="form-actions">
             <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
@@ -970,6 +1027,7 @@
             licenseKey: fd.get('licenseKey'),
             licensePlan: fd.get('licensePlan'),
             licensePlanEnabled: fd.get('licensePlanEnabled') === 'on',
+            providerId: fd.get('providerId'),
           }),
         });
         closeModal();
@@ -978,6 +1036,13 @@
     }
 
     async function togglePause(id) { await api(`/api/users/${id}/pause`, { method: 'POST' }); loadUsers(); }
+    async function toggleLicensePause(id) {
+      const current = await api(`/api/access-state/users/${id}`);
+      const paused = current.status === 'license_paused' || current.causes?.licensePause;
+      if (!confirm(`${paused ? 'Reactivar' : 'Pausar'} esta licencia?`)) return;
+      await api(`/api/access-state/users/${id}/${paused ? 'resume' : 'pause'}`, { method: 'POST' });
+      loadUsers();
+    }
     async function resetHWID(id) { if (confirm('¿Resetear HWID?')) { await api(`/api/users/${id}/hwid`, { method: 'POST' }); loadUsers(); } }
     async function toggleBlock(id) { await api(`/api/users/${id}/block`, { method: 'POST' }); loadUsers(); }
 

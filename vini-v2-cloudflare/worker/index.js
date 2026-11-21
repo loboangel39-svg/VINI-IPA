@@ -1232,6 +1232,10 @@ export default {
         if (isPlanContractEnabled(request, auth.user)) {
           response.licensePlan = auth.user.license_plan;
         }
+        if (isAccessStateClient(request, auth.user)) {
+          response.access = await getAccessState(env, auth.user);
+          response.licenseExpiresAt = response.access.licenseExpiresAt;
+        }
         return Response.json(response, { headers: corsHeaders });
       }
 
@@ -1240,6 +1244,12 @@ export default {
         const appAuth = await verifyAppAuth(request, env);
         if (!appAuth.valid) {
           return Response.json({ error: 'Unauthorized', valid: false }, { status: 401, headers: corsHeaders });
+        }
+        if (isAccessStateClient(request, appAuth.user)) {
+          const access = await getAccessState(env, appAuth.user);
+          if (access.status !== 'active') {
+            return Response.json({ error: 'Access unavailable', access }, { status: 423, headers: corsHeaders });
+          }
         }
 
         // GET /api/app/config
@@ -1301,6 +1311,43 @@ export default {
       }
       if (path === '/api/dashboard/activity' && method === 'GET') {
         return handleDashboardActivity(env, corsHeaders);
+      }
+
+      // === ACCESS STATE (VINI-IPA 2.0 pilot) ===
+      if (path === '/api/access-state/global/license-pause' && method === 'GET') {
+        return handleGetGlobalAccessState('global_license_pause', env, corsHeaders);
+      }
+      if (path === '/api/access-state/global/license-pause' && method === 'POST') {
+        return handleSetGlobalAccessState('global_license_pause', request, env, corsHeaders, auth.user);
+      }
+      if (path === '/api/access-state/global/maintenance' && method === 'GET') {
+        return handleGetGlobalAccessState('global_maintenance', env, corsHeaders);
+      }
+      if (path === '/api/access-state/global/maintenance' && method === 'POST') {
+        return handleSetGlobalAccessState('global_maintenance', request, env, corsHeaders, auth.user);
+      }
+      if (path === '/api/access-state/providers' && method === 'GET') {
+        const result = await env.DB.prepare('SELECT * FROM providers ORDER BY name').all();
+        return Response.json(result.results, { headers: corsHeaders });
+      }
+      if (path === '/api/access-state/providers' && method === 'POST') {
+        return handleCreateProvider(request, env, corsHeaders, auth.user);
+      }
+      if (path.match(/^\/api\/access-state\/providers\/[^/]+\/maintenance$/) && method === 'GET') {
+        return handleGetProviderMaintenance(path.split('/')[4], env, corsHeaders);
+      }
+      if (path.match(/^\/api\/access-state\/providers\/[^/]+\/maintenance$/) && method === 'POST') {
+        return handleSetProviderMaintenance(path.split('/')[4], request, env, corsHeaders, auth.user);
+      }
+      if (path.match(/^\/api\/access-state\/users\/[^/]+$/) && method === 'GET') {
+        return handleGetUserAccessState(path.split('/')[4], env, corsHeaders);
+      }
+      if (path.match(/^\/api\/access-state\/users\/[^/]+\/(pause|resume)$/) && method === 'POST') {
+        return handleSetUserPause(path.split('/')[4], path.endsWith('/pause'), env, corsHeaders, auth.user);
+      }
+      if (path === '/api/access-state/events' && method === 'GET') {
+        const result = await env.DB.prepare('SELECT * FROM access_state_events ORDER BY created_at DESC LIMIT 200').all();
+        return Response.json(result.results, { headers: corsHeaders });
       }
 
       // === USERS ===
@@ -1438,7 +1485,7 @@ async function verifyAppAuth(request, env) {
     if (!user.is_active || user.is_paused || user.is_blocked) return { valid: false };
     if (Number(payload.sessionVersion) !== Number(user.session_version || 1)) return { valid: false };
     if (!payload.hwid || !user.hwid || payload.hwid !== user.hwid) return { valid: false };
-    if (user.license_expires_at && new Date(user.license_expires_at) < new Date()) return { valid: false };
+    if (user.license_expires_at && new Date(user.license_expires_at) < new Date() && !isAccessStateClient(request, user)) return { valid: false };
 
     return { valid: true, userId: payload.userId, hwid: payload.hwid, user };
   } catch {
@@ -1525,6 +1572,72 @@ function isPlanContractEnabled(request, user) {
   return request.headers.get('X-VINI-Capabilities')?.split(',').some(
     capability => capability.trim() === 'license-plan-v1'
   ) && Number(user.license_plan_enabled) === 1;
+}
+
+function isAccessStateClient(request, user) {
+  return isPlanContractEnabled(request, user) && request.headers.get('X-VINI-Capabilities')?.split(',').some(
+    capability => capability.trim() === 'access-state-v1'
+  );
+}
+
+async function getAccessState(env, user) {
+  const now = new Date();
+  const controls = await env.DB.prepare(
+    'SELECT global_license_pause, global_maintenance, maintenance_message FROM access_controls WHERE id = 1'
+  ).first() || { global_license_pause: 0, global_maintenance: 0, maintenance_message: '' };
+  const providerMaintenance = user.provider_id
+    ? await env.DB.prepare('SELECT enabled, message FROM provider_maintenance WHERE provider_id = ?').bind(user.provider_id).first()
+    : null;
+  const state = await env.DB.prepare('SELECT * FROM license_access_state WHERE user_id = ?').bind(user.id).first();
+  const causes = {
+    globalLicensePause: Number(controls.global_license_pause) === 1,
+    globalMaintenance: Number(controls.global_maintenance) === 1,
+    providerMaintenance: Number(providerMaintenance?.enabled) === 1,
+    licensePause: Number(state?.individual_pause) === 1
+  };
+  const suspended = causes.globalLicensePause || causes.globalMaintenance || causes.providerMaintenance || causes.licensePause;
+
+  if (suspended && state?.frozen_seconds == null) {
+    const remaining = user.license_expires_at
+      ? Math.max(0, Math.floor((new Date(user.license_expires_at).getTime() - now.getTime()) / 1000))
+      : 0;
+    await env.DB.prepare(`
+      INSERT INTO license_access_state (user_id, frozen_seconds, frozen_at, updated_at, updated_by)
+      VALUES (?, ?, ?, ?, 'system')
+      ON CONFLICT(user_id) DO UPDATE SET
+        frozen_seconds = CASE WHEN license_access_state.frozen_seconds IS NULL THEN excluded.frozen_seconds ELSE license_access_state.frozen_seconds END,
+        frozen_at = CASE WHEN license_access_state.frozen_seconds IS NULL THEN excluded.frozen_at ELSE license_access_state.frozen_at END,
+        updated_at = excluded.updated_at
+    `).bind(user.id, remaining, now.toISOString(), now.toISOString()).run();
+  }
+
+  const refreshed = await env.DB.prepare('SELECT frozen_seconds FROM license_access_state WHERE user_id = ?').bind(user.id).first();
+  const frozenSeconds = refreshed?.frozen_seconds == null ? null : Number(refreshed.frozen_seconds);
+  if (suspended) {
+    const status = causes.globalMaintenance || causes.providerMaintenance ? 'maintenance'
+      : causes.globalLicensePause || causes.licensePause ? 'license_paused' : 'active';
+    return {
+      status,
+      causes,
+      frozenSeconds,
+      serverTime: now.toISOString(),
+      licenseExpiresAt: user.license_expires_at || null,
+      maintenanceMessage: causes.globalMaintenance ? controls.maintenance_message : (providerMaintenance?.message || '')
+    };
+  }
+
+  if (frozenSeconds != null) {
+    const resumedExpiry = new Date(now.getTime() + frozenSeconds * 1000).toISOString();
+    await env.DB.batch([
+      env.DB.prepare('UPDATE users SET license_expires_at = ?, updated_at = ? WHERE id = ?').bind(resumedExpiry, now.toISOString(), user.id),
+      env.DB.prepare('UPDATE license_access_state SET frozen_seconds = NULL, frozen_at = NULL, updated_at = ?, updated_by = ? WHERE user_id = ?').bind(now.toISOString(), 'system', user.id)
+    ]);
+    user.license_expires_at = resumedExpiry;
+  }
+  if (user.license_expires_at && new Date(user.license_expires_at) < now) {
+    return { status: 'expired', causes, frozenSeconds: null, serverTime: now.toISOString(), licenseExpiresAt: user.license_expires_at };
+  }
+  return { status: 'active', causes, frozenSeconds: null, serverTime: now.toISOString(), licenseExpiresAt: user.license_expires_at || null };
 }
 
 // GET /api/app/config
@@ -1764,6 +1877,105 @@ async function handleDashboardActivity(env, headers) {
   return Response.json(result.results, { headers });
 }
 
+async function handleGetGlobalAccessState(column, env, headers) {
+  const row = await env.DB.prepare(`SELECT ${column} AS enabled, maintenance_message, changed_at, changed_by FROM access_controls WHERE id = 1`).first();
+  return Response.json(row || { enabled: 0 }, { headers });
+}
+
+async function handleSetGlobalAccessState(column, request, env, headers, adminUser) {
+  const data = await request.json();
+  const enabled = data.enabled ? 1 : 0;
+  const now = new Date().toISOString();
+  const message = column === 'global_maintenance' && typeof data.message === 'string' ? data.message.slice(0, 500) : '';
+  const current = await env.DB.prepare(`SELECT ${column} AS enabled FROM access_controls WHERE id = 1`).first();
+  if (Number(current?.enabled) === enabled) {
+    return Response.json({ success: true, enabled: !!enabled }, { headers });
+  }
+  // Materialize all current users while the old global state is still in force
+  // before removing it. This preserves exact remaining seconds across the transition.
+  if (!enabled && Number(current?.enabled) === 1) {
+    const users = await env.DB.prepare('SELECT id, provider_id, license_expires_at FROM users').all();
+    for (const user of users.results) await getAccessState(env, user);
+  }
+  await env.DB.batch([
+    env.DB.prepare(`UPDATE access_controls SET ${column} = ?, maintenance_message = CASE WHEN ? = 'global_maintenance' THEN ? ELSE maintenance_message END, changed_at = ?, changed_by = ? WHERE id = 1`).bind(enabled, column, message, now, adminUser),
+    env.DB.prepare('INSERT INTO access_state_events (scope, action, next_state, admin_user, created_at) VALUES (?, ?, ?, ?, ?)').bind(column, enabled ? 'enable' : 'disable', String(enabled), adminUser, now)
+  ]);
+  if (enabled) {
+    const users = await env.DB.prepare('SELECT id, provider_id, license_expires_at FROM users').all();
+    for (const user of users.results) await getAccessState(env, user);
+  }
+  return Response.json({ success: true, enabled: !!enabled }, { headers });
+}
+
+async function handleCreateProvider(request, env, headers, adminUser) {
+  const data = await request.json();
+  const id = typeof data.id === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(data.id) ? data.id : crypto.randomUUID();
+  const name = typeof data.name === 'string' ? data.name.trim().slice(0, 120) : '';
+  if (!name) return Response.json({ error: 'Provider name required' }, { status: 400, headers });
+  const now = new Date().toISOString();
+  await env.DB.prepare('INSERT INTO providers (id, name, created_at, updated_at) VALUES (?, ?, ?, ?)').bind(id, name, now, now).run();
+  await logAccessEvent(env, { providerId: id, scope: 'provider', action: 'create', adminUser, createdAt: now });
+  return Response.json({ id, name }, { headers });
+}
+
+async function handleGetProviderMaintenance(providerId, env, headers) {
+  const provider = await env.DB.prepare('SELECT id, name FROM providers WHERE id = ?').bind(providerId).first();
+  if (!provider) return Response.json({ error: 'Provider not found' }, { status: 404, headers });
+  const state = await env.DB.prepare('SELECT * FROM provider_maintenance WHERE provider_id = ?').bind(providerId).first();
+  return Response.json({ provider, enabled: !!state?.enabled, message: state?.message || '' }, { headers });
+}
+
+async function handleSetProviderMaintenance(providerId, request, env, headers, adminUser) {
+  const provider = await env.DB.prepare('SELECT id FROM providers WHERE id = ? AND active = 1').bind(providerId).first();
+  if (!provider) return Response.json({ error: 'Provider not found' }, { status: 404, headers });
+  const data = await request.json();
+  const enabled = data.enabled ? 1 : 0;
+  const message = typeof data.message === 'string' ? data.message.slice(0, 500) : '';
+  const now = new Date().toISOString();
+  const current = await env.DB.prepare('SELECT enabled FROM provider_maintenance WHERE provider_id = ?').bind(providerId).first();
+  if (Number(current?.enabled) === enabled) {
+    return Response.json({ success: true, enabled: !!enabled }, { headers });
+  }
+  if (!enabled && Number(current?.enabled) === 1) {
+    const users = await env.DB.prepare('SELECT id, provider_id, license_expires_at FROM users WHERE provider_id = ?').bind(providerId).all();
+    for (const user of users.results) await getAccessState(env, user);
+  }
+  await env.DB.batch([
+    env.DB.prepare(`INSERT INTO provider_maintenance (provider_id, enabled, message, changed_at, changed_by) VALUES (?, ?, ?, ?, ?)
+      ON CONFLICT(provider_id) DO UPDATE SET enabled = excluded.enabled, message = excluded.message, changed_at = excluded.changed_at, changed_by = excluded.changed_by`).bind(providerId, enabled, message, now, adminUser),
+    env.DB.prepare('INSERT INTO access_state_events (provider_id, scope, action, next_state, admin_user, created_at) VALUES (?, ?, ?, ?, ?, ?)').bind(providerId, 'provider_maintenance', enabled ? 'enable' : 'disable', String(enabled), adminUser, now)
+  ]);
+  if (enabled) {
+    const users = await env.DB.prepare('SELECT id, provider_id, license_expires_at FROM users WHERE provider_id = ?').bind(providerId).all();
+    for (const user of users.results) await getAccessState(env, user);
+  }
+  return Response.json({ success: true, enabled: !!enabled }, { headers });
+}
+
+async function handleGetUserAccessState(userId, env, headers) {
+  const user = await env.DB.prepare('SELECT id, username, provider_id, license_expires_at FROM users WHERE id = ?').bind(userId).first();
+  if (!user) return Response.json({ error: 'User not found' }, { status: 404, headers });
+  return Response.json(await getAccessState(env, user), { headers });
+}
+
+async function handleSetUserPause(userId, paused, env, headers, adminUser) {
+  const user = await env.DB.prepare('SELECT id, username, provider_id, license_expires_at FROM users WHERE id = ?').bind(userId).first();
+  if (!user) return Response.json({ error: 'User not found' }, { status: 404, headers });
+  const now = new Date().toISOString();
+  await env.DB.prepare(`INSERT INTO license_access_state (user_id, individual_pause, updated_at, updated_by)
+    VALUES (?, ?, ?, ?) ON CONFLICT(user_id) DO UPDATE SET individual_pause = excluded.individual_pause, updated_at = excluded.updated_at, updated_by = excluded.updated_by`)
+    .bind(userId, paused ? 1 : 0, now, adminUser).run();
+  await logAccessEvent(env, { userId, scope: 'license_pause', action: paused ? 'pause' : 'resume', nextState: paused ? '1' : '0', adminUser, createdAt: now });
+  return Response.json({ success: true, access: await getAccessState(env, user) }, { headers });
+}
+
+async function logAccessEvent(env, event) {
+  await env.DB.prepare(`INSERT INTO access_state_events (user_id, provider_id, scope, action, next_state, admin_user, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)`)
+    .bind(event.userId || null, event.providerId || null, event.scope, event.action, event.nextState || '', event.adminUser, event.createdAt).run();
+}
+
 // ============================================================
 // ADMIN USERS
 // ============================================================
@@ -1793,6 +2005,13 @@ async function handleCreateUser(request, env, headers) {
     data.permissions || '{}', data.licenseExpiresAt || null, now, now
   ).run();
 
+  const controls = await env.DB.prepare('SELECT global_license_pause, global_maintenance FROM access_controls WHERE id = 1').first();
+  if ((Number(controls?.global_license_pause) === 1 || Number(controls?.global_maintenance) === 1) && data.licenseExpiresAt) {
+    const frozenSeconds = Math.max(0, Math.floor((new Date(data.licenseExpiresAt).getTime() - Date.now()) / 1000));
+    await env.DB.prepare(`INSERT INTO license_access_state (user_id, frozen_seconds, frozen_at, updated_at, updated_by)
+      VALUES (?, ?, ?, ?, 'system')`).bind(id, frozenSeconds, now, now).run();
+  }
+
   await logActivity(env, 'user_created', `User ${data.username} created`);
   return Response.json({ id, ...data }, { headers });
 }
@@ -1802,12 +2021,17 @@ async function handleUpdateUser(id, request, env, headers) {
   const now = new Date().toISOString();
   const licensePlan = normalizeLicensePlan(data.licensePlan, data.isPremium);
   const planEnabled = data.licensePlanEnabled ? 1 : 0;
+  const providerId = data.providerId || null;
+  if (providerId) {
+    const provider = await env.DB.prepare('SELECT id FROM providers WHERE id = ? AND active = 1').bind(providerId).first();
+    if (!provider) return Response.json({ error: 'Provider not found' }, { status: 404, headers });
+  }
 
   await env.DB.prepare(
-    `UPDATE users SET username = ?, hwid = ?, license_key = ?, is_premium = ?, license_plan = ?, license_plan_enabled = ?, permissions = ?, updated_at = ? WHERE id = ?`
+    `UPDATE users SET username = ?, hwid = ?, license_key = ?, is_premium = ?, license_plan = ?, license_plan_enabled = ?, provider_id = ?, permissions = ?, updated_at = ? WHERE id = ?`
   ).bind(data.username, data.hwid || '', data.licenseKey || '',
     licensePlan === 'Basic' ? 0 : 1, licensePlan, planEnabled,
-    data.permissions || '{}', now, id
+    providerId, data.permissions || '{}', now, id
   ).run();
 
   await logActivity(env, 'user_updated', `User ${id} updated`);
@@ -1846,11 +2070,14 @@ async function handleToggleBlock(id, env, headers) {
 async function handleRenewLicense(id, request, env, headers) {
   const data = await request.json();
   const days = parseInt(data.days) || 30;
-  const user = await env.DB.prepare('SELECT username, license_expires_at FROM users WHERE id = ?').bind(id).first();
+  const user = await env.DB.prepare('SELECT username, provider_id, license_expires_at FROM users WHERE id = ?').bind(id).first();
   
   if (!user) {
     return Response.json({ error: 'User not found' }, { status: 404, headers });
   }
+
+  // Materialize an already-active suspension before applying the extension.
+  await getAccessState(env, user);
 
   // Calculate new expiration date
   let newExpiresAt;
@@ -1866,8 +2093,22 @@ async function handleRenewLicense(id, request, env, headers) {
   }
 
   const now = new Date().toISOString();
-  await env.DB.prepare('UPDATE users SET license_expires_at = ?, updated_at = ? WHERE id = ?')
-    .bind(newExpiresAt, now, id).run();
+  const accessState = await env.DB.prepare('SELECT individual_pause, frozen_seconds FROM license_access_state WHERE user_id = ?').bind(id).first();
+  const controls = await env.DB.prepare('SELECT global_license_pause, global_maintenance FROM access_controls WHERE id = 1').first();
+  const globallyPaused = Number(controls?.global_license_pause) === 1 || Number(controls?.global_maintenance) === 1;
+  const providerMaintenance = user.provider_id
+    ? await env.DB.prepare('SELECT enabled FROM provider_maintenance WHERE provider_id = ?').bind(user.provider_id).first()
+    : null;
+  const providerPaused = Number(providerMaintenance?.enabled) === 1;
+  const frozen = accessState?.frozen_seconds != null;
+  if (frozen || globallyPaused || providerPaused || Number(accessState?.individual_pause) === 1) {
+    const addedSeconds = days * 24 * 60 * 60;
+    await env.DB.prepare(`UPDATE license_access_state SET frozen_seconds = COALESCE(frozen_seconds, 0) + ?, updated_at = ?, updated_by = 'admin' WHERE user_id = ?`)
+      .bind(addedSeconds, now, id).run();
+  } else {
+    await env.DB.prepare('UPDATE users SET license_expires_at = ?, updated_at = ? WHERE id = ?')
+      .bind(newExpiresAt, now, id).run();
+  }
   
   await logActivity(env, 'license_renewed', `User ${user.username} license renewed for ${days} days (expires: ${newExpiresAt})`);
   return Response.json({ 

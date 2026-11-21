@@ -13,6 +13,7 @@ struct ThreeOneOSFiveApp: App {
     @AppStorage("licenseExpiresAt") private var licenseExpiresAt: Double = 0
     @AppStorage("licensePlan") private var licensePlan = ""
     @AppStorage("currentLicenseKey") private var currentLicenseKey = ""
+    @State private var accessState: ServerAccessState?
     @State private var isCheckingAutoLogin = true
     @State private var isCheckingSession = false
     @StateObject private var repositoryStore = PackageRepositoryStore()
@@ -41,21 +42,15 @@ struct ThreeOneOSFiveApp: App {
                         ProgressView("VINI V2")
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                     } else if isLoggedIn {
-                        ContentView()
-                            .environmentObject(appState)
-                            .environmentObject(patchDraftCoordinator)
-                            .environmentObject(fileOperationCoordinator)
-                            .environmentObject(patchStore)
-                            .environmentObject(repositoryStore)
-                            .environment(\.appLanguage, language)
-                            .environment(\.locale, language.locale)
+                        authorizedRootContent
                     } else {
-                        LoginView { license, expiresAt, licenseExpiration, plan in
+                        LoginView { license, expiresAt, licenseExpiration, plan, access in
                             currentLicenseKey = license
                             isLoggedIn = true
                             sessionExpiresAt = expiresAt?.timeIntervalSince1970 ?? 0
                             licenseExpiresAt = licenseExpiration?.timeIntervalSince1970 ?? 0
                             licensePlan = plan ?? ""
+                            accessState = access
                             synchronizeRemotePatches()
                         }
                     }
@@ -106,6 +101,29 @@ struct ThreeOneOSFiveApp: App {
         }
     }
 
+    @ViewBuilder
+    private var authorizedRootContent: some View {
+        switch accessState?.status {
+        case "maintenance":
+            MaintenanceView(accessState: accessState, onRefresh: refreshAccessState)
+        case "license_paused":
+            PausedLicenseView(accessState: accessState, onRefresh: refreshAccessState)
+        default:
+            ContentView()
+                .environmentObject(appState)
+                .environmentObject(patchDraftCoordinator)
+                .environmentObject(fileOperationCoordinator)
+                .environmentObject(patchStore)
+                .environmentObject(repositoryStore)
+                .environment(\.appLanguage, language)
+                .environment(\.locale, language.locale)
+        }
+    }
+
+    private func refreshAccessState() {
+        Task { await checkSessionValidityAsync() }
+    }
+
     private func attemptAutoLogin() async {
         if isLoggedIn {
             await checkSessionValidityAsync()
@@ -123,6 +141,7 @@ struct ThreeOneOSFiveApp: App {
                         sessionExpiresAt = 0
                         licenseExpiresAt = 0
                         licensePlan = ""
+                        accessState = nil
                         log("[AUTH] stored session revoked; manual login required")
                     }
                     continuation.resume(returning: result)
@@ -139,7 +158,7 @@ struct ThreeOneOSFiveApp: App {
             }
         }
         await withCheckedContinuation { continuation in
-            LoginManager.tryAutoLogin { success, license, expiresAt, licenseExpiration, plan in
+            LoginManager.tryAutoLogin { success, license, expiresAt, licenseExpiration, plan, access in
                 Task { @MainActor in
                     if success, let license {
                         currentLicenseKey = license
@@ -147,6 +166,7 @@ struct ThreeOneOSFiveApp: App {
                         sessionExpiresAt = expiresAt?.timeIntervalSince1970 ?? 0
                         licenseExpiresAt = licenseExpiration?.timeIntervalSince1970 ?? 0
                         licensePlan = plan ?? ""
+                        accessState = access
                         log("app: auto-login successful")
                         synchronizeRemotePatches()
                     } else {
@@ -179,12 +199,20 @@ struct ThreeOneOSFiveApp: App {
             }
         }
         switch valid {
-        case .valid(let licenseExpiration, let plan):
+        case .valid(let licenseExpiration, let plan, let access):
             if let licenseExpiration {
                 licenseExpiresAt = licenseExpiration.timeIntervalSince1970
             }
             licensePlan = plan ?? ""
+            accessState = access
+            if access?.status == "expired" || access?.status == "unauthorized" {
+                logout()
+                return
+            }
             log("[AUTH] session check accepted")
+            if access?.status == "maintenance" || access?.status == "license_paused" {
+                return
+            }
             synchronizeRemotePatches()
         case .revoked:
             log("[AUTH] session check revoked; showing login")

@@ -8,6 +8,13 @@ struct LoginResponse {
     let licenseExpiresAt: Date?
 }
 
+struct ServerAccessState {
+    let status: String
+    let frozenSeconds: Int?
+    let serverTime: Date?
+    let maintenanceMessage: String?
+}
+
 enum LicensePlan: String {
     case basic = "Basic"
     case premium = "Premium"
@@ -16,7 +23,7 @@ enum LicensePlan: String {
 
 final class LoginManager {
     enum StoredSessionResult {
-        case valid(licenseExpiresAt: Date?, licensePlan: String?)
+        case valid(licenseExpiresAt: Date?, licensePlan: String?, accessState: ServerAccessState?)
         case revoked
         case networkError
     }
@@ -31,7 +38,7 @@ final class LoginManager {
     }
     
     /// Inicia sesión validando la licencia contra el Worker V2
-    static func login(licenseKey: String, completion: @escaping (Bool, String, Date?, Date?, String?) -> Void) {
+    static func login(licenseKey: String, completion: @escaping (Bool, String, Date?, Date?, String?, ServerAccessState?) -> Void) {
         let hwid = getPersistentHWID()
         
         print("[AUTH] login validation started; hwid present=\(!hwid.isEmpty)")
@@ -40,16 +47,16 @@ final class LoginManager {
     }
     
     /// Valida licencia contra el Worker V2 API
-    private static func validateWithWorker(licenseKey: String, hwid: String, completion: @escaping (Bool, String, Date?, Date?, String?) -> Void) {
+    private static func validateWithWorker(licenseKey: String, hwid: String, completion: @escaping (Bool, String, Date?, Date?, String?, ServerAccessState?) -> Void) {
         guard let url = URL(string: "\(workerURL)/api/app/validate-license") else {
-            completion(false, "Configuration error", nil, nil, nil)
+            completion(false, "Configuration error", nil, nil, nil, nil)
             return
         }
         
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("license-plan-v1", forHTTPHeaderField: "X-VINI-Capabilities")
+        request.setValue("license-plan-v1,access-state-v1", forHTTPHeaderField: "X-VINI-Capabilities")
         request.timeoutInterval = 30
         
         let body: [String: String] = [
@@ -60,24 +67,24 @@ final class LoginManager {
         do {
             request.httpBody = try JSONSerialization.data(withJSONObject: body)
         } catch {
-            completion(false, "Request error", nil, nil, nil)
+            completion(false, "Request error", nil, nil, nil, nil)
             return
         }
         
         URLSession.shared.dataTask(with: request) { data, response, error in
             if let error = error {
                 print("[AUTH] login transport failure: \(error.localizedDescription)")
-                completion(false, "Connection error: \(error.localizedDescription)", nil, nil, nil)
+                completion(false, "Connection error: \(error.localizedDescription)", nil, nil, nil, nil)
                 return
             }
             
             guard let data = data else {
-                completion(false, "No response from server", nil, nil, nil)
+                completion(false, "No response from server", nil, nil, nil, nil)
                 return
             }
             
             guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-                completion(false, "Invalid server response", nil, nil, nil)
+                completion(false, "Invalid server response", nil, nil, nil, nil)
                 return
             }
             
@@ -104,10 +111,10 @@ final class LoginManager {
                 let licenseExpiresAt = parseISO8601Date(json["licenseExpiresAt"] as? String)
                 let licensePlan = resolvedLicensePlan(from: json)
                 
-                completion(true, "Login successful", expiresAt, licenseExpiresAt, licensePlan)
+                completion(true, "Login successful", expiresAt, licenseExpiresAt, licensePlan, parseAccessState(from: json))
             } else {
                 print("[AUTH] license validation rejected")
-                completion(false, errorMessage ?? "Invalid license", nil, nil, nil)
+                completion(false, errorMessage ?? "Invalid license", nil, nil, nil, nil)
             }
         }.resume()
     }
@@ -155,21 +162,21 @@ final class LoginManager {
     
     /// Intenta auto-login con credenciales guardadas en Keychain.
     /// Retorna true si hay credenciales y se puede intentar login.
-    static func tryAutoLogin(completion: @escaping (Bool, String?, Date?, Date?, String?) -> Void) {
+    static func tryAutoLogin(completion: @escaping (Bool, String?, Date?, Date?, String?, ServerAccessState?) -> Void) {
         guard let licenseKey = KeychainManager.shared.loadLicenseKey() else {
-            completion(false, nil, nil, nil, nil)
+            completion(false, nil, nil, nil, nil, nil)
             return
         }
         
         print("[AUTH] auto-login started with saved credentials")
         
-        login(licenseKey: licenseKey) { success, message, expiresAt, licenseExpiresAt, licensePlan in
+        login(licenseKey: licenseKey) { success, message, expiresAt, licenseExpiresAt, licensePlan, accessState in
             if success {
                 print("[AUTH] auto-login accepted by server")
-                completion(true, licenseKey, expiresAt, licenseExpiresAt, licensePlan)
+                completion(true, licenseKey, expiresAt, licenseExpiresAt, licensePlan, accessState)
             } else {
                 print("[AUTH] auto-login rejected: \(message)")
-                completion(false, nil, nil, nil, nil)
+                completion(false, nil, nil, nil, nil, nil)
             }
         }
     }
@@ -195,7 +202,7 @@ final class LoginManager {
         request.httpMethod = "GET"
         request.timeoutInterval = 10
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        request.setValue("license-plan-v1", forHTTPHeaderField: "X-VINI-Capabilities")
+        request.setValue("license-plan-v1,access-state-v1", forHTTPHeaderField: "X-VINI-Capabilities")
         URLSession.shared.dataTask(with: request) { data, response, error in
             if error != nil || data == nil {
                 DispatchQueue.main.async { completion(.networkError) }
@@ -204,17 +211,20 @@ final class LoginManager {
             let status = (response as? HTTPURLResponse)?.statusCode ?? 0
             let licenseExpiresAt: Date?
             let licensePlan: String?
+            let accessState: ServerAccessState?
             if status == 200, let data,
                let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
                 licenseExpiresAt = parseISO8601Date(json["licenseExpiresAt"] as? String)
                 licensePlan = resolvedLicensePlan(from: json)
+                accessState = parseAccessState(from: json)
             } else {
                 licenseExpiresAt = nil
                 licensePlan = nil
+                accessState = nil
             }
             DispatchQueue.main.async {
                 completion(status == 200
-                    ? .valid(licenseExpiresAt: licenseExpiresAt, licensePlan: licensePlan)
+                    ? .valid(licenseExpiresAt: licenseExpiresAt, licensePlan: licensePlan, accessState: accessState)
                     : (status == 401 ? .revoked : .networkError))
             }
         }.resume()
@@ -226,6 +236,17 @@ final class LoginManager {
             return plan.rawValue
         }
         return nil
+    }
+
+    private static func parseAccessState(from json: [String: Any]) -> ServerAccessState? {
+        guard let access = json["access"] as? [String: Any],
+              let status = access["status"] as? String else { return nil }
+        return ServerAccessState(
+            status: status,
+            frozenSeconds: access["frozenSeconds"] as? Int,
+            serverTime: parseISO8601Date(access["serverTime"] as? String),
+            maintenanceMessage: access["maintenanceMessage"] as? String
+        )
     }
     
     /// Limpia la sesión del usuario (pero NO borra el license key del Keychain para permitir re-login)
