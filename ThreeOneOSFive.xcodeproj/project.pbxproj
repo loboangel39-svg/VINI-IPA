@@ -268,7 +268,7 @@
 		3105R108 /* TokenRefreshManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = helpers/TokenRefreshManager.swift; sourceTree = "<group>"; };
 		3105R109 /* RemotePatchImportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = views/RemotePatchImportView.swift; sourceTree = "<group>"; };
 		3105R110 /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = views/LoginView.swift; sourceTree = "<group>"; };
-		3105R111 /* AccessStateViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = views/AccessStateViews.swift; sourceTree = "<group>"; };
+		3105R111 /* AccessStateViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessStateViews.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
