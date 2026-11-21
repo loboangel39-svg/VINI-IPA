@@ -51,7 +51,7 @@ struct ThreeOneOSFiveApp: App {
                             licenseExpiresAt = licenseExpiration?.timeIntervalSince1970 ?? 0
                             licensePlan = plan ?? ""
                             accessState = access
-                            if access?.status == "active" { synchronizeRemotePatches() }
+                            if shouldSynchronizeRemotePatches(for: access) { synchronizeRemotePatches() }
                         }
                     }
                 }
@@ -168,7 +168,7 @@ struct ThreeOneOSFiveApp: App {
                         licensePlan = plan ?? ""
                         accessState = access
                         log("app: auto-login successful")
-                        if access?.status == "active" { synchronizeRemotePatches() }
+                        if shouldSynchronizeRemotePatches(for: access) { synchronizeRemotePatches() }
                     } else {
                         log("app: auto-login unavailable; showing original login")
                     }
@@ -181,6 +181,17 @@ struct ThreeOneOSFiveApp: App {
 
     private func synchronizeRemotePatches() {
         Task { await remotePatchCoordinator.sync(into: patchStore) }
+    }
+
+    /// Preserve the legacy remote-patch contract when an older Worker does
+    /// not return `access`. Only an explicit server-side blocking state may
+    /// suppress patch synchronization.
+    private func shouldSynchronizeRemotePatches(for access: ServerAccessState?) -> Bool {
+        guard let status = access?.status else { return true }
+        return status != "maintenance"
+            && status != "license_paused"
+            && status != "expired"
+            && status != "unauthorized"
     }
 
     private func checkSessionValidityAsync() async {
