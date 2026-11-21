@@ -123,7 +123,9 @@ struct ContentView: View {
 
     @ViewBuilder
     private func sectionContent(_ section: AppSection) -> some View {
-        switch section {
+        ZStack {
+            ChristmasBackdrop(design: sectionChristmasDesign(for: section))
+            switch section {
         case .home:
             RepositoryHomeView(
                 onOpenSettings: openSettings,
@@ -155,6 +157,15 @@ struct ContentView: View {
                 onOpenSettings: openSettings,
                 onOpenLogs: openLogs
             )
+            }
+        }
+    }
+
+    private func sectionChristmasDesign(for section: AppSection) -> String {
+        switch section {
+        case .files: return "Archivos"
+        case .installed: return "Instaladas"
+        default: return "Instaladas"
         }
     }
 

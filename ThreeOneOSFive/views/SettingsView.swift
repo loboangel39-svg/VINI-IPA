@@ -25,7 +25,6 @@ struct SettingsView: View {
                     }
                     .padding(.vertical, 4)
                 }
-
                 Section(language.text("settings.language")) {
                     Picker(language.text("settings.language"), selection: $languageCode) {
                         ForEach(AppLanguage.allCases) { option in
@@ -85,6 +84,8 @@ struct SettingsView: View {
                 }
 
             }
+            .scrollContentBackground(.hidden)
+            .background(ChristmasBackdrop(design: "Ajustes"))
             .tint(AppTheme.accent)
             .navigationTitle(language.text("settings.title"))
             .navigationBarTitleDisplayMode(.inline)
