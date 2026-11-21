@@ -97,15 +97,18 @@ jobs:
             exit 1
           fi
 
-          cp -R "$APP_PATH" output/
+          mkdir -p output/Payload
+          cp -R "$APP_PATH" output/Payload/
+          (cd output && ditto -c -k --sequesterRsrc --keepParent Payload VINI.ipa)
           
           # Crear lista de archivos para verificar
           echo "Contenido del .app:"
           ls -la "$APP_PATH"
+          unzip -l output/VINI.ipa | head -20
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: VINI-iOS
-          path: output/
+          path: output/VINI.ipa
           retention-days: 7

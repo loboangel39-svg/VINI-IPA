@@ -6,9 +6,11 @@
 - `git diff --check`: PASS.
 - `node worker/tests/access-state-policy.test.mjs`: PASS (tras ejecutar desde la raíz).
 - Migración `0004` en D1 local efímera sobre esquema compatible: PASS en la validación histórica reportada.
+- Workflow `44862497459`: PASS; compiló Swift, pero aún usó el empaquetado anterior.
 
 ## No ejecutadas / bloqueadas
 
 - IPA binaria original: bloqueada por HTTP 401 del artefacto GitHub.
 - iPhone físico, staging Worker/D1, carga concurrente y regresión IPA antigua: PENDIENTES.
 - Producción: deliberadamente no ejecutada.
+- Nuevo `.ipa` con `Payload/`: pendiente del workflow posterior al cambio de empaquetado.

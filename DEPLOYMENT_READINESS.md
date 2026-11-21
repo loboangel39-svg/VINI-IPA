@@ -2,7 +2,7 @@
 
 ## Estado: NO LISTO PARA PRODUCCIÓN
 
-La rama contiene correcciones y debe generar una nueva compilación CI. No se desplegaron Worker, panel ni migraciones.
+La rama contiene correcciones y un empaquetado CI corregido para generar `.ipa` real. No se desplegaron Worker, panel ni migraciones.
 
 Antes de autorizar despliegue faltan: preflight D1 contra staging, backup verificable, pruebas de concurrencia, validación binaria del IPA nuevo, prueba en dispositivo y regresión con IPA antigua.
 

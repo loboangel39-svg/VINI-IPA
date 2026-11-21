@@ -15,4 +15,4 @@
 
 ## Pendiente
 
-Inspección binaria con un token GitHub que permita descargar el artefacto o con el nuevo artefacto de CI.
+El workflow fue corregido para empaquetar `output/VINI.ipa` con `Payload/VINI.app`; la validación final queda asociada al workflow posterior a este commit.
