@@ -42,11 +42,14 @@ struct ContentView: View {
     }
 
     var body: some View {
-        Group {
+        ZStack {
+            ChristmasBackdrop()
+            Group {
             if horizontalSizeClass == .regular {
                 regularLayout
             } else {
                 compactLayout
+            }
             }
         }
         .tint(AppTheme.accent)
@@ -109,7 +112,7 @@ struct ContentView: View {
                     )
                 }
             }
-            .navigationTitle("3105")
+            .navigationTitle("VINI")
             .navigationSplitViewColumnWidth(min: 210, ideal: 240, max: 300)
         } detail: {
             sectionContent(selectedVisibleSection)

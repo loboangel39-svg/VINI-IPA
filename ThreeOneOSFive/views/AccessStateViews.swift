@@ -75,12 +75,7 @@ private struct AccessStateScreen: View {
 
     var body: some View {
         ZStack {
-            LinearGradient(
-                colors: [AppTheme.pageBackground, AppTheme.accentDeep.opacity(0.36), AppTheme.pageBackground],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            .ignoresSafeArea()
+            ChristmasBackdrop()
             VStack(spacing: 20) {
                 Image(systemName: systemImage)
                     .font(.system(size: 52, weight: .medium))

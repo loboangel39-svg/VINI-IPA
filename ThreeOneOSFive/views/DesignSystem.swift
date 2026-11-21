@@ -1,14 +1,15 @@
 import SwiftUI
 
 enum AppTheme {
-    static let accent = Color(red: 0.58, green: 0.00, blue: 1.00)
-    static let accentDeep = Color(red: 0.22, green: 0.00, blue: 0.40)
-    static let neonMagenta = Color(red: 0.94, green: 0.00, blue: 1.00)
-    static let highlight = Color(red: 0.97, green: 0.90, blue: 1.00)
-    static let pageBackground = Color(red: 0.035, green: 0.012, blue: 0.07)
-    static let consoleBackground = Color(red: 0.086, green: 0.035, blue: 0.14)
-    static let elevatedBackground = Color(red: 0.141, green: 0.051, blue: 0.22)
-    static let secondaryText = Color(red: 0.78, green: 0.70, blue: 0.86)
+    static let accent = Color(red: 0.89, green: 0.14, blue: 0.14)
+    static let accentDeep = Color(red: 0.35, green: 0.02, blue: 0.04)
+    static let neonMagenta = Color(red: 1.00, green: 0.27, blue: 0.27)
+    static let gold = Color(red: 0.95, green: 0.78, blue: 0.42)
+    static let highlight = Color.white
+    static let pageBackground = Color(red: 0.031, green: 0.035, blue: 0.043)
+    static let consoleBackground = Color(red: 0.106, green: 0.106, blue: 0.122)
+    static let elevatedBackground = Color(red: 0.15, green: 0.055, blue: 0.065)
+    static let secondaryText = Color(red: 0.65, green: 0.65, blue: 0.68)
     static let neonGradient = LinearGradient(
         colors: [accent, neonMagenta],
         startPoint: .topLeading,
@@ -157,12 +158,39 @@ struct AppLogo: View {
     var size: CGFloat = 44
 
     var body: some View {
-        Image("VINI-Neon")
+        Image("VINI-Christmas")
             .resizable()
             .scaledToFit()
         .frame(width: size, height: size)
         .clipShape(RoundedRectangle(cornerRadius: size * 0.22, style: .continuous))
         .accessibilityHidden(true)
+    }
+}
+
+struct ChristmasBackdrop: View {
+    var body: some View {
+        ZStack {
+            AppTheme.pageBackground.ignoresSafeArea()
+            VStack(spacing: 0) {
+                HStack(spacing: 18) {
+                    ForEach(0..<9, id: \.self) { index in
+                        Circle().fill(index.isMultiple(of: 2) ? AppTheme.gold : AppTheme.neonMagenta)
+                            .frame(width: 5, height: 5)
+                            .shadow(color: AppTheme.gold.opacity(0.7), radius: 5)
+                    }
+                }
+                .padding(.top, 4)
+                .opacity(0.8)
+                Spacer()
+                HStack {
+                    Text("✦   ❄︎   ✦").font(.title3).foregroundStyle(AppTheme.gold.opacity(0.35))
+                    Spacer()
+                    Text("❄︎   ✦   ❄︎").font(.title3).foregroundStyle(AppTheme.neonMagenta.opacity(0.3))
+                }
+                .padding(.horizontal, 24).padding(.bottom, 10)
+            }
+        }
+        .allowsHitTesting(false)
     }
 }
 
