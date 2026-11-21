@@ -1473,7 +1473,7 @@ async function verifyAppAuth(request, env) {
     const parts = token.split('.');
     if (parts.length !== 3) return { valid: false };
     const payload = JSON.parse(atob(parts[1]));
-    if (payload.exp < Date.now()) return { valid: false };
+    if (payload.exp <= Date.now()) return { valid: false };
 
     const secret = env.JWT_SECRET || 'vini-jwt-secret-change-me';
     const expectedSig = await hmacSign(`${parts[0]}.${parts[1]}`, secret);
@@ -1489,7 +1489,7 @@ async function verifyAppAuth(request, env) {
     if (user.is_paused && !isAccessStateClient(request, user)) return { valid: false };
     if (Number(payload.sessionVersion) !== Number(user.session_version || 1)) return { valid: false };
     if (!payload.hwid || !user.hwid || payload.hwid !== user.hwid) return { valid: false };
-    if (user.license_expires_at && new Date(user.license_expires_at) < new Date() && !isAccessStateClient(request, user)) return { valid: false };
+    if (user.license_expires_at && new Date() >= new Date(user.license_expires_at) && !isAccessStateClient(request, user)) return { valid: false };
 
     return { valid: true, userId: payload.userId, hwid: payload.hwid, user };
   } catch {
@@ -1532,7 +1532,7 @@ async function handleAppValidateLicense(request, env, headers) {
   // Verificar expiración de licencia (legacy contract remains unchanged).
   if (user.license_expires_at && !accessClient) {
     const expiresAt = new Date(user.license_expires_at);
-    if (expiresAt < new Date()) {
+    if (new Date() >= expiresAt) {
       return Response.json({ 
         valid: false, 
         error: 'License expired',
@@ -1661,7 +1661,7 @@ async function getAccessState(env, user, allowAccessStateClient = false) {
     ]);
     user.license_expires_at = resumedExpiry;
   }
-  if (user.license_expires_at && new Date(user.license_expires_at) < now) {
+  if (user.license_expires_at && now >= new Date(user.license_expires_at)) {
     return { status: 'expired', causes, frozenSeconds: null, serverTime: now.toISOString(), licenseExpiresAt: user.license_expires_at };
   }
   return { status: 'active', causes, frozenSeconds: null, serverTime: now.toISOString(), licenseExpiresAt: user.license_expires_at || null };
@@ -1669,7 +1669,7 @@ async function getAccessState(env, user, allowAccessStateClient = false) {
 
 function legacyAccessState(user, now = new Date()) {
   const paused = Number(user.is_paused) === 1;
-  const expired = user.license_expires_at && new Date(user.license_expires_at) < now;
+  const expired = user.license_expires_at && now >= new Date(user.license_expires_at);
   return {
     status: paused ? 'license_paused' : (expired ? 'expired' : 'active'),
     causes: { globalLicensePause: false, globalMaintenance: false, providerMaintenance: false, licensePause: paused },
