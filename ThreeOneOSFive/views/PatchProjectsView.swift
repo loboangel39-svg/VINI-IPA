@@ -150,6 +150,7 @@ struct PatchProjectsView: View {
                 .listStyle(.insetGrouped)
                 .scrollContentBackground(.hidden)
             }
+            .background(ChristmasBackdrop())
             .navigationTitle(language.text("tab.installed"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -798,6 +799,8 @@ private struct PatchProjectDetailView: View {
             }
         }
         .listStyle(.insetGrouped)
+        .scrollContentBackground(.hidden)
+        .background(ChristmasBackdrop())
         .navigationTitle(item?.project?.name ?? language.text("patch.title"))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

@@ -129,6 +129,7 @@ struct AppDataBrowserView: View {
             Divider()
             appRows
         }
+        .background(ChristmasBackdrop())
     }
 
     private var appRows: some View {

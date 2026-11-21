@@ -196,7 +196,7 @@ private struct ChristmasSnowfall: View {
 
 private struct SnowCanvas: View {
     let progress: TimeInterval
-    private let flakes = Array(0..<14)
+    private let flakes = Array(0..<36)
 
     var body: some View {
         Canvas { context, size in
