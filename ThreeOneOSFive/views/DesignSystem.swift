@@ -215,7 +215,9 @@ private struct SnowCanvas: View {
                 let radius = 7.0 + (seed.truncatingRemainder(dividingBy: 4.0)) * 2.0
                 let opacity = 0.24 + (seed.truncatingRemainder(dividingBy: 4.0)) * 0.07
                 let rect = CGRect(x: x - radius, y: y - radius, width: radius * 2, height: radius * 2)
-                context.draw(snowflake, in: rect, opacity: opacity)
+                var flakeContext = context
+                flakeContext.opacity = opacity
+                flakeContext.draw(snowflake, in: rect)
             }
         }
         .ignoresSafeArea()
