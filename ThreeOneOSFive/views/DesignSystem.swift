@@ -170,25 +170,10 @@ struct AppLogo: View {
 struct ChristmasBackdrop: View {
     var body: some View {
         ZStack {
-            AppTheme.pageBackground.ignoresSafeArea()
-            VStack(spacing: 0) {
-                HStack(spacing: 18) {
-                    ForEach(0..<9, id: \.self) { index in
-                        Circle().fill(index.isMultiple(of: 2) ? AppTheme.gold : AppTheme.neonMagenta)
-                            .frame(width: 5, height: 5)
-                            .shadow(color: AppTheme.gold.opacity(0.7), radius: 5)
-                    }
-                }
-                .padding(.top, 4)
-                .opacity(0.8)
-                Spacer()
-                HStack {
-                    Text("✦   ❄︎   ✦").font(.title3).foregroundStyle(AppTheme.gold.opacity(0.35))
-                    Spacer()
-                    Text("❄︎   ✦   ❄︎").font(.title3).foregroundStyle(AppTheme.neonMagenta.opacity(0.3))
-                }
-                .padding(.horizontal, 24).padding(.bottom, 10)
-            }
+            Image("Christmas-Frame")
+                .resizable()
+                .scaledToFill()
+                .ignoresSafeArea()
         }
         .allowsHitTesting(false)
     }
@@ -197,7 +182,7 @@ struct ChristmasBackdrop: View {
 struct VINIStartupView: View {
     var body: some View {
         ZStack {
-            AppTheme.pageBackground.ignoresSafeArea()
+            ChristmasBackdrop()
             VStack(spacing: 18) {
                 AppLogo(size: 104)
                     .shadow(color: AppTheme.neonMagenta.opacity(0.35), radius: 18)

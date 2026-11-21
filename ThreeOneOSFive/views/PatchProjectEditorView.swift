@@ -157,6 +157,8 @@ struct PatchProjectEditorView: View {
                     }
                 }
             }
+            .scrollContentBackground(.hidden)
+            .background(ChristmasBackdrop())
             .navigationTitle(language.text(existingProject == nil ? "patch.new" : "patch.edit"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

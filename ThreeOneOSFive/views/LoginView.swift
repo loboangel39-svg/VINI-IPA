@@ -11,8 +11,7 @@ struct LoginView: View {
 
     var body: some View {
         ZStack {
-            AppTheme.pageBackground
-                .ignoresSafeArea()
+            ChristmasBackdrop()
 
             VStack(spacing: 0) {
                 Spacer()

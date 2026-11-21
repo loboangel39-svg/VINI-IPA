@@ -85,6 +85,8 @@ struct SettingsView: View {
                 }
 
             }
+            .scrollContentBackground(.hidden)
+            .background(ChristmasBackdrop())
             .tint(AppTheme.accent)
             .navigationTitle(language.text("settings.title"))
             .navigationBarTitleDisplayMode(.inline)
