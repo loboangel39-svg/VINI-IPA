@@ -98,6 +98,7 @@ struct ThreeOneOSFiveApp: App {
             .onOpenURL { url in
                 patchDraftCoordinator.presentImport(url)
             }
+            .preferredColorScheme(.dark)
         }
     }
 

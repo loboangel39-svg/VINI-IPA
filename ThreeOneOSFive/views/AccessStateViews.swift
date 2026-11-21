@@ -11,6 +11,7 @@ struct PausedLicenseView: View {
             message: "Tu licencia está temporalmente pausada. El tiempo restante se encuentra congelado y se conservará hasta su reactivación.",
             systemImage: "pause.circle.fill",
             detail: frozenTime,
+            statusLabel: "Acceso suspendido",
             onRefresh: onRefresh
         )
         .onChange(of: scenePhase) { phase in
@@ -47,6 +48,7 @@ struct MaintenanceView: View {
                 : "VINI-IPA se encuentra temporalmente en mantenimiento. Tu tiempo de licencia está protegido y volverá a transcurrir cuando finalice la suspensión.",
             systemImage: "wrench.and.screwdriver.fill",
             detail: "Estado de servicio: mantenimiento",
+            statusLabel: "Servicio en pausa",
             onRefresh: onRefresh
         )
         .onChange(of: scenePhase) { phase in
@@ -67,28 +69,49 @@ private struct AccessStateScreen: View {
     let message: String
     let systemImage: String
     let detail: String?
+    let statusLabel: String
     let onRefresh: () -> Void
     @State private var isRefreshing = false
 
     var body: some View {
         ZStack {
-            AppTheme.pageBackground.ignoresSafeArea()
+            LinearGradient(
+                colors: [AppTheme.pageBackground, AppTheme.accentDeep.opacity(0.36), AppTheme.pageBackground],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .ignoresSafeArea()
             VStack(spacing: 20) {
                 Image(systemName: systemImage)
                     .font(.system(size: 52, weight: .medium))
-                    .foregroundStyle(AppTheme.accent)
+                    .foregroundStyle(AppTheme.neonGradient)
+                    .shadow(color: AppTheme.neonMagenta.opacity(0.55), radius: 14)
+                    .padding(.bottom, 4)
                 Text(title)
                     .font(.title2.weight(.semibold))
-                    .foregroundStyle(.primary)
+                    .foregroundStyle(AppTheme.highlight)
                 Text(message)
                     .multilineTextAlignment(.center)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(AppTheme.secondaryText)
                     .frame(maxWidth: 360)
-                if let detail {
-                    Text(detail)
-                        .font(.subheadline.monospacedDigit())
-                        .foregroundStyle(.secondary)
+                VStack(spacing: 8) {
+                    Label(statusLabel, systemImage: "lock.fill")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(AppTheme.neonMagenta)
+                    if let detail {
+                        Text(detail)
+                            .font(.subheadline.monospacedDigit())
+                            .foregroundStyle(AppTheme.highlight)
+                    } else {
+                        Text("Tiempo conservado")
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(AppTheme.highlight)
+                    }
                 }
+                .frame(maxWidth: 340)
+                .padding(.vertical, 18)
+                .padding(.horizontal, 22)
+                .viniCard(elevated: true)
                 Button {
                     guard !isRefreshing else { return }
                     isRefreshing = true
@@ -100,9 +123,14 @@ private struct AccessStateScreen: View {
                 } label: {
                     Label("Verificar estado", systemImage: "arrow.clockwise")
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(VINIButtonStyle())
+                .frame(minWidth: 190, minHeight: 48)
                 .disabled(isRefreshing)
-                if isRefreshing { ProgressView() }
+                if isRefreshing {
+                    ProgressView()
+                        .tint(AppTheme.neonMagenta)
+                        .accessibilityLabel("Consultando estado del servidor")
+                }
             }
             .padding(28)
         }

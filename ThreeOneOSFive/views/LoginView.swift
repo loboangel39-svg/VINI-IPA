@@ -18,19 +18,17 @@ struct LoginView: View {
                 Spacer()
 
                 // MARK: - Icono
-                Image(systemName: "key.fill")
+                AppLogo(size: 82)
                     .font(.system(size: 40, weight: .medium))
-                    .foregroundStyle(AppTheme.accent)
                     .frame(width: 80, height: 80)
-                    .background(AppTheme.consoleBackground)
-                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                    .viniCard(elevated: true)
 
                 Spacer().frame(height: 28)
 
                 // MARK: - Título
                 Text("Ingresar licencia")
                     .font(.system(size: 28, weight: .bold))
-                    .foregroundStyle(AppTheme.accent)
+                    .foregroundStyle(AppTheme.highlight)
                     .multilineTextAlignment(.center)
 
                 Spacer().frame(height: 10)
@@ -38,7 +36,7 @@ struct LoginView: View {
                 // MARK: - Subtítulo
                 Text("Activa tu cuenta con una clave de licencia")
                     .font(.system(size: 16, weight: .regular))
-                    .foregroundStyle(AppTheme.accent)
+                    .foregroundStyle(AppTheme.secondaryText)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 40)
 
@@ -48,12 +46,12 @@ struct LoginView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("CLAVE DE LICENCIA")
                         .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(AppTheme.accent)
+                        .foregroundStyle(AppTheme.highlight)
                         .tracking(0.8)
 
                     TextField("", text: $licenseKey)
                         .font(.system(size: 17, weight: .regular))
-                        .foregroundStyle(AppTheme.accent)
+                        .foregroundStyle(AppTheme.highlight)
                         .textInputAutocapitalization(.characters)
                         .autocorrectionDisabled()
                         .padding(.horizontal, 16)
@@ -62,7 +60,7 @@ struct LoginView: View {
                         .clipShape(RoundedRectangle(cornerRadius: 12))
                         .overlay(
                             RoundedRectangle(cornerRadius: 12)
-                                .stroke(licenseKey.isEmpty ? Color.secondary.opacity(0.3) : AppTheme.accent.opacity(0.6), lineWidth: 1)
+                                .stroke(licenseKey.isEmpty ? AppTheme.secondaryText.opacity(0.28) : AppTheme.accent.opacity(0.75), lineWidth: 1)
                         )
                         .onChange(of: licenseKey) { _ in
                             errorMessage = nil
@@ -103,9 +101,10 @@ struct LoginView: View {
                     }
                     .frame(maxWidth: .infinity)
                     .frame(height: 52)
-                    .background(canSubmit ? AppTheme.accent : AppTheme.accent.opacity(0.35))
-                    .foregroundStyle(AppTheme.pageBackground)
+                    .background(AppTheme.neonGradient.opacity(canSubmit ? 1 : 0.35))
+                    .foregroundStyle(.white)
                     .clipShape(RoundedRectangle(cornerRadius: 26))
+                    .shadow(color: AppTheme.neonMagenta.opacity(canSubmit ? 0.35 : 0), radius: 14)
                 }
                 .disabled(!canSubmit || isLoading)
                 .padding(.horizontal, 24)
@@ -115,7 +114,7 @@ struct LoginView: View {
                 // MARK: - Hint
                 Text("Tu licencia se vincula a este dispositivo")
                     .font(.system(size: 13, weight: .regular))
-                    .foregroundStyle(AppTheme.accent)
+                    .foregroundStyle(AppTheme.secondaryText)
                     .multilineTextAlignment(.center)
 
                 Spacer()

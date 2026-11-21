@@ -1,15 +1,19 @@
 import SwiftUI
 
 enum AppTheme {
-    static let accent = Color(
-        uiColor: UIColor { traits in
-            traits.userInterfaceStyle == .dark
-                ? UIColor(red: 1.00, green: 0.64, blue: 0.42, alpha: 1.00)
-                : UIColor(red: 0.85, green: 0.42, blue: 0.20, alpha: 1.00)
-        }
+    static let accent = Color(red: 0.58, green: 0.00, blue: 1.00)
+    static let accentDeep = Color(red: 0.22, green: 0.00, blue: 0.40)
+    static let neonMagenta = Color(red: 0.94, green: 0.00, blue: 1.00)
+    static let highlight = Color(red: 0.97, green: 0.90, blue: 1.00)
+    static let pageBackground = Color(red: 0.035, green: 0.012, blue: 0.07)
+    static let consoleBackground = Color(red: 0.086, green: 0.035, blue: 0.14)
+    static let elevatedBackground = Color(red: 0.141, green: 0.051, blue: 0.22)
+    static let secondaryText = Color(red: 0.78, green: 0.70, blue: 0.86)
+    static let neonGradient = LinearGradient(
+        colors: [accent, neonMagenta],
+        startPoint: .topLeading,
+        endPoint: .bottomTrailing
     )
-    static let pageBackground = Color(uiColor: .systemBackground)
-    static let consoleBackground = Color(uiColor: .secondarySystemBackground)
     static let pageInset: CGFloat = 16
     static let rowIconSize: CGFloat = 17
     static let rowIconFrame: CGFloat = 28
@@ -22,6 +26,56 @@ enum AppTheme {
     static let contentCardCornerRadius: CGFloat = 20
     static let contentCardInset: CGFloat = 16
     static let contentCardPadding: CGFloat = 16
+}
+
+struct VINIButtonStyle: ButtonStyle {
+    var prominent = true
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .foregroundStyle(prominent ? Color.white : AppTheme.highlight)
+            .background(
+                Group {
+                    if prominent {
+                        AppTheme.neonGradient
+                    } else {
+                        AppTheme.consoleBackground
+                    }
+                }
+                .opacity(configuration.isPressed ? 0.72 : 1)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(
+                        prominent ? Color.white.opacity(0.18) : AppTheme.accent.opacity(0.65),
+                        lineWidth: 1
+                    )
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .shadow(color: prominent ? AppTheme.neonMagenta.opacity(0.28) : .clear, radius: 12)
+            .scaleEffect(configuration.isPressed ? 0.98 : 1)
+            .animation(.easeOut(duration: 0.16), value: configuration.isPressed)
+    }
+}
+
+struct VINICardBackground: ViewModifier {
+    var elevated = false
+
+    func body(content: Content) -> some View {
+        content
+            .background(elevated ? AppTheme.elevatedBackground : AppTheme.consoleBackground)
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(AppTheme.accent.opacity(0.30), lineWidth: 1)
+            )
+    }
+}
+
+extension View {
+    func viniCard(elevated: Bool = false) -> some View {
+        modifier(VINICardBackground(elevated: elevated))
+    }
 }
 
 struct AppCardBorder: View {
@@ -103,23 +157,24 @@ struct AppLogo: View {
     var size: CGFloat = 44
 
     var body: some View {
-        Group {
-            if let icon = UIImage(named: "AppIcon60x60")
-                ?? Bundle.main.path(forResource: "AppIcon60x60@2x", ofType: "png").flatMap(UIImage.init(contentsOfFile:))
-                ?? UIImage(named: "AppIcon") {
-                Image(uiImage: icon)
-                    .resizable()
-                    .scaledToFill()
-            } else {
-                Image(systemName: "slider.horizontal.3")
-                    .font(.title2.weight(.semibold))
-                    .foregroundStyle(.white)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(AppTheme.accent)
-            }
+        ZStack {
+            RoundedRectangle(cornerRadius: size * 0.22, style: .continuous)
+                .fill(AppTheme.pageBackground)
+            Text("V")
+                .font(.system(size: size * 0.72, weight: .black, design: .rounded))
+                .foregroundStyle(AppTheme.neonGradient)
+                .shadow(color: AppTheme.neonMagenta.opacity(0.72), radius: size * 0.16)
+            Ellipse()
+                .stroke(AppTheme.highlight.opacity(0.9), lineWidth: max(1, size * 0.035))
+                .frame(width: size * 1.12, height: size * 0.34)
+                .rotationEffect(.degrees(-16))
+                .shadow(color: AppTheme.neonMagenta.opacity(0.65), radius: size * 0.08)
         }
         .frame(width: size, height: size)
-        .clipShape(RoundedRectangle(cornerRadius: size * 0.22, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: size * 0.22, style: .continuous)
+                .stroke(AppTheme.accent.opacity(0.55), lineWidth: 1)
+        )
         .accessibilityHidden(true)
     }
 }
