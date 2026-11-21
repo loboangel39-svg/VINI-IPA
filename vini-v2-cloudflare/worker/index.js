@@ -1585,13 +1585,26 @@ function isPlanContractEnabled(request, user) {
 }
 
 function isAccessStateClient(request, user) {
-  return isPlanContractEnabled(request, user) && request.headers.get('X-VINI-Capabilities')?.split(',').some(
+  return request.headers.get('X-VINI-Capabilities')?.split(',').some(
     capability => capability.trim() === 'access-state-v1'
   );
 }
 
 async function getAccessState(env, user) {
   const now = new Date();
+  // The capability is independent from the plan contract. Disabled pilot
+  // users receive an explicit active/legacy-compatible state, but no access
+  // cause is applied until license_plan_enabled is enabled server-side.
+  if (Number(user.license_plan_enabled) !== 1) {
+    return {
+      status: user.license_expires_at && new Date(user.license_expires_at) < now ? 'expired' : 'active',
+      causes: { globalLicensePause: false, globalMaintenance: false, providerMaintenance: false, licensePause: false },
+      frozenSeconds: null,
+      serverTime: now.toISOString(),
+      licenseExpiresAt: user.license_expires_at || null,
+      maintenanceMessage: ''
+    };
+  }
   const controls = await env.DB.prepare(
     'SELECT global_license_pause, global_maintenance, maintenance_message FROM access_controls WHERE id = 1'
   ).first() || { global_license_pause: 0, global_maintenance: 0, maintenance_message: '' };
@@ -1905,7 +1918,7 @@ async function handleSetGlobalAccessState(column, request, env, headers, adminUs
   // Materialize all current users while the old global state is still in force
   // before removing it. This preserves exact remaining seconds across the transition.
   if (!enabled && Number(current?.enabled) === 1) {
-    const users = await env.DB.prepare('SELECT id, provider_id, license_expires_at FROM users').all();
+    const users = await env.DB.prepare('SELECT id, provider_id, license_plan_enabled, license_expires_at FROM users').all();
     for (const user of users.results) await getAccessState(env, user);
   }
   await env.DB.batch([
@@ -1913,7 +1926,7 @@ async function handleSetGlobalAccessState(column, request, env, headers, adminUs
     env.DB.prepare('INSERT INTO access_state_events (scope, action, next_state, admin_user, created_at) VALUES (?, ?, ?, ?, ?)').bind(column, enabled ? 'enable' : 'disable', String(enabled), adminUser, now)
   ]);
   if (enabled) {
-    const users = await env.DB.prepare('SELECT id, provider_id, license_expires_at FROM users').all();
+    const users = await env.DB.prepare('SELECT id, provider_id, license_plan_enabled, license_expires_at FROM users').all();
     for (const user of users.results) await getAccessState(env, user);
   }
   return Response.json({ success: true, enabled: !!enabled }, { headers });
@@ -1949,7 +1962,7 @@ async function handleSetProviderMaintenance(providerId, request, env, headers, a
     return Response.json({ success: true, enabled: !!enabled }, { headers });
   }
   if (!enabled && Number(current?.enabled) === 1) {
-    const users = await env.DB.prepare('SELECT id, provider_id, license_expires_at FROM users WHERE provider_id = ?').bind(providerId).all();
+    const users = await env.DB.prepare('SELECT id, provider_id, license_plan_enabled, license_expires_at FROM users WHERE provider_id = ?').bind(providerId).all();
     for (const user of users.results) await getAccessState(env, user);
   }
   await env.DB.batch([
@@ -1958,20 +1971,20 @@ async function handleSetProviderMaintenance(providerId, request, env, headers, a
     env.DB.prepare('INSERT INTO access_state_events (provider_id, scope, action, next_state, admin_user, created_at) VALUES (?, ?, ?, ?, ?, ?)').bind(providerId, 'provider_maintenance', enabled ? 'enable' : 'disable', String(enabled), adminUser, now)
   ]);
   if (enabled) {
-    const users = await env.DB.prepare('SELECT id, provider_id, license_expires_at FROM users WHERE provider_id = ?').bind(providerId).all();
+    const users = await env.DB.prepare('SELECT id, provider_id, license_plan_enabled, license_expires_at FROM users WHERE provider_id = ?').bind(providerId).all();
     for (const user of users.results) await getAccessState(env, user);
   }
   return Response.json({ success: true, enabled: !!enabled }, { headers });
 }
 
 async function handleGetUserAccessState(userId, env, headers) {
-  const user = await env.DB.prepare('SELECT id, username, provider_id, license_expires_at FROM users WHERE id = ?').bind(userId).first();
+  const user = await env.DB.prepare('SELECT id, username, provider_id, license_plan_enabled, license_expires_at FROM users WHERE id = ?').bind(userId).first();
   if (!user) return Response.json({ error: 'User not found' }, { status: 404, headers });
   return Response.json(await getAccessState(env, user), { headers });
 }
 
 async function handleSetUserPause(userId, paused, env, headers, adminUser) {
-  const user = await env.DB.prepare('SELECT id, username, provider_id, license_expires_at FROM users WHERE id = ?').bind(userId).first();
+  const user = await env.DB.prepare('SELECT id, username, provider_id, license_plan_enabled, license_expires_at FROM users WHERE id = ?').bind(userId).first();
   if (!user) return Response.json({ error: 'User not found' }, { status: 404, headers });
   const now = new Date().toISOString();
   await env.DB.prepare(`INSERT INTO license_access_state (user_id, individual_pause, updated_at, updated_by)
@@ -2080,7 +2093,7 @@ async function handleToggleBlock(id, env, headers) {
 async function handleRenewLicense(id, request, env, headers) {
   const data = await request.json();
   const days = parseInt(data.days) || 30;
-  const user = await env.DB.prepare('SELECT id, username, provider_id, license_expires_at FROM users WHERE id = ?').bind(id).first();
+  const user = await env.DB.prepare('SELECT id, username, provider_id, license_plan_enabled, license_expires_at FROM users WHERE id = ?').bind(id).first();
   
   if (!user) {
     return Response.json({ error: 'User not found' }, { status: 404, headers });

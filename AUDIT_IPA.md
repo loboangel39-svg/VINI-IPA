@@ -13,6 +13,7 @@
 1. El login de V2 no incluía `access`; una licencia pausada podía entrar a la raíz. El Worker ahora devuelve el estado tras validar HWID.
 2. Una respuesta HTTP 200 no-JSON en la restauración de sesión podía considerarse válida. Ahora se clasifica como error de red/contrato.
 3. La navegación conserva la pantalla bloqueada ante fallos posteriores; no se desbloquea localmente.
+4. En esta corrección, el login/restauración usa el estado `access` explícito y solo sincroniza parches cuando el estado confirmado es `active`.
 
 ## Pendiente
 

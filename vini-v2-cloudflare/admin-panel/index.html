@@ -539,18 +539,6 @@
             <tbody id="usersTable"></tbody>
           </table>
         </div>
-        <div class="card" style="margin-top:20px;">
-          <h3>Control de acceso VINI-IPA 2.0</h3>
-          <p style="color:#888;">Estas acciones no modifican permisos individuales de parches.</p>
-          <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
-            <button class="btn btn-secondary" onclick="toggleAccessControl('global/license-pause')">Pausa global</button>
-            <button class="btn btn-secondary" onclick="toggleAccessControl('global/maintenance')">Mantenimiento global</button>
-            <select id="providerMaintenanceSelect" style="min-width:180px;"><option value="">Proveedor</option></select>
-            <button class="btn btn-secondary" onclick="createProvider()">Nuevo proveedor</button>
-            <button class="btn btn-secondary" onclick="toggleProviderMaintenance()">Mantenimiento proveedor</button>
-          </div>
-          <div id="accessControlStatus" style="margin-top:12px;color:#888;"></div>
-        </div>
       </div>
 
       <!-- Patches Page -->
@@ -580,6 +568,23 @@
         <div class="page-header">
           <h1 class="page-title">Accesos</h1>
           <button class="btn btn-primary" onclick="showGrantAccessModal()">+ Asignar Acceso</button>
+        </div>
+        <div class="card" style="margin-bottom:20px;">
+          <h2>Control remoto VINI-IPA 2.0</h2>
+          <p style="color:#888;">Estas acciones bloquean únicamente clientes V2 habilitados con <code>access-state-v1</code>; no modifican permisos de parches.</p>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+            <button id="globalPauseButton" class="btn btn-secondary" onclick="toggleAccessControl('global/license-pause')">Pausa global</button>
+            <span id="globalPauseStatus" class="badge badge-free">Inactivo</span>
+            <button id="globalMaintenanceButton" class="btn btn-secondary" onclick="toggleAccessControl('global/maintenance')">Mantenimiento global</button>
+            <span id="globalMaintenanceStatus" class="badge badge-free">Inactivo</span>
+          </div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:14px;">
+            <select id="providerMaintenanceSelect" style="min-width:180px;" onchange="refreshProviderMaintenanceStatus()"><option value="">Seleccionar proveedor</option></select>
+            <button class="btn btn-secondary" onclick="createProvider()">Nuevo proveedor</button>
+            <button id="providerMaintenanceButton" class="btn btn-secondary" onclick="toggleProviderMaintenance()">Activar mantenimiento del proveedor</button>
+            <span id="providerMaintenanceStatus" class="badge badge-free">Inactivo</span>
+          </div>
+          <div id="accessControlStatus" style="margin-top:12px;color:#888;">Estado confirmado por el servidor.</div>
         </div>
         <div class="table-container">
           <table>
@@ -770,7 +775,7 @@
         case 'dashboard': loadDashboard(); break;
         case 'users': loadUsers(); break;
         case 'patches': loadPatches(); break;
-        case 'access': loadAccess(); break;
+        case 'access': loadAccess(); loadAccessControls(); break;
         case 'messages': loadMessages(); break;
         case 'stats': loadStats(); break;
         case 'activity': loadActivity(); break;
@@ -873,7 +878,16 @@
       const select = document.getElementById('providerMaintenanceSelect');
       if (select) select.innerHTML = '<option value="">Proveedor</option>' + providers.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
       const status = document.getElementById('accessControlStatus');
-      if (status) status.textContent = `Pausa global: ${pause.enabled ? 'activa' : 'inactiva'} · Mantenimiento global: ${maintenance.enabled ? 'activo' : 'inactivo'}`;
+      const pauseStatus = document.getElementById('globalPauseStatus');
+      const maintenanceStatus = document.getElementById('globalMaintenanceStatus');
+      const pauseButton = document.getElementById('globalPauseButton');
+      const maintenanceButton = document.getElementById('globalMaintenanceButton');
+      if (pauseStatus) pauseStatus.textContent = pause.enabled ? 'Activo' : 'Inactivo';
+      if (maintenanceStatus) maintenanceStatus.textContent = maintenance.enabled ? 'Activo' : 'Inactivo';
+      if (pauseButton) pauseButton.textContent = pause.enabled ? 'Desactivar pausa global' : 'Activar pausa global';
+      if (maintenanceButton) maintenanceButton.textContent = maintenance.enabled ? 'Desactivar mantenimiento global' : 'Activar mantenimiento global';
+      if (status) status.textContent = `Estado confirmado: pausa global ${pause.enabled ? 'Activo' : 'Inactivo'} · mantenimiento global ${maintenance.enabled ? 'Activo' : 'Inactivo'}`;
+      await refreshProviderMaintenanceStatus();
     }
 
     async function toggleAccessControl(kind) {
@@ -891,7 +905,21 @@
       const enabled = !current.enabled;
       if (!confirm(`${enabled ? 'Activar' : 'Desactivar'} mantenimiento del proveedor?`)) return;
       await api(`/api/access-state/providers/${providerId}/maintenance`, { method: 'POST', body: JSON.stringify({ enabled }) });
-      loadAccessControls();
+      await loadAccessControls();
+    }
+
+    async function refreshProviderMaintenanceStatus() {
+      const providerId = document.getElementById('providerMaintenanceSelect')?.value;
+      const status = document.getElementById('providerMaintenanceStatus');
+      const button = document.getElementById('providerMaintenanceButton');
+      if (!providerId) {
+        if (status) status.textContent = 'Selecciona un proveedor';
+        if (button) button.textContent = 'Activar mantenimiento del proveedor';
+        return;
+      }
+      const state = await api(`/api/access-state/providers/${providerId}/maintenance`);
+      if (status) status.textContent = state.enabled ? 'Activo' : 'Inactivo';
+      if (button) button.textContent = state.enabled ? 'Desactivar mantenimiento del proveedor' : 'Activar mantenimiento del proveedor';
     }
 
     async function createProvider() {

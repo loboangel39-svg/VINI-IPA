@@ -51,7 +51,7 @@ struct ThreeOneOSFiveApp: App {
                             licenseExpiresAt = licenseExpiration?.timeIntervalSince1970 ?? 0
                             licensePlan = plan ?? ""
                             accessState = access
-                            synchronizeRemotePatches()
+                            if access?.status == "active" { synchronizeRemotePatches() }
                         }
                     }
                 }
@@ -168,7 +168,7 @@ struct ThreeOneOSFiveApp: App {
                         licensePlan = plan ?? ""
                         accessState = access
                         log("app: auto-login successful")
-                        synchronizeRemotePatches()
+                        if access?.status == "active" { synchronizeRemotePatches() }
                     } else {
                         log("app: auto-login unavailable; showing original login")
                     }
