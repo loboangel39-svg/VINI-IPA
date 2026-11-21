@@ -174,8 +174,52 @@ struct ChristmasBackdrop: View {
                 .resizable()
                 .scaledToFill()
                 .ignoresSafeArea()
+            ChristmasSnowfall()
         }
         .allowsHitTesting(false)
+    }
+}
+
+private struct ChristmasSnowfall: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        if reduceMotion {
+            SnowCanvas(progress: 0)
+        } else {
+            TimelineView(.animation(minimumInterval: 1.0 / 24.0)) { timeline in
+                SnowCanvas(progress: timeline.date.timeIntervalSinceReferenceDate)
+            }
+        }
+    }
+}
+
+private struct SnowCanvas: View {
+    let progress: TimeInterval
+    private let flakes = Array(0..<20)
+
+    var body: some View {
+        Canvas { context, size in
+            let width = max(size.width, 1)
+            let height = max(size.height, 1)
+            for index in flakes {
+                let seed = Double(index)
+                let startX = ((seed * 47.0).truncatingRemainder(dividingBy: 97.0)) / 97.0
+                let startY = ((seed * 61.0).truncatingRemainder(dividingBy: 113.0)) / 113.0
+                let speed = 0.010 + ((seed * 0.0017).truncatingRemainder(dividingBy: 0.012))
+                let phase = progress * speed + startY
+                let y = (phase.truncatingRemainder(dividingBy: 1.0)) * height
+                let drift = sin(progress * 0.42 + seed) * min(width * 0.018, 9)
+                let x = startX * width + drift
+                let radius = 1.1 + (seed.truncatingRemainder(dividingBy: 3.0)) * 0.35
+                let opacity = 0.24 + (seed.truncatingRemainder(dividingBy: 4.0)) * 0.07
+                let rect = CGRect(x: x - radius, y: y - radius, width: radius * 2, height: radius * 2)
+                context.fill(Path(ellipseIn: rect), with: .color(.white.opacity(opacity)))
+            }
+        }
+        .ignoresSafeArea()
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 }
 
