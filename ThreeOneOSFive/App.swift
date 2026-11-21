@@ -216,6 +216,7 @@ struct ThreeOneOSFiveApp: App {
             }
             licensePlan = plan ?? ""
             accessState = access
+            log("[AUTH] session access state: \(access?.status ?? "legacy")")
             if access?.status == "expired" || access?.status == "unauthorized" {
                 logout()
                 return
@@ -234,6 +235,8 @@ struct ThreeOneOSFiveApp: App {
     }
 
     private func refreshLicenseExpirationLoop() async {
+        // attemptAutoLogin performs the opening check; this task handles the
+        // steady-state poll without creating a second opening request.
         while !Task.isCancelled {
             try? await Task.sleep(nanoseconds: 60_000_000_000)
             guard !Task.isCancelled, isLoggedIn else { continue }

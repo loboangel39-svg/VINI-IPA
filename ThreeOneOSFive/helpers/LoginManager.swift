@@ -209,6 +209,7 @@ final class LoginManager {
                 return
             }
             let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+            print("[AUTH] session response status=\(status)")
             if status == 401 || status == 403 {
                 // A paused license may be rejected by an older session route
                 // even though the license contract can still authenticate it.
@@ -244,6 +245,8 @@ final class LoginManager {
                 accessState = nil
             }
             DispatchQueue.main.async {
+                let reportedAccess = (json["access"] as? [String: Any])?["status"] as? String ?? "legacy"
+                print("[AUTH] session access state=\(reportedAccess)")
                 completion(.valid(licenseExpiresAt: licenseExpiresAt, licensePlan: licensePlan, accessState: accessState))
             }
         }.resume()
