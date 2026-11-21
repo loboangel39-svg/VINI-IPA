@@ -7,3 +7,5 @@
 - El texto comercial visible `3105` se sustituyó únicamente en Ajustes, Archivos y título de navegación. Las rutas, extensiones, contratos y logs técnicos permanecen sin cambios.
 - El texto de descripción legacy solicitado no está presente en los archivos Swift auditados; no se eliminó soporte legacy.
 - Workflow existente: `.github/workflows/main.yml`.
+- Kit recibido y leído: `PROMPT_OPENCODE.md`.
+- Ocho referencias individuales auditadas; no se incorporó ninguna captura completa como fondo.

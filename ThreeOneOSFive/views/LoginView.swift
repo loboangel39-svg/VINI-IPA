@@ -11,7 +11,7 @@ struct LoginView: View {
 
     var body: some View {
         ZStack {
-            ChristmasGlowBackdrop()
+            ChristmasGlowBackdrop(design: "Ingresar-Licencia")
 
             VStack(spacing: 0) {
                 Spacer()

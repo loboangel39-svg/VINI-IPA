@@ -168,15 +168,17 @@ struct AppLogo: View {
 }
 
 struct ChristmasBackdrop: View {
+    var design: String = "Instaladas"
+
     var body: some View {
         ZStack {
             AppTheme.pageBackground.ignoresSafeArea()
             VStack(spacing: 0) {
-                Image("Christmas-Top-Lights")
+                Image("Kit-\(design)-Top")
                     .resizable().scaledToFill().frame(maxWidth: .infinity).frame(height: 150)
                     .clipped().opacity(0.95)
                 Spacer()
-                Image("Christmas-Bottom-Gifts")
+                Image("Kit-\(design)-Bottom")
                     .resizable().scaledToFill().frame(maxWidth: .infinity).frame(height: 190)
                     .clipped().opacity(0.98)
             }
@@ -186,9 +188,11 @@ struct ChristmasBackdrop: View {
 }
 
 struct ChristmasGlowBackdrop: View {
+    var design: String = "Instaladas"
+
     var body: some View {
         ZStack {
-            ChristmasBackdrop()
+            ChristmasBackdrop(design: design)
             Image("Christmas-Red-Glow")
                 .resizable().scaledToFill().ignoresSafeArea().opacity(0.24)
         }
@@ -199,7 +203,7 @@ struct ChristmasGlowBackdrop: View {
 struct VINIStartupView: View {
     var body: some View {
         ZStack {
-            ChristmasGlowBackdrop()
+            ChristmasGlowBackdrop(design: "Validando-Servidor")
             VStack(spacing: 18) {
                 AppLogo(size: 104)
                     .shadow(color: AppTheme.neonMagenta.opacity(0.35), radius: 18)

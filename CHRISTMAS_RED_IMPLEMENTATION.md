@@ -4,6 +4,7 @@
 
 - Se extrajeron de la referencia aprobada capas independientes `Christmas-Top-Lights`, `Christmas-Bottom-Gifts` y `Christmas-Red-Glow`.
 - Las pantallas ya no dependen de caracteres `✦`/`❄︎` como decoración principal.
+- El kit individual añade capas por pantalla: `Kit-Instaladas`, `Kit-Archivos`, `Kit-Ajustes`, `Kit-Inspeccionar-Parche`, `Kit-Ingresar-Licencia`, `Kit-Validando-Servidor`, `Kit-Licencia-Pausada` y `Kit-Mantenimiento`, cada una con zona superior e inferior recortada sin controles.
 - La composición superior e inferior se adapta con `scaledToFill`, safe areas y capas sin interacción.
 - Login, arranque, pausa y mantenimiento usan además el resplandor rojo de referencia; Instaladas, Archivos y Ajustes conservan la decoración fotográfica superior/inferior sin tapar contenido.
 

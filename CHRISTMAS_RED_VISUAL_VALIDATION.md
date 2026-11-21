@@ -14,3 +14,5 @@
 | `VINI Christmas UI Screen Collection.png` — composiciones de login, validación, pausa y mantenimiento | `LoginView`, `VINIStartupView` y `AccessStateViews` con la misma familia de capas |
 
 La comparación final píxel a píxel de la IPA requiere una captura de la aplicación en un iPhone o simulador. Esa evidencia no está disponible en este entorno y no se declara fidelidad verificada únicamente por CI.
+
+Las ocho referencias individuales se conservaron como especificación de comparación; sus marcos, textos y controles no se empaquetaron en la aplicación.

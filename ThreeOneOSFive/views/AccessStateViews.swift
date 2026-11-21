@@ -12,6 +12,7 @@ struct PausedLicenseView: View {
             systemImage: "pause.circle.fill",
             detail: frozenTime,
             statusLabel: "Acceso suspendido",
+            design: "Licencia-Pausada",
             onRefresh: onRefresh
         )
         .onChange(of: scenePhase) { phase in
@@ -49,6 +50,7 @@ struct MaintenanceView: View {
             systemImage: "wrench.and.screwdriver.fill",
             detail: "Estado de servicio: mantenimiento",
             statusLabel: "Servicio en pausa",
+            design: "Mantenimiento",
             onRefresh: onRefresh
         )
         .onChange(of: scenePhase) { phase in
@@ -70,12 +72,13 @@ private struct AccessStateScreen: View {
     let systemImage: String
     let detail: String?
     let statusLabel: String
+    let design: String
     let onRefresh: () -> Void
     @State private var isRefreshing = false
 
     var body: some View {
         ZStack {
-            ChristmasGlowBackdrop()
+            ChristmasGlowBackdrop(design: design)
             VStack(spacing: 20) {
                 Image(systemName: systemImage)
                     .font(.system(size: 52, weight: .medium))
