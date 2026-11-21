@@ -252,6 +252,10 @@ final class LoginManager {
                 licensePlan = nil
                 accessState = nil
             }
+            if let licenseExpiresAt, Date() >= licenseExpiresAt {
+                DispatchQueue.main.async { completion(.revoked) }
+                return
+            }
             DispatchQueue.main.async {
                 let reportedAccess = (json["access"] as? [String: Any])?["status"] as? String ?? "legacy"
                 print("[AUTH] session access state=\(reportedAccess)")
