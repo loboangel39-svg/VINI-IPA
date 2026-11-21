@@ -75,7 +75,7 @@ private struct AccessStateScreen: View {
 
     var body: some View {
         ZStack {
-            ChristmasBackdrop()
+            ChristmasGlowBackdrop()
             VStack(spacing: 20) {
                 Image(systemName: systemImage)
                     .font(.system(size: 52, weight: .medium))

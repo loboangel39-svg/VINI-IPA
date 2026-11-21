@@ -172,23 +172,25 @@ struct ChristmasBackdrop: View {
         ZStack {
             AppTheme.pageBackground.ignoresSafeArea()
             VStack(spacing: 0) {
-                HStack(spacing: 18) {
-                    ForEach(0..<9, id: \.self) { index in
-                        Circle().fill(index.isMultiple(of: 2) ? AppTheme.gold : AppTheme.neonMagenta)
-                            .frame(width: 5, height: 5)
-                            .shadow(color: AppTheme.gold.opacity(0.7), radius: 5)
-                    }
-                }
-                .padding(.top, 4)
-                .opacity(0.8)
+                Image("Christmas-Top-Lights")
+                    .resizable().scaledToFill().frame(maxWidth: .infinity).frame(height: 150)
+                    .clipped().opacity(0.95)
                 Spacer()
-                HStack {
-                    Text("✦   ❄︎   ✦").font(.title3).foregroundStyle(AppTheme.gold.opacity(0.35))
-                    Spacer()
-                    Text("❄︎   ✦   ❄︎").font(.title3).foregroundStyle(AppTheme.neonMagenta.opacity(0.3))
-                }
-                .padding(.horizontal, 24).padding(.bottom, 10)
+                Image("Christmas-Bottom-Gifts")
+                    .resizable().scaledToFill().frame(maxWidth: .infinity).frame(height: 190)
+                    .clipped().opacity(0.98)
             }
+        }
+        .allowsHitTesting(false)
+    }
+}
+
+struct ChristmasGlowBackdrop: View {
+    var body: some View {
+        ZStack {
+            ChristmasBackdrop()
+            Image("Christmas-Red-Glow")
+                .resizable().scaledToFill().ignoresSafeArea().opacity(0.24)
         }
         .allowsHitTesting(false)
     }
@@ -197,7 +199,7 @@ struct ChristmasBackdrop: View {
 struct VINIStartupView: View {
     var body: some View {
         ZStack {
-            AppTheme.pageBackground.ignoresSafeArea()
+            ChristmasGlowBackdrop()
             VStack(spacing: 18) {
                 AppLogo(size: 104)
                     .shadow(color: AppTheme.neonMagenta.opacity(0.35), radius: 18)
