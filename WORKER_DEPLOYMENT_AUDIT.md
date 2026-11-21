@@ -20,7 +20,7 @@ La comprobación anónima de `/api/app/session` devuelve 401, pero no se usó co
 
 ## Staging
 
-No se desplegó staging. El `wrangler.toml` actual vincula directamente la D1 y R2 de producción; usarlo sin bindings aislados violaría el requisito de no tocar datos reales. Hace falta crear o proporcionar un Worker staging con D1/R2 separados y credenciales de prueba, sin compartir secretos en el chat.
+Se creó y validó un entorno aislado documentado en `STAGING_VALIDATION_REPORT.md`, usando Worker, D1 y R2 separados. No se copiaron datos personales ni secretos de producción.
 
 ## Procedimiento seguro propuesto
 

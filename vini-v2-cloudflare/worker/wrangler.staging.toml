@@ -1,0 +1,15 @@
+name = "vini-v2-api-staging-20261121"
+main = "index.js"
+compatibility_date = "2024-01-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "vini-v2-db-staging-20261121"
+database_id = "ed938b54-c46b-4a6a-b869-9169c9f0b86b"
+
+[[r2_buckets]]
+binding = "R2"
+bucket_name = "vini-patches-staging-20261121"
+
+[vars]
+ADMIN_USERNAME = "staging-admin"
