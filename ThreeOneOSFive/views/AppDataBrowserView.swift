@@ -194,6 +194,7 @@ struct AppDataBrowserView: View {
             }
         }
         .listStyle(.insetGrouped)
+        .scrollContentBackground(.hidden)
         .environment(\.defaultMinListRowHeight, 48)
         .scrollDismissesKeyboard(.interactively)
         .overlay {

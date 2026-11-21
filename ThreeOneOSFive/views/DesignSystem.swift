@@ -196,12 +196,13 @@ private struct ChristmasSnowfall: View {
 
 private struct SnowCanvas: View {
     let progress: TimeInterval
-    private let flakes = Array(0..<20)
+    private let flakes = Array(0..<14)
 
     var body: some View {
         Canvas { context, size in
             let width = max(size.width, 1)
             let height = max(size.height, 1)
+            let snowflake = context.resolve(Image("Christmas-Snowflake"))
             for index in flakes {
                 let seed = Double(index)
                 let startX = ((seed * 47.0).truncatingRemainder(dividingBy: 97.0)) / 97.0
@@ -211,10 +212,10 @@ private struct SnowCanvas: View {
                 let y = (phase.truncatingRemainder(dividingBy: 1.0)) * height
                 let drift = sin(progress * 0.42 + seed) * min(width * 0.018, 9)
                 let x = startX * width + drift
-                let radius = 1.1 + (seed.truncatingRemainder(dividingBy: 3.0)) * 0.35
+                let radius = 7.0 + (seed.truncatingRemainder(dividingBy: 4.0)) * 2.0
                 let opacity = 0.24 + (seed.truncatingRemainder(dividingBy: 4.0)) * 0.07
                 let rect = CGRect(x: x - radius, y: y - radius, width: radius * 2, height: radius * 2)
-                context.fill(Path(ellipseIn: rect), with: .color(.white.opacity(opacity)))
+                context.draw(snowflake, in: rect, opacity: opacity)
             }
         }
         .ignoresSafeArea()

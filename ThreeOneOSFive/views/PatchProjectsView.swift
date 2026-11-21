@@ -148,6 +148,7 @@ struct PatchProjectsView: View {
                     }
                 }
                 .listStyle(.insetGrouped)
+                .scrollContentBackground(.hidden)
             }
             .navigationTitle(language.text("tab.installed"))
             .navigationBarTitleDisplayMode(.inline)
