@@ -1,6 +1,6 @@
 # Revisión previa a producción — `vini-v2-api`
 
-Estado: **preparado, no desplegado**
+Estado: **desplegado con autorización expresa**
 
 ## Versión activa
 
@@ -28,15 +28,18 @@ La comparación byte a byte con el bundle histórico de Cloudflare no está disp
 
 ## Validación de publicación
 
-`wrangler deploy --dry-run --config wrangler.toml` completó correctamente y mostró los bindings de producción. No subió una versión ni cambió el tráfico.
+`wrangler deploy --dry-run --config wrangler.toml` completó correctamente y mostró los bindings de producción. Después se publicó la versión `c5cb49ea-b669-4903-bc76-08608d26dc7e` y se asignó el 100% del tráfico.
 
-## Procedimiento propuesto (pendiente de aprobación)
+La versión desplegada conserva D1 `vini-v2-db`, R2 `vini-patches`, `ADMIN_USERNAME=admin` y los cuatro nombres de secretos existentes. Una solicitud anónima a `/api/app/session` continúa siendo rechazada con `valid:false`; no se relajó la autenticación.
+
+No se ejecutaron migraciones D1 ni operaciones R2.
+
+## Procedimiento utilizado
 
 ```powershell
 cd vini-v2-cloudflare/worker
-npx wrangler versions upload --config wrangler.toml --message "fix: preserve paused V2 sessions"
-# Revisar el Version ID devuelto.
-npx wrangler versions deploy <NEW_VERSION_ID> --name vini-v2-api
+npx wrangler versions upload --config wrangler.toml --message "fix: preserve paused V2 sessions (a27176b)"
+npx wrangler versions deploy c5cb49ea-b669-4903-bc76-08608d26dc7e --name vini-v2-api
 ```
 
 No ejecutar migraciones D1 ni comandos R2.
