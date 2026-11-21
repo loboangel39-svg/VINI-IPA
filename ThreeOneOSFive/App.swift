@@ -39,8 +39,7 @@ struct ThreeOneOSFiveApp: App {
             ZStack {
                 Group {
                     if isCheckingAutoLogin {
-                        ProgressView("VINI V2")
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        VINIStartupView()
                     } else if isLoggedIn {
                         authorizedRootContent
                     } else {

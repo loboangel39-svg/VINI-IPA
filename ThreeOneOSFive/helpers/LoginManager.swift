@@ -209,6 +209,20 @@ final class LoginManager {
                 return
             }
             let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+            if status == 401 || status == 403 {
+                // A paused license may be rejected by an older session route
+                // even though the license contract can still authenticate it.
+                // Revalidate through the license endpoint before treating the
+                // JWT as revoked, preserving the paused-access screen.
+                guard KeychainManager.shared.loadLicenseKey() != nil else {
+                    DispatchQueue.main.async { completion(.revoked) }
+                    return
+                }
+                tryRevalidateStoredLicense { result in
+                    DispatchQueue.main.async { completion(result) }
+                }
+                return
+            }
             let licenseExpiresAt: Date?
             let licensePlan: String?
             let accessState: ServerAccessState?
@@ -233,6 +247,20 @@ final class LoginManager {
                 completion(.valid(licenseExpiresAt: licenseExpiresAt, licensePlan: licensePlan, accessState: accessState))
             }
         }.resume()
+    }
+
+    private static func tryRevalidateStoredLicense(completion: @escaping (StoredSessionResult) -> Void) {
+        guard let licenseKey = KeychainManager.shared.loadLicenseKey() else {
+            completion(.revoked)
+            return
+        }
+        login(licenseKey: licenseKey) { success, _, expiresAt, licenseExpiresAt, plan, access in
+            guard success else {
+                completion(.revoked)
+                return
+            }
+            completion(.valid(licenseExpiresAt: licenseExpiresAt, licensePlan: plan, accessState: access))
+        }
     }
 
     private static func resolvedLicensePlan(from json: [String: Any]) -> String? {

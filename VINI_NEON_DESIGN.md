@@ -12,6 +12,6 @@ Rediseño visual conservador basado en el icono violeta neón proporcionado: fon
 
 No se modificaron Worker, D1, R2, autenticación, catálogo, descargas ni motores locales de parches. La sincronización mantiene la política de `5575bf1`: `access == nil` permite sincronizar para Worker antiguo; estados explícitos bloqueantes no.
 
-## Limitación
+## Recurso original
 
-El archivo original de imagen no existe como recurso local del repositorio; se implementó un emblema SwiftUI ligero inspirado en su V, gradientes y anillo neón. No se añadió una imagen pesada como fondo.
+`ThreeOneOSFive/Assets.xcassets/VINI-Neon.imageset/VINI-Neon.png` contiene el PNG original proporcionado. Su SHA-256 fue comparado con `C:\Users\ANGEL\Downloads\VINI-Neon.png` antes de incorporarlo. Se usa mediante `Image("VINI-Neon")` en `AppLogo`, sin reconstrucción vectorial ni recorte.

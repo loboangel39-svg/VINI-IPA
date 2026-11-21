@@ -157,24 +157,26 @@ struct AppLogo: View {
     var size: CGFloat = 44
 
     var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: size * 0.22, style: .continuous)
-                .fill(AppTheme.pageBackground)
-            Text("V")
-                .font(.system(size: size * 0.72, weight: .black, design: .rounded))
-                .foregroundStyle(AppTheme.neonGradient)
-                .shadow(color: AppTheme.neonMagenta.opacity(0.72), radius: size * 0.16)
-            Ellipse()
-                .stroke(AppTheme.highlight.opacity(0.9), lineWidth: max(1, size * 0.035))
-                .frame(width: size * 1.12, height: size * 0.34)
-                .rotationEffect(.degrees(-16))
-                .shadow(color: AppTheme.neonMagenta.opacity(0.65), radius: size * 0.08)
-        }
+        Image("VINI-Neon")
+            .resizable()
+            .scaledToFit()
         .frame(width: size, height: size)
-        .overlay(
-            RoundedRectangle(cornerRadius: size * 0.22, style: .continuous)
-                .stroke(AppTheme.accent.opacity(0.55), lineWidth: 1)
-        )
+        .clipShape(RoundedRectangle(cornerRadius: size * 0.22, style: .continuous))
         .accessibilityHidden(true)
+    }
+}
+
+struct VINIStartupView: View {
+    var body: some View {
+        ZStack {
+            AppTheme.pageBackground.ignoresSafeArea()
+            VStack(spacing: 18) {
+                AppLogo(size: 104)
+                    .shadow(color: AppTheme.neonMagenta.opacity(0.35), radius: 18)
+                ProgressView("VINI V2")
+                    .tint(AppTheme.neonMagenta)
+                    .foregroundStyle(AppTheme.secondaryText)
+            }
+        }
     }
 }

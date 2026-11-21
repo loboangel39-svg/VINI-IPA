@@ -6,6 +6,7 @@
 - `license_paused`, `maintenance`, `expired` y `unauthorized` continúan bloqueando sincronización.
 - No se modificaron `RemotePatchService`, `RemotePatchImportCoordinator`, `PatchDownloadService`, `PatchTransaction` ni el formato `.3105`.
 - La navegación de pestañas, nombres, orden y destinos no fue modificada.
+- `AppLogo` usa el asset original `VINI-Neon`; el splash, Login, Ajustes y onboarding lo reutilizan.
 
 ## Pendiente
 
