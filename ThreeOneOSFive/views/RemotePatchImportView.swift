@@ -61,7 +61,7 @@ struct RemotePatchImportView: View {
                 else { await coordinator.loadCatalog() }
             }
             .sheet(isPresented: $showLogin) {
-                LoginView { _, _, _, _ in
+                LoginView { _, _, _, _, _ in
                     showLogin = false
                     Task { await coordinator.loadCatalog() }
                 }
