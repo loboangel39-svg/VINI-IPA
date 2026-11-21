@@ -1600,14 +1600,14 @@ async function getAccessState(env, user, allowAccessStateClient = false) {
   // users receive an explicit active/legacy-compatible state, but no access
   // cause is applied until license_plan_enabled is enabled server-side.
   if (!allowAccessStateClient && Number(user.license_plan_enabled) !== 1) {
-    return {
-      status: user.license_expires_at && new Date(user.license_expires_at) < now ? 'expired' : 'active',
-      causes: { globalLicensePause: false, globalMaintenance: false, providerMaintenance: false, licensePause: false },
-      frozenSeconds: null,
-      serverTime: now.toISOString(),
-      licenseExpiresAt: user.license_expires_at || null,
-      maintenanceMessage: ''
-    };
+    return legacyAccessState(user, now);
+  }
+  if (allowAccessStateClient) {
+    const tables = await env.DB.prepare(`
+      SELECT name FROM sqlite_master
+      WHERE type = 'table' AND name IN ('access_controls', 'license_access_state', 'provider_maintenance', 'providers')
+    `).all();
+    if ((tables.results || []).length < 4) return legacyAccessState(user, now);
   }
   const controls = await env.DB.prepare(
     'SELECT global_license_pause, global_maintenance, maintenance_message FROM access_controls WHERE id = 1'
@@ -1665,6 +1665,19 @@ async function getAccessState(env, user, allowAccessStateClient = false) {
     return { status: 'expired', causes, frozenSeconds: null, serverTime: now.toISOString(), licenseExpiresAt: user.license_expires_at };
   }
   return { status: 'active', causes, frozenSeconds: null, serverTime: now.toISOString(), licenseExpiresAt: user.license_expires_at || null };
+}
+
+function legacyAccessState(user, now = new Date()) {
+  const paused = Number(user.is_paused) === 1;
+  const expired = user.license_expires_at && new Date(user.license_expires_at) < now;
+  return {
+    status: paused ? 'license_paused' : (expired ? 'expired' : 'active'),
+    causes: { globalLicensePause: false, globalMaintenance: false, providerMaintenance: false, licensePause: paused },
+    frozenSeconds: null,
+    serverTime: now.toISOString(),
+    licenseExpiresAt: user.license_expires_at || null,
+    maintenanceMessage: ''
+  };
 }
 
 // GET /api/app/config
@@ -1982,15 +1995,25 @@ async function handleSetProviderMaintenance(providerId, request, env, headers, a
 }
 
 async function handleGetUserAccessState(userId, env, headers) {
-  const user = await env.DB.prepare('SELECT id, username, provider_id, license_plan_enabled, license_expires_at FROM users WHERE id = ?').bind(userId).first();
+  const user = await env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(userId).first();
   if (!user) return Response.json({ error: 'User not found' }, { status: 404, headers });
   return Response.json(await getAccessState(env, user), { headers });
 }
 
 async function handleSetUserPause(userId, paused, env, headers, adminUser) {
-  const user = await env.DB.prepare('SELECT id, username, provider_id, license_plan_enabled, license_expires_at FROM users WHERE id = ?').bind(userId).first();
+  const user = await env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(userId).first();
   if (!user) return Response.json({ error: 'User not found' }, { status: 404, headers });
   const now = new Date().toISOString();
+  const tables = await env.DB.prepare(`
+    SELECT name FROM sqlite_master
+    WHERE type = 'table' AND name IN ('access_controls', 'license_access_state', 'provider_maintenance', 'providers')
+  `).all();
+  if ((tables.results || []).length < 4) {
+    await env.DB.prepare('UPDATE users SET is_paused = ?, paused_at = ?, updated_at = ? WHERE id = ?')
+      .bind(paused ? 1 : 0, paused ? now : null, now, userId).run();
+    await logActivity(env, 'user_paused', `User ${user.username} ${paused ? 'paused' : 'resumed'}`);
+    return Response.json({ success: true, access: legacyAccessState({ ...user, is_paused: paused ? 1 : 0 }, new Date(now)) }, { headers });
+  }
   await env.DB.prepare(`INSERT INTO license_access_state (user_id, individual_pause, updated_at, updated_by)
     VALUES (?, ?, ?, ?) ON CONFLICT(user_id) DO UPDATE SET individual_pause = excluded.individual_pause, updated_at = excluded.updated_at, updated_by = excluded.updated_by`)
     .bind(userId, paused ? 1 : 0, now, adminUser).run();

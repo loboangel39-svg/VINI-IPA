@@ -1,0 +1,20 @@
+CREATE TABLE users (
+  id TEXT PRIMARY KEY,
+  username TEXT NOT NULL UNIQUE,
+  hwid TEXT DEFAULT '',
+  license_key TEXT DEFAULT '',
+  is_premium INTEGER DEFAULT 0,
+  is_active INTEGER DEFAULT 1,
+  is_paused INTEGER DEFAULT 0,
+  is_blocked INTEGER DEFAULT 0,
+  permissions TEXT DEFAULT '{}',
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  license_expires_at TEXT DEFAULT NULL,
+  platform TEXT DEFAULT 'android',
+  points INTEGER DEFAULT 0,
+  referral_code TEXT DEFAULT '',
+  referred_by TEXT DEFAULT '',
+  paused_at TEXT DEFAULT NULL,
+  session_version INTEGER NOT NULL DEFAULT 1
+);
