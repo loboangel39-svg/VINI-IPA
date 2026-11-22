@@ -16,6 +16,7 @@ struct ThreeOneOSFiveApp: App {
     @AppStorage("sessionExpiresAt") private var sessionExpiresAt: Double = 0
     @AppStorage("currentLicenseKey") private var currentLicenseKey: String = ""
     @State private var isCheckingAutoLogin = true
+    @StateObject private var accessCoordinator = AccessStateCoordinator()
     @Environment(\.scenePhase) private var scenePhase
 
     init() {
@@ -31,7 +32,7 @@ struct ThreeOneOSFiveApp: App {
                     ProgressView("VINI V2")
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else if isLoggedIn {
-                    mainContent
+                    authorizedRoot
                 } else {
                     LoginView(onLoginSuccess: { license, expiresAt in
                         currentLicenseKey = license
@@ -72,6 +73,33 @@ struct ThreeOneOSFiveApp: App {
             await MainActor.run { isCheckingAutoLogin = false }
             return
         }
+
+        if KeychainManager.shared.loadAuthToken() != nil {
+            await withCheckedContinuation { continuation in
+                LoginManager.verifyStoredSession { result in
+                    Task { @MainActor in
+                        switch result {
+                        case .success(let state) where state.status == "expired":
+                            isLoggedIn = false
+                            LoginManager.clearAllCredentials()
+                        case .success(let state):
+                            accessCoordinator.apply(state)
+                            isLoggedIn = true
+                        case .failure(let error) where error.domain == "NSURLErrorDomain":
+                            // Preserve credentials, but never unlock an unknown state.
+                            accessCoordinator.apply(ServerAccessState(status: "checking", message: "No se pudo verificar la sesión."))
+                            isLoggedIn = true
+                        case .failure:
+                            LoginManager.clearAllCredentials()
+                            isLoggedIn = false
+                        }
+                        isCheckingAutoLogin = false
+                        continuation.resume()
+                    }
+                }
+            }
+            return
+        }
         
         // Intentar auto-login con Keychain
         await withCheckedContinuation { continuation in
@@ -95,30 +123,27 @@ struct ThreeOneOSFiveApp: App {
     }
 
     private func checkSessionValidity() {
-        guard isLoggedIn else { return }
-
-        if sessionExpiresAt > 0 {
-            let expirationDate = Date(timeIntervalSince1970: sessionExpiresAt)
-            if Date() > expirationDate {
-                logout()
-                log("app: session expired locally")
-                return
-            }
-        }
-
-        if !currentLicenseKey.isEmpty {
-            LoginManager.verifyLicense(licenseKey: currentLicenseKey) { isValid in
-                if !isValid {
-                    self.logout()
-                    log("app: license invalidated on server")
-                }
-            }
-        }
+        Task { await checkSessionValidityAsync() }
     }
     
     private func checkSessionValidityAsync() async {
         guard isLoggedIn else { return }
 
+        await withCheckedContinuation { continuation in
+            LoginManager.verifyStoredSession { result in
+                Task { @MainActor in
+                    switch result {
+                    case .success(let state) where state.status == "expired": logout()
+                    case .success(let state): accessCoordinator.apply(state)
+                    case .failure(let error) where ["LICENSE_PAUSED", "LICENSE_MAINTENANCE"].contains(error.domain): break
+                    case .failure(let error) where error.domain == "NSURLErrorDomain": break
+                    case .failure: logout()
+                    }
+                    continuation.resume()
+                }
+            }
+        }
+        if !isLoggedIn { return }
         if sessionExpiresAt > 0 {
             let expirationDate = Date(timeIntervalSince1970: sessionExpiresAt)
             if Date() > expirationDate {
@@ -149,6 +174,7 @@ struct ThreeOneOSFiveApp: App {
         currentLicenseKey = ""
         RemotePatchService.shared.clearAuth()
         LoginManager.clearSession()
+        accessCoordinator.clear()
         log("app: user logged out")
     }
     
@@ -173,6 +199,18 @@ struct ThreeOneOSFiveApp: App {
             await MainActor.run { updateOffer = offer }
         }
     }
+
+    @ViewBuilder
+    private var authorizedRoot: some View {
+        switch accessCoordinator.status {
+        case "checking": ProgressView("Verificando sesión…")
+        case "license_paused": PausedLicenseView(accessState: accessCoordinator.state, onRefresh: refreshAccessState)
+        case "maintenance": MaintenanceView(accessState: accessCoordinator.state, onRefresh: refreshAccessState)
+        default: mainContent
+        }
+    }
+
+    private func refreshAccessState() { Task { await checkSessionValidityAsync() } }
 
     @ViewBuilder
     private var mainContent: some View {
@@ -242,6 +280,23 @@ struct ThreeOneOSFiveApp: App {
             patchDraftCoordinator.presentImport(url)
         }
     }
+}
+
+struct PausedLicenseView: View {
+    let accessState: ServerAccessState?
+    let onRefresh: () -> Void
+    var body: some View { AccessStateScreen(title: "Licencia pausada", message: accessState?.message ?? "El acceso está pausado.", icon: "pause.circle.fill", onRefresh: onRefresh) }
+}
+
+struct MaintenanceView: View {
+    let accessState: ServerAccessState?
+    let onRefresh: () -> Void
+    var body: some View { AccessStateScreen(title: "Mantenimiento", message: accessState?.message ?? "El servicio está en mantenimiento.", icon: "wrench.and.screwdriver.fill", onRefresh: onRefresh) }
+}
+
+struct AccessStateScreen: View {
+    let title: String; let message: String; let icon: String; let onRefresh: () -> Void
+    var body: some View { VStack(spacing: 20) { Image(systemName: icon).font(.system(size: 54)); Text(title).font(.title.bold()); Text(message).multilineTextAlignment(.center); Button("Reintentar", action: onRefresh).buttonStyle(.borderedProminent) }.padding().frame(maxWidth: .infinity, maxHeight: .infinity) }
 }
 
 class AppState: ObservableObject {

@@ -1223,6 +1223,12 @@ export default {
         return handleAppValidateLicense(request, env, corsHeaders);
       }
 
+      if (path === '/api/app/session' && method === 'GET') {
+        const auth = await verifyAppAuth(request, env, true);
+        if (!auth.valid) return Response.json({ valid: false, code: auth.code || 'SESSION_REVOKED' }, { status: 401, headers: corsHeaders });
+        return Response.json({ valid: true, access: await getLegacyAccessState(auth.user, env) }, { headers: corsHeaders });
+      }
+
       // App endpoints que requieren license auth
       if (path.startsWith('/api/app/')) {
         const appAuth = await verifyAppAuth(request, env);
@@ -1403,7 +1409,7 @@ export default {
 // APP AUTH — Verifica license_key via Bearer token
 // ============================================================
 
-async function verifyAppAuth(request, env) {
+async function verifyAppAuth(request, env, allowBlocked = false) {
   const authHeader = request.headers.get('Authorization');
   if (!authHeader || !authHeader.startsWith('Bearer ')) return { valid: false };
 
@@ -1414,7 +1420,7 @@ async function verifyAppAuth(request, env) {
     const parts = token.split('.');
     if (parts.length !== 3) return { valid: false };
     const payload = JSON.parse(atob(parts[1]));
-    if (payload.exp < Date.now()) return { valid: false };
+    if (payload.exp < Date.now()) return { valid: false, code: 'SESSION_REVOKED' };
 
     const secret = env.JWT_SECRET || 'vini-jwt-secret-change-me';
     const expectedSig = await hmacSign(`${parts[0]}.${parts[1]}`, secret);
@@ -1422,13 +1428,29 @@ async function verifyAppAuth(request, env) {
 
     // Verificar que el usuario sigue activo
     const user = await env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(payload.userId).first();
-    if (!user) return { valid: false };
-    if (!user.is_active || user.is_paused || user.is_blocked) return { valid: false };
+    if (!user) return { valid: false, code: 'SESSION_REVOKED' };
+    if (payload.session_version != null && Number(payload.session_version) !== Number(user.session_version || 1)) return { valid: false, code: 'SESSION_REVOKED' };
+    if (user.hwid && user.hwid !== '' && payload.hwid !== user.hwid) return { valid: false, code: 'HWID_UNLINKED' };
+    const expired = user.license_expires_at && Date.now() >= new Date(user.license_expires_at).getTime();
+    const maintenance = await env.DB.prepare("SELECT value FROM config WHERE key = 'maintenance_mode'").first();
+    const inMaintenance = maintenance?.value === '1' || maintenance?.value === 1;
+    if (!allowBlocked && (!user.is_active || user.is_paused || user.is_blocked || expired || inMaintenance)) {
+      return { valid: false, code: expired ? 'LICENSE_EXPIRED' : (user.is_paused ? 'LICENSE_PAUSED' : 'SESSION_REVOKED') };
+    }
 
     return { valid: true, userId: payload.userId, hwid: payload.hwid, user };
   } catch {
     return { valid: false };
   }
+}
+
+async function getLegacyAccessState(user, env) {
+  if (user.license_expires_at && Date.now() >= new Date(user.license_expires_at).getTime()) return { status: 'expired' };
+  if (user.is_blocked || !user.is_active) return { status: 'expired' };
+  if (user.is_paused) return { status: 'license_paused' };
+  const maintenance = await env.DB.prepare("SELECT value FROM config WHERE key = 'maintenance_mode'").first();
+  if (maintenance?.value === '1' || maintenance?.value === 1) return { status: 'maintenance' };
+  return { status: 'active' };
 }
 
 // ============================================================
@@ -1485,7 +1507,7 @@ async function handleAppValidateLicense(request, env, headers) {
 
   // Generar token de sesión (24h)
   const exp = Date.now() + 86400000; // 24 horas
-  const token = await createJWT({ userId: user.id, licenseKey, hwid, exp }, env);
+  const token = await createJWT({ userId: user.id, licenseKey, hwid, exp, session_version: Number(user.session_version || 1) }, env);
 
   // Registrar actividad
   await logActivity(env, 'app_login', `User ${user.username} logged in`);

@@ -1,5 +1,19 @@
 import Foundation
 import UIKit
+import Combine
+
+struct ServerAccessState {
+    let status: String
+    let message: String?
+}
+
+@MainActor
+final class AccessStateCoordinator: ObservableObject {
+    @Published private(set) var state: ServerAccessState?
+    var status: String { state?.status ?? "checking" }
+    func apply(_ state: ServerAccessState?) { self.state = state }
+    func clear() { state = nil }
+}
 
 struct LoginResponse {
     let success: Bool
@@ -138,6 +152,36 @@ final class LoginManager {
             } else {
                 DispatchQueue.main.async { completion(false) }
             }
+        }.resume()
+    }
+
+    /// Valida el JWT existente sin reactivar ni volver a enlazar una licencia.
+    /// Los estados paused/maintenance son respuestas válidas, no logout.
+    static func verifyStoredSession(completion: @escaping (Result<ServerAccessState, Error>) -> Void) {
+        guard let token = KeychainManager.shared.loadAuthToken(),
+              let url = URL(string: "\(workerURL)/api/app/session") else {
+            completion(.failure(NSError(domain: "VINIAuth", code: 1)))
+            return
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.timeoutInterval = 10
+        URLSession.shared.dataTask(with: request) { data, response, error in
+            if let error { DispatchQueue.main.async { completion(.failure(error)) }; return }
+            guard let http = response as? HTTPURLResponse,
+                  let data,
+                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                DispatchQueue.main.async { completion(.failure(NSError(domain: "VINIAuth", code: 2))) }; return
+            }
+            guard http.statusCode == 200, (json["valid"] as? Bool) == true else {
+                let code = json["code"] as? String ?? "SESSION_REVOKED"
+                DispatchQueue.main.async { completion(.failure(NSError(domain: code, code: http.statusCode))) }; return
+            }
+            let access = json["access"] as? [String: Any]
+            let state = ServerAccessState(status: access?["status"] as? String ?? "active",
+                                          message: access?["message"] as? String)
+            DispatchQueue.main.async { completion(.success(state)) }
         }.resume()
     }
     
