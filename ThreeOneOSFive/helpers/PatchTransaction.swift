@@ -377,7 +377,12 @@ enum PatchTransaction {
 
             removeEmptyCreatedDirectories(createdDirectoryURLs, fileManager: fileManager)
         } catch let error as PatchPackageError {
-            if case .restoreTargetsChanged = error { throw error }
+            switch error {
+            case .restoreTargetsChanged, .targetContainerChanged:
+                throw error
+            default:
+                break
+            }
             throw PatchPackageError.restoreFailed
         } catch {
             throw PatchPackageError.restoreFailed
@@ -407,6 +412,9 @@ enum PatchTransaction {
             return PatchRestoreInspection(
                 changedTargets: try changedTargets(in: resolved, fileManager: fileManager)
             )
+        } catch let error as PatchPackageError {
+            if case .targetContainerChanged = error { throw error }
+            throw PatchPackageError.restoreFailed
         } catch {
             throw PatchPackageError.restoreFailed
         }
@@ -484,6 +492,9 @@ enum PatchTransaction {
                     }
                 }
             }
+        } catch let error as PatchPackageError {
+            if case .targetContainerChanged = error { throw error }
+            throw PatchPackageError.resetFailed
         } catch {
             throw PatchPackageError.resetFailed
         }
@@ -583,15 +594,19 @@ enum PatchTransaction {
             + (journal.createdDirectories ?? []).map { ($0.bundleID, $0.containerFingerprint) }
         for (bundleID, expectedFingerprint) in identities {
             if let root = roots[bundleID] {
-                guard containerFingerprint(root) == expectedFingerprint else {
-                    throw PatchPackageError.restoreFailed
-                }
+                try PatchReceiptContainerValidator.validate(
+                    bundleID: bundleID,
+                    expectedFingerprint: expectedFingerprint,
+                    currentFingerprint: containerFingerprint(root)
+                )
                 continue
             }
             let root = PatchPathValidator.canonicalFileURL(try containerResolver(bundleID))
-            guard containerFingerprint(root) == expectedFingerprint else {
-                throw PatchPackageError.restoreFailed
-            }
+            try PatchReceiptContainerValidator.validate(
+                bundleID: bundleID,
+                expectedFingerprint: expectedFingerprint,
+                currentFingerprint: containerFingerprint(root)
+            )
             roots[bundleID] = root
         }
         return roots

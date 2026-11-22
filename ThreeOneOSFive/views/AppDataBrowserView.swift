@@ -70,21 +70,28 @@ struct AppDataBrowserView: View {
                 }
             }
             .navigationDestination(for: FileBrowserDestination.self) { destination in
-                if destination.startPath == destination.containerPath {
-                    FileBrowserView(
-                        containerPath: destination.containerPath,
-                        title: destination.title,
-                        bundleID: destination.bundleID,
-                        filesTabSession: $tabSession
-                    )
-                } else {
-                    FileBrowserView(
-                        containerPath: destination.containerPath,
-                        startPath: destination.startPath,
-                        title: destination.title,
-                        bundleID: destination.bundleID,
-                        filesTabSession: $tabSession
-                    )
+                switch tabSession.activeTab?.destinationStatus ?? .current {
+                case .unavailable:
+                    staleDestinationView(replacement: nil)
+                case .replaced(let replacement):
+                    staleDestinationView(replacement: replacement)
+                case .current:
+                    if destination.startPath == destination.containerPath {
+                        FileBrowserView(
+                            containerPath: destination.containerPath,
+                            title: destination.title,
+                            bundleID: destination.bundleID,
+                            filesTabSession: $tabSession
+                        )
+                    } else {
+                        FileBrowserView(
+                            containerPath: destination.containerPath,
+                            startPath: destination.startPath,
+                            title: destination.title,
+                            bundleID: destination.bundleID,
+                            filesTabSession: $tabSession
+                        )
+                    }
                 }
             }
         }
@@ -231,6 +238,32 @@ struct AppDataBrowserView: View {
         }
     }
 
+    private func staleDestinationView(replacement: FileBrowserDestination?) -> some View {
+        VStack(spacing: 14) {
+            Image(systemName: "folder.badge.questionmark")
+                .font(.system(size: AppTheme.emptyIconSize, weight: .light))
+                .foregroundStyle(.secondary)
+            Text(language.text("browser.destination_stale"))
+                .font(.headline)
+            Text(language.text(replacement == nil
+                ? "browser.destination_unavailable_message"
+                : "browser.destination_stale_message"))
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+            if replacement != nil, let tabID = tabSession.activeTab?.id {
+                Button(language.text("browser.open_current_installation")) {
+                    tabSession.openCurrentInstallation(in: tabID)
+                }
+                .buttonStyle(.borderedProminent)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding()
+        .navigationTitle(replacement?.title ?? language.text("browser.title"))
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
     private var emptyView: some View {
         VStack(spacing: 16) {
             Image(systemName: "folder.badge.questionmark")
@@ -364,6 +397,14 @@ struct AppDataBrowserView: View {
             }
 
             DispatchQueue.main.async {
+                tabSession.reconcileAppDestinations(result.map {
+                    FileBrowserDestination(
+                        containerPath: $0.containerPath,
+                        startPath: $0.containerPath,
+                        title: $0.displayName,
+                        bundleID: $0.bundleID
+                    )
+                })
                 apps = result
                 isLoading = false
                 isResolving = false

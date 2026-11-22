@@ -298,6 +298,7 @@ private struct PatchProjectDetailView: View {
     @State private var isWorking = false
     @State private var actionAlert: PatchStoreAlert?
     @State private var shareRequest: PatchShareRequest?
+    @State private var installationState: PatchInstallationState?
 
     private var item: PatchLibraryItem? {
         store.items.first(where: { $0.id == projectID })
@@ -388,6 +389,19 @@ private struct PatchProjectDetailView: View {
                 }
 
                 Section {
+                    LabeledContent(language.text("patch.installation_status")) {
+                        if let installationState {
+                            Text(language.text(installationStateKey(installationState)))
+                        } else {
+                            ProgressView()
+                                .controlSize(.small)
+                        }
+                    }
+                } footer: {
+                    Text(language.text("patch.installation_status_footer"))
+                }
+
+                Section {
                     Button {
                         showApplyConfirmation = true
                     } label: {
@@ -470,11 +484,36 @@ private struct PatchProjectDetailView: View {
             PatchActivityView(items: [request.url])
                 .ignoresSafeArea()
         }
+        .task(id: item?.project?.updatedAt) {
+            await refreshInstallationState()
+        }
     }
 
     private func actionLabel(_ key: String, systemImage: String) -> some View {
         Label(language.text(key), systemImage: systemImage)
             .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func installationStateKey(_ state: PatchInstallationState) -> String {
+        switch state {
+        case .installed: return "patch.installation.installed"
+        case .notInstalled: return "patch.installation.not_installed"
+        case .modified: return "patch.installation.modified"
+        case .unknown: return "patch.installation.unknown"
+        }
+    }
+
+    private func refreshInstallationState() async {
+        guard let project = item?.project else {
+            installationState = nil
+            return
+        }
+        installationState = nil
+        let state = await Task.detached(priority: .utility) {
+            DevicePatchService.inspectInstallation(project: project)
+        }.value
+        guard item?.project?.id == project.id else { return }
+        installationState = state
     }
 
     private func ruleSummary(_ rule: PatchRule) -> some View {
@@ -526,8 +565,10 @@ private struct PatchProjectDetailView: View {
                     ? try PatchProjectLibrary.synchronizeWorkspace(item: item)
                     : baseProject
                 _ = try DevicePatchService.apply(project: project)
+                let state = DevicePatchService.inspectInstallation(project: project)
                 await MainActor.run {
                     store.reload()
+                    installationState = state
                     isWorking = false
                     actionAlert = PatchStoreAlert(titleKey: "common.done", messageKey: "patch.applied_message")
                 }
@@ -584,12 +625,14 @@ private struct PatchProjectDetailView: View {
     }
 
     private func restore() {
-        guard let receipt else { return }
+        guard let receipt, let project = item?.project else { return }
         isWorking = true
         Task.detached(priority: .userInitiated) {
             do {
                 try DevicePatchService.restore(receipt: receipt)
+                let state = DevicePatchService.inspectInstallation(project: project)
                 await MainActor.run {
+                    installationState = state
                     isWorking = false
                     actionAlert = PatchStoreAlert(titleKey: "common.done", messageKey: "patch.restored_message")
                 }

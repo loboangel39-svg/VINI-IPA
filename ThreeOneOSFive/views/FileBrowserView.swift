@@ -18,7 +18,8 @@ struct FileBrowserView: View {
     @State private var entries: [FileEntry] = []
     @State private var fileSearchText = ""
     @State private var isLoadingEntries = true
-    @State private var hasGranted = false
+    @State private var listingFailed = false
+    @State private var accessGrantState = FileAccessGrantState()
     @State private var pendingReplacementRequest: FileReplacementRequest?
     @State private var replacementRequest: FileReplacementRequest?
     @State private var activityText: String?
@@ -48,6 +49,7 @@ struct FileBrowserView: View {
 
     private var overlayState: FileBrowserOverlayState {
         if isLoadingEntries { return .loading }
+        if listingFailed { return .readFailed }
         if entries.isEmpty { return .empty }
         if filteredEntries.isEmpty { return .noResults }
         return .none
@@ -102,6 +104,8 @@ struct FileBrowserView: View {
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                     case .empty:
                         fileEmptyView
+                    case .readFailed:
+                        fileReadFailedView
                     case .noResults:
                         searchEmptyView
                     case .none:
@@ -487,6 +491,24 @@ struct FileBrowserView: View {
             Text(language.text("browser.empty_folder"))
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding()
+    }
+
+    private var fileReadFailedView: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "folder.badge.questionmark")
+                .font(.system(size: AppTheme.emptyIconSize, weight: .light))
+                .foregroundStyle(.secondary)
+            Text(language.text("browser.read_failed"))
+                .font(.subheadline.weight(.semibold))
+            Text(language.text("browser.read_failed_hint"))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+            Button(language.text("browser.retry"), action: load)
+                .buttonStyle(.borderedProminent)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding()
@@ -1135,31 +1157,42 @@ struct FileBrowserView: View {
     }
 
     private func load() {
-        let shouldGrant = !hasGranted && ContainerAccessPolicy.shouldRequestGrant(isRoot: isRoot)
-        hasGranted = true
+        let shouldGrant = accessGrantState.shouldAttemptGrant
+            && ContainerAccessPolicy.shouldRequestGrant(isRoot: isRoot)
         isLoadingEntries = true
+        listingFailed = false
         let path = currentPath
         let targetBundleID = bundleID
         DispatchQueue.global(qos: .userInitiated).async {
+            var grantHandle: Int64 = -1
             if shouldGrant {
-                var handle: Int64 = -1
                 if ContainerAccessPolicy.shouldAttemptMCM(bundleID: targetBundleID),
                    let targetBundleID {
                     var activationError: NSString?
-                    handle = MCMActivateContainer(2, targetBundleID, false, &activationError)
+                    grantHandle = MCMActivateContainer(2, targetBundleID, false, &activationError)
                     let detail = activationError.map { String($0) } ?? "none"
-                    log("filebrowser: MCM activate \(targetBundleID) -> \(handle), detail=\(detail)")
+                    log("filebrowser: MCM activate \(targetBundleID) -> \(grantHandle), detail=\(detail)")
                 }
-                if handle < 0 {
-                    handle = ContainerStore.grantContainerAccess(path)
-                    log("filebrowser: traversal grant \(path) -> \(handle)")
+                if grantHandle < 0 {
+                    grantHandle = ContainerStore.grantContainerAccess(path)
+                    log("filebrowser: traversal grant \(path) -> \(grantHandle)")
                 }
             }
-            let loadedEntries = ContainerStore.listFiles(at: path)
+            let listingResult = ContainerStore.listFiles(at: path)
             DispatchQueue.main.async {
                 guard currentPath == path else { return }
-                entries = loadedEntries
-                selectedEntryIDs.formIntersection(Set(loadedEntries.map(\.id)))
+                switch listingResult {
+                case .success(let loadedEntries):
+                    accessGrantState.record(grantHandle: grantHandle, listingSucceeded: true)
+                    entries = loadedEntries
+                    selectedEntryIDs.formIntersection(Set(loadedEntries.map(\.id)))
+                    listingFailed = false
+                case .failure:
+                    accessGrantState.record(grantHandle: grantHandle, listingSucceeded: false)
+                    entries = []
+                    selectedEntryIDs.removeAll()
+                    listingFailed = true
+                }
                 isLoadingEntries = false
             }
         }
@@ -1354,6 +1387,7 @@ struct FileBrowserView: View {
 
 private enum FileBrowserOverlayState: Equatable {
     case loading
+    case readFailed
     case empty
     case noResults
     case none

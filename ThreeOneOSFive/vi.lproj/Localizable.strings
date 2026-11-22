@@ -172,6 +172,12 @@
 "patch.unlock" = "Mở khóa";
 "patch.apply" = "Áp dụng patch";
 "patch.restore" = "Khôi phục file gốc";
+"patch.installation_status" = "Nội dung hiện tại";
+"patch.installation.installed" = "Đã cài đặt";
+"patch.installation.not_installed" = "Chưa cài đặt";
+"patch.installation.modified" = "Đã sửa đổi";
+"patch.installation.unknown" = "Không xác định";
+"patch.installation_status_footer" = "VINI xác minh container hiện tại và nội dung file dự kiến. Lỗi truy cập vẫn được giữ là không xác định; chỉ có thư mục không đủ chứng minh patch đã được cài.";
 "patch.apply_footer" = "Trước khi ghi, 3105 phân giải từng bundle trên thiết bị này và sao lưu mọi file gốc để khôi phục.";
 "patch.apply_confirm_title" = "Áp dụng patch này?";
 "patch.apply_confirm_message" = "Mọi bundle identifier và đường dẫn tương đối sẽ được kiểm tra lại. File gốc được sao lưu trước lần ghi đầu tiên.";
@@ -194,6 +200,11 @@
 "patch.error.replacement_required" = "Hãy chọn tệp thay thế cho mọi đường dẫn đích trước khi lưu.";
 "patch.error.keychain" = "Không thể lưu hoặc đọc khóa mở gói một cách an toàn.";
 "patch.error.app_unavailable" = "Bundle app %@ chưa được cài hoặc không thể mở. Patch chưa thay đổi file nào.";
+"patch.error.container_not_resolved" = "Không thể phân giải vùng chứa dữ liệu hiện tại cho bundle app %@. Điều này không chứng minh rằng app chưa được cài. Patch chưa thay đổi file nào.";
+"patch.error.identity_not_verified" = "Không thể xác minh danh tính vùng chứa hiện tại cho %@. Patch chưa thay đổi file nào.";
+"patch.error.write_access_denied" = "Quyền ghi vào bundle app %@ bị từ chối. Patch chưa thay đổi file nào.";
+"patch.error.identity_mismatch" = "Container được phân giải cho %@ thuộc về một app khác. Patch chưa thay đổi file nào.";
+"patch.error.container_changed" = "%@ hiện trỏ đến một container khác, thường do app đã được cài lại hoặc cập nhật. Bản sao lưu cũ không được ghi vào container đó.";
 "patch.error.symlink" = "Đường dẫn patch không được đi qua liên kết tượng trưng.";
 "patch.error.apply" = "Không thể áp dụng patch. Mọi file đã ghi trước đó đã được rollback.";
 "patch.error.restore" = "Không thể khôi phục file gốc an toàn. App không ghi đè đích chưa được xác minh.";
@@ -338,6 +349,12 @@
 "browser.folder" = "Thư mục";
 "browser.file" = "Tệp";
 "browser.empty_folder" = "Thư mục này đang trống.";
+"browser.read_failed" = "Không thể đọc thư mục này";
+"browser.read_failed_hint" = "Thư mục có thể không khả dụng hoặc quyền truy cập bị từ chối. Hãy kiểm tra nhật ký rồi thử lại.";
+"browser.destination_stale" = "Tab này đang trỏ đến đích đã cũ";
+"browser.destination_stale_message" = "Cùng một app hiện trỏ đến container khác. Hãy mở rõ ràng bản cài đặt hiện tại để tiếp tục.";
+"browser.destination_unavailable_message" = "Đích app mà tab này sử dụng không còn trong danh mục đã xác nhận.";
+"browser.open_current_installation" = "Mở bản cài đặt hiện tại";
 "browser.replace_hint" = "Chạm và giữ tệp này để thay thế.";
 "browser.replace" = "Thay thế";
 "browser.replacing" = "Đang thay thế…";
