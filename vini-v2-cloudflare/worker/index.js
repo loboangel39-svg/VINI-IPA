@@ -2102,11 +2102,33 @@ async function handleTogglePause(id, env, headers) {
 }
 
 async function handleResetHWID(id, env, headers) {
-  await env.DB.prepare(
+  const result = await env.DB.prepare(
     "UPDATE users SET hwid = '', session_version = COALESCE(session_version, 1) + 1 WHERE id = ?"
   ).bind(id).run();
+  if (!result.meta || result.meta.changes !== 1) {
+    return Response.json({
+      success: false,
+      error: 'ADMIN_ACTION_FAILED',
+      code: 'ADMIN_ACTION_FAILED'
+    }, { status: 404, headers });
+  }
+  const updated = await env.DB.prepare(
+    'SELECT id, hwid, session_version FROM users WHERE id = ?'
+  ).bind(id).first();
+  if (!updated || updated.hwid !== '' || !updated.session_version) {
+    return Response.json({
+      success: false,
+      error: 'ADMIN_ACTION_FAILED',
+      code: 'ADMIN_ACTION_FAILED'
+    }, { status: 500, headers });
+  }
   await logActivity(env, 'hwid_reset', `User ${id} HWID reset`);
-  return Response.json({ success: true }, { headers });
+  return Response.json({
+    success: true,
+    user_id: updated.id,
+    hwid: '',
+    session_version: Number(updated.session_version)
+  }, { headers });
 }
 
 async function handleToggleBlock(id, env, headers) {
