@@ -1073,7 +1073,19 @@
       await api(`/api/access-state/users/${id}/${paused ? 'resume' : 'pause'}`, { method: 'POST' });
       loadUsers();
     }
-    async function resetHWID(id) { if (confirm('¿Resetear HWID?')) { await api(`/api/users/${id}/hwid`, { method: 'POST' }); loadUsers(); } }
+    async function resetHWID(id) {
+      if (!confirm('¿Resetear HWID? La sesión del dispositivo actual quedará invalidada.')) return;
+      try {
+        const result = await api(`/api/users/${id}/hwid`, { method: 'POST' });
+        if (!result.success || result.user_id !== id || result.hwid !== '' || !Number.isInteger(result.session_version)) {
+          throw new Error('El servidor no confirmó el reset de HWID.');
+        }
+        await loadUsers();
+        alert(`HWID reseteado. Versión de sesión: ${result.session_version}`);
+      } catch (error) {
+        alert(error.message || 'No se pudo resetear el HWID.');
+      }
+    }
     async function toggleBlock(id) { await api(`/api/users/${id}/block`, { method: 'POST' }); loadUsers(); }
 
     function showRenewModal(id, username) {
