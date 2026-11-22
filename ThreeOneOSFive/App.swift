@@ -75,7 +75,7 @@ struct ThreeOneOSFiveApp: App {
         }
 
         if KeychainManager.shared.loadAuthToken() != nil {
-            await withCheckedContinuation { continuation in
+            let _: Void = await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
                 LoginManager.verifyStoredSession { result in
                     Task { @MainActor in
                         switch result {
@@ -85,7 +85,7 @@ struct ThreeOneOSFiveApp: App {
                         case .success(let state):
                             accessCoordinator.apply(state)
                             isLoggedIn = true
-                        case .failure(let error) where error.domain == "NSURLErrorDomain":
+                        case .failure(let error) where (error as NSError).domain == "NSURLErrorDomain":
                             // Preserve credentials, but never unlock an unknown state.
                             accessCoordinator.apply(ServerAccessState(status: "checking", message: "No se pudo verificar la sesión."))
                             isLoggedIn = true
@@ -129,14 +129,14 @@ struct ThreeOneOSFiveApp: App {
     private func checkSessionValidityAsync() async {
         guard isLoggedIn else { return }
 
-        await withCheckedContinuation { continuation in
+        let _: Void = await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
             LoginManager.verifyStoredSession { result in
                 Task { @MainActor in
                     switch result {
                     case .success(let state) where state.status == "expired": logout()
                     case .success(let state): accessCoordinator.apply(state)
-                    case .failure(let error) where ["LICENSE_PAUSED", "LICENSE_MAINTENANCE"].contains(error.domain): break
-                    case .failure(let error) where error.domain == "NSURLErrorDomain": break
+                    case .failure(let error) where ["LICENSE_PAUSED", "LICENSE_MAINTENANCE"].contains((error as NSError).domain): break
+                    case .failure(let error) where (error as NSError).domain == "NSURLErrorDomain": break
                     case .failure: logout()
                     }
                     continuation.resume()
