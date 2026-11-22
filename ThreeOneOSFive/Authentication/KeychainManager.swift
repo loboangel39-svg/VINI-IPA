@@ -65,6 +65,15 @@ final class KeychainManager {
     func deleteAuthToken() {
         delete(key: authTokenKey)
     }
+
+    /// Removes credentials that could silently reactivate a revoked binding.
+    /// The persistent device HWID is intentionally retained for the next
+    /// explicit activation on this device.
+    func deleteActivationCredentials() {
+        delete(key: licenseKeyKey)
+        delete(key: authTokenKey)
+        delete(key: usernameKey)
+    }
     
     // MARK: - Generate Persistent HWID
     // Genera un UUID y lo guarda en Keychain.

@@ -218,7 +218,13 @@ final class LoginManager {
             }
             let status = (response as? HTTPURLResponse)?.statusCode ?? 0
             print("[AUTH] session response status=\(status)")
-            if status == 401 || status == 403 {
+            if status == 401 {
+                // A revoked JWT must not be revalidated with the saved
+                // license: that would silently bind the same HWID again.
+                DispatchQueue.main.async { completion(.revoked) }
+                return
+            }
+            if status == 403 {
                 // A paused license may be rejected by an older session route
                 // even though the license contract can still authenticate it.
                 // Revalidate through the license endpoint before treating the
@@ -300,6 +306,14 @@ final class LoginManager {
     /// Limpia la sesión del usuario (pero NO borra el license key del Keychain para permitir re-login)
     static func clearSession() {
         KeychainManager.shared.deleteAuthToken()
+        UserDefaults.standard.removeObject(forKey: "vini.authToken")
+        UserDefaults.standard.removeObject(forKey: "vini.username")
+    }
+
+    /// Clears the session and saved license so a server revocation requires
+    /// an explicit activation instead of automatic rebinding.
+    static func clearActivationCredentials() {
+        KeychainManager.shared.deleteActivationCredentials()
         UserDefaults.standard.removeObject(forKey: "vini.authToken")
         UserDefaults.standard.removeObject(forKey: "vini.username")
     }

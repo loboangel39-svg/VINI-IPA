@@ -135,7 +135,7 @@ struct ThreeOneOSFiveApp: App {
             let storedSessionValid = await withCheckedContinuation { continuation in
                 LoginManager.verifyStoredSession { result in
                     if case .revoked = result {
-                        LoginManager.clearSession()
+                        LoginManager.clearActivationCredentials()
                         isLoggedIn = false
                         currentLicenseKey = ""
                         sessionExpiresAt = 0
@@ -252,7 +252,7 @@ struct ThreeOneOSFiveApp: App {
         currentLicenseKey = ""
         accessCoordinator.clear()
         RemotePatchService.shared.clearAuth()
-        LoginManager.clearSession()
+        LoginManager.clearActivationCredentials()
         log("app: session expired or invalidated")
     }
 }
