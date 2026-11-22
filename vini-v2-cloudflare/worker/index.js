@@ -1435,7 +1435,7 @@ async function verifyAppAuth(request, env, allowBlocked = false) {
     const maintenance = await env.DB.prepare("SELECT value FROM config WHERE key = 'maintenance_mode'").first();
     const inMaintenance = maintenance?.value === '1' || maintenance?.value === 1;
     if (!allowBlocked && (!user.is_active || user.is_paused || user.is_blocked || expired || inMaintenance)) {
-      return { valid: false, code: expired ? 'LICENSE_EXPIRED' : (user.is_paused ? 'LICENSE_PAUSED' : 'SESSION_REVOKED') };
+      return { valid: false, code: expired ? 'LICENSE_EXPIRED' : (user.is_paused ? 'LICENSE_PAUSED' : (inMaintenance ? 'LICENSE_MAINTENANCE' : 'SESSION_REVOKED')) };
     }
 
     return { valid: true, userId: payload.userId, hwid: payload.hwid, user };
