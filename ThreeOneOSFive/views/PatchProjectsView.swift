@@ -1055,9 +1055,8 @@ private struct PatchProjectDetailView: View {
                     }
                 } else {
                     await MainActor.run {
-                        isWorking = false
                         restoreChangedPaths = inspection.changedTargets.map(\.displayPath)
-                        showChangedRestoreConfirmation = true
+                        restore(allowChangedTargets: true)
                     }
                 }
             } catch let error as PatchPackageError {
