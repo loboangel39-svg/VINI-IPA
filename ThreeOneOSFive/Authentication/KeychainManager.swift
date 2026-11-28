@@ -102,7 +102,7 @@ final class KeychainManager {
         guard let data = value.data(using: .utf8) else { return }
         
         // Delete existing
-        delete(key: key)
+        _ = delete(key: key)
         
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
@@ -112,7 +112,8 @@ final class KeychainManager {
             kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
         ]
         
-        SecItemAdd(query as CFDictionary, nil)
+        let addStatus = SecItemAdd(query as CFDictionary, nil)
+        print("[AUTH-DIAG][KEYCHAIN] add key=\(key) status=\(addStatus)")
     }
     
     private func load(key: String) -> String? {
@@ -126,6 +127,7 @@ final class KeychainManager {
         
         var result: AnyObject?
         let status = SecItemCopyMatching(query as CFDictionary, &result)
+        print("[AUTH-DIAG][KEYCHAIN] copy key=\(key) status=\(status) present=\(status == errSecSuccess)")
         
         guard status == errSecSuccess,
               let data = result as? Data,
@@ -136,13 +138,16 @@ final class KeychainManager {
         return string
     }
     
-    private func delete(key: String) {
+    @discardableResult
+    private func delete(key: String) -> OSStatus {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: key,
         ]
         
-        SecItemDelete(query as CFDictionary)
+        let status = SecItemDelete(query as CFDictionary)
+        print("[AUTH-DIAG][KEYCHAIN] delete key=\(key) status=\(status)")
+        return status
     }
 }

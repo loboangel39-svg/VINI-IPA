@@ -172,6 +172,7 @@ final class LoginManager {
     /// Retorna true si hay credenciales y se puede intentar login.
     static func tryAutoLogin(completion: @escaping (Bool, String?, Date?, Date?, String?, ServerAccessState?) -> Void) {
         guard let licenseKey = KeychainManager.shared.loadLicenseKey() else {
+            print("[AUTH-DIAG] tryAutoLogin stopped reason=license-absent")
             completion(false, nil, nil, nil, nil, nil)
             return
         }
@@ -181,12 +182,25 @@ final class LoginManager {
         login(licenseKey: licenseKey) { success, message, expiresAt, licenseExpiresAt, licensePlan, accessState in
             if success {
                 print("[AUTH] auto-login accepted by server")
+                print("[AUTH-DIAG] tryAutoLogin server-result=accepted")
                 completion(true, licenseKey, expiresAt, licenseExpiresAt, licensePlan, accessState)
             } else {
                 print("[AUTH] auto-login rejected: \(message)")
+                print("[AUTH-DIAG] tryAutoLogin server-result=rejected")
                 completion(false, nil, nil, nil, nil, nil)
             }
         }
+    }
+
+    /// Diagnostic-only inspection; does not authorize or reject a session.
+    static func diagnosticStoredTokenIsExpired() -> Bool? {
+        guard let token = KeychainManager.shared.loadAuthToken() else { return nil }
+        let parts = token.split(separator: ".")
+        guard parts.count == 3,
+              let payloadData = Data(base64Encoded: String(parts[1])),
+              let payload = try? JSONSerialization.jsonObject(with: payloadData) as? [String: Any],
+              let exp = payload["exp"] as? Double else { return nil }
+        return Date().timeIntervalSince1970 * 1000 >= exp
     }
 
     private static func parseISO8601Date(_ value: String?) -> Date? {
@@ -213,11 +227,13 @@ final class LoginManager {
         request.setValue("license-plan-v1,access-state-v1", forHTTPHeaderField: "X-VINI-Capabilities")
         URLSession.shared.dataTask(with: request) { data, response, error in
             if error != nil || data == nil {
+                print("[AUTH-DIAG] verifyStoredSession result=networkError")
                 DispatchQueue.main.async { completion(.networkError) }
                 return
             }
             let status = (response as? HTTPURLResponse)?.statusCode ?? 0
             print("[AUTH] session response status=\(status)")
+            print("[AUTH-DIAG] verifyStoredSession httpStatus=\(status)")
             if status == 401 {
                 // A revoked JWT must not be revalidated with the saved
                 // license: that would silently bind the same HWID again.
@@ -244,6 +260,7 @@ final class LoginManager {
             guard status == 200,
                   let data,
                   let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                print("[AUTH-DIAG] verifyStoredSession result=invalid-or-non200-response")
                 DispatchQueue.main.async {
                     completion(status == 401 ? .revoked : .networkError)
                 }
@@ -259,6 +276,7 @@ final class LoginManager {
                 accessState = nil
             }
             if let licenseExpiresAt, Date() >= licenseExpiresAt {
+                print("[AUTH-DIAG] verifyStoredSession local-server-license-expired=true")
                 DispatchQueue.main.async { completion(.revoked) }
                 return
             }

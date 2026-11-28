@@ -125,6 +125,7 @@ struct ThreeOneOSFiveApp: App {
     }
 
     private func attemptAutoLogin() async {
+        print("[AUTH-DIAG] attemptAutoLogin begin isLoggedIn=\(isLoggedIn) authTokenPresent=\(KeychainManager.shared.loadAuthToken() != nil) jwtExpiredLocal=\(String(describing: LoginManager.diagnosticStoredTokenIsExpired())) licensePresent=\(KeychainManager.shared.loadLicenseKey() != nil) hwidPresent=\(KeychainManager.shared.loadHWID() != nil) usernamePresent=\(KeychainManager.shared.loadUsername() != nil)")
         if isLoggedIn {
             await checkSessionValidityAsync()
             isCheckingAutoLogin = false
@@ -132,9 +133,19 @@ struct ThreeOneOSFiveApp: App {
             return
         }
         if KeychainManager.shared.loadAuthToken() != nil {
+            print("[AUTH-DIAG] verifyStoredSession begin")
             let storedSessionValid = await withCheckedContinuation { continuation in
                 LoginManager.verifyStoredSession { result in
+                    switch result {
+                    case .valid:
+                        print("[AUTH-DIAG] verifyStoredSession result=valid")
+                    case .revoked:
+                        print("[AUTH-DIAG] verifyStoredSession result=revoked")
+                    case .networkError:
+                        print("[AUTH-DIAG] verifyStoredSession result=networkError")
+                    }
                     if case .revoked = result {
+                        print("[AUTH-DIAG] clearActivationCredentials reason=stored-session-revoked")
                         LoginManager.clearActivationCredentials()
                         isLoggedIn = false
                         currentLicenseKey = ""
@@ -157,9 +168,11 @@ struct ThreeOneOSFiveApp: App {
                 return
             }
         }
+        print("[AUTH-DIAG] tryAutoLogin begin licensePresent=\(KeychainManager.shared.loadLicenseKey() != nil) hwidPresent=\(KeychainManager.shared.loadHWID() != nil)")
         await withCheckedContinuation { continuation in
             LoginManager.tryAutoLogin { success, license, expiresAt, licenseExpiration, plan, access in
                 Task { @MainActor in
+                    print("[AUTH-DIAG] tryAutoLogin result success=\(success) licenseReturned=\(license != nil)")
                     if success, let license {
                         currentLicenseKey = license
                         isLoggedIn = true
@@ -171,6 +184,7 @@ struct ThreeOneOSFiveApp: App {
                         if shouldSynchronizeRemotePatches(for: access) { synchronizeRemotePatches() }
                     } else {
                         log("app: auto-login unavailable; showing original login")
+                        print("[AUTH-DIAG] LoginView reason=tryAutoLogin-failed")
                     }
                     isCheckingAutoLogin = false
                     continuation.resume()
@@ -199,6 +213,7 @@ struct ThreeOneOSFiveApp: App {
         isCheckingSession = true
         defer { isCheckingSession = false }
         if sessionExpiresAt > 0, Date() > Date(timeIntervalSince1970: sessionExpiresAt) {
+            print("[AUTH-DIAG] LoginView reason=local-session-expired")
             logout()
             log("[AUTH] local expiration rejected session")
             return
@@ -228,6 +243,7 @@ struct ThreeOneOSFiveApp: App {
             synchronizeRemotePatches()
         case .revoked:
             log("[AUTH] session check revoked; showing login")
+            print("[AUTH-DIAG] LoginView reason=session-revoked clearActivationCredentials=via-logout")
             logout()
         case .networkError:
             log("[AUTH] session check unavailable; keeping current session")
