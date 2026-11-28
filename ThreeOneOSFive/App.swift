@@ -85,6 +85,11 @@ struct ThreeOneOSFiveApp: App {
                     appState.detectSupport()
                 }
             }
+            .onReceive(NotificationCenter.default.publisher(for: .accessTokenDidRefresh)) { notification in
+                if let expiresAt = notification.userInfo?["expiresAt"] as? Date {
+                    sessionExpiresAt = expiresAt.timeIntervalSince1970
+                }
+            }
             .task { await attemptAutoLogin() }
             .task { await refreshLicenseExpirationLoop() }
             .onChange(of: scenePhase) { phase in
@@ -134,20 +139,36 @@ struct ThreeOneOSFiveApp: App {
         if KeychainManager.shared.loadAuthToken() != nil {
             let storedSessionValid = await withCheckedContinuation { continuation in
                 LoginManager.verifyStoredSession { result in
-                    if case .revoked = result {
-                        LoginManager.clearActivationCredentials()
-                        isLoggedIn = false
-                        currentLicenseKey = ""
-                        sessionExpiresAt = 0
-                        licenseExpiresAt = 0
-                        licensePlan = ""
-                        accessCoordinator.clear()
-                        log("[AUTH] stored session revoked; manual login required")
-                    }
                     continuation.resume(returning: result)
                 }
             }
             if case .revoked = storedSessionValid {
+                let refreshed = await withCheckedContinuation { refreshContinuation in
+                    LoginManager.refreshStoredSession { refreshResult in
+                        refreshContinuation.resume(returning: refreshResult)
+                    }
+                }
+                if case .valid(let expiration, let plan, let access) = refreshed,
+                   let license = KeychainManager.shared.loadLicenseKey() {
+                    currentLicenseKey = license
+                    isLoggedIn = true
+                    sessionExpiresAt = LoginManager.storedAccessTokenExpirationDate()?.timeIntervalSince1970 ?? 0
+                    licenseExpiresAt = expiration?.timeIntervalSince1970 ?? 0
+                    licensePlan = plan ?? ""
+                    accessCoordinator.apply(access)
+                    log("[AUTH] stored access expired; refresh accepted")
+                    isCheckingAutoLogin = false
+                    if shouldSynchronizeRemotePatches(for: access) { synchronizeRemotePatches() }
+                    return
+                }
+                LoginManager.clearActivationCredentials()
+                isLoggedIn = false
+                currentLicenseKey = ""
+                sessionExpiresAt = 0
+                licenseExpiresAt = 0
+                licensePlan = ""
+                accessCoordinator.clear()
+                log("[AUTH] stored session revoked; manual login required")
                 isCheckingAutoLogin = false
                 return
             }

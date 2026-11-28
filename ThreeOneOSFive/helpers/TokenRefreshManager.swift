@@ -23,9 +23,25 @@ final class TokenRefreshManager {
         }
         
         // Guardar nuevo token en Keychain
-        KeychainManager.shared.saveAuthToken(newToken)
+        guard KeychainManager.shared.saveAuthToken(newToken) else { return }
+        if let expiration = Self.expirationDate(of: newToken) {
+            NotificationCenter.default.post(
+                name: .accessTokenDidRefresh,
+                object: nil,
+                userInfo: ["expiresAt": expiration]
+            )
+        }
         
         print("[TokenRefresh] Token renovado automáticamente")
+    }
+
+    private static func expirationDate(of token: String) -> Date? {
+        let parts = token.split(separator: ".")
+        guard parts.count == 3,
+              let data = Data(base64Encoded: String(parts[1])),
+              let payload = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let exp = payload["exp"] as? Double else { return nil }
+        return Date(timeIntervalSince1970: exp / 1000)
     }
     
     /// Versión async para usar con URLSession.data()
@@ -33,4 +49,8 @@ final class TokenRefreshManager {
         guard let httpResponse = response as? HTTPURLResponse else { return }
         handleTokenRefresh(from: httpResponse)
     }
+}
+
+extension Notification.Name {
+    static let accessTokenDidRefresh = Notification.Name("accessTokenDidRefresh")
 }

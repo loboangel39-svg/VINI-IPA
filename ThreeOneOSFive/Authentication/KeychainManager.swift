@@ -15,6 +15,7 @@ final class KeychainManager {
     private let licenseKeyKey = "vini_license_key"
     private let hwidKey = "vini_hwid"
     private let authTokenKey = "vini_auth_token"
+    private let refreshTokenKey = "vini_refresh_token"
     private let usernameKey = "vini_username"
     
     // MARK: - Save
@@ -27,8 +28,14 @@ final class KeychainManager {
         save(key: hwidKey, value: value)
     }
     
-    func saveAuthToken(_ value: String) {
+    @discardableResult
+    func saveAuthToken(_ value: String) -> Bool {
         save(key: authTokenKey, value: value)
+    }
+
+    @discardableResult
+    func saveRefreshToken(_ value: String) -> Bool {
+        save(key: refreshTokenKey, value: value)
     }
     
     func saveUsername(_ value: String) {
@@ -48,6 +55,10 @@ final class KeychainManager {
     func loadAuthToken() -> String? {
         return load(key: authTokenKey)
     }
+
+    func loadRefreshToken() -> String? {
+        return load(key: refreshTokenKey)
+    }
     
     func loadUsername() -> String? {
         return load(key: usernameKey)
@@ -59,6 +70,7 @@ final class KeychainManager {
         delete(key: licenseKeyKey)
         delete(key: hwidKey)
         delete(key: authTokenKey)
+        delete(key: refreshTokenKey)
         delete(key: usernameKey)
     }
     
@@ -72,6 +84,7 @@ final class KeychainManager {
     func deleteActivationCredentials() {
         delete(key: licenseKeyKey)
         delete(key: authTokenKey)
+        delete(key: refreshTokenKey)
         delete(key: usernameKey)
     }
     
@@ -98,8 +111,9 @@ final class KeychainManager {
     
     // MARK: - Private helpers
     
-    private func save(key: String, value: String) {
-        guard let data = value.data(using: .utf8) else { return }
+    @discardableResult
+    private func save(key: String, value: String) -> Bool {
+        guard let data = value.data(using: .utf8) else { return false }
         
         // Delete existing
         delete(key: key)
@@ -112,7 +126,7 @@ final class KeychainManager {
             kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
         ]
         
-        SecItemAdd(query as CFDictionary, nil)
+        return SecItemAdd(query as CFDictionary, nil) == errSecSuccess
     }
     
     private func load(key: String) -> String? {

@@ -1211,6 +1211,7 @@ export default {
     const corsHeaders = {
       'Access-Control-Allow-Origin': '*',
       'Content-Type': 'application/json',
+      'Access-Control-Expose-Headers': 'X-New-Token',
     };
 
     try {
@@ -1236,7 +1237,14 @@ export default {
            response.access = await getAccessState(env, auth.user, true);
           response.licenseExpiresAt = response.access.licenseExpiresAt;
         }
-        return Response.json(response, { headers: corsHeaders });
+        const headers = { ...corsHeaders };
+        const refreshed = await maybeRefreshAccessToken(request, env, auth.user);
+        if (refreshed) headers['X-New-Token'] = refreshed;
+        return Response.json(response, { headers });
+      }
+
+      if (path === '/api/app/session/refresh' && method === 'POST') {
+        return handleAppSessionRefresh(request, env, corsHeaders);
       }
 
       // App endpoints que requieren license auth
@@ -1566,6 +1574,12 @@ async function handleAppValidateLicense(request, env, headers) {
   // Generar token de sesión (24h)
   const exp = Date.now() + 86400000; // 24 horas
   const token = await createJWT({ userId: user.id, licenseKey, hwid, sessionVersion: Number(user.session_version || 1), exp }, env);
+  const refreshToken = await createRefreshJWT({
+    userId: user.id,
+    hwid,
+    sessionVersion: Number(user.session_version || 1),
+    exp: Date.now() + 30 * 86400000
+  }, env);
 
   // Registrar actividad
   await logActivity(env, 'app_login', `User ${user.username} logged in`);
@@ -1573,12 +1587,77 @@ async function handleAppValidateLicense(request, env, headers) {
   return Response.json({
     valid: true,
     token,
+    refreshToken,
     expiresAt: new Date(exp).toISOString(),
     username: user.username,
     isPremium: !!user.is_premium,
     licenseExpiresAt: user.license_expires_at || null,
     ...(isPlanContractEnabled(request, user) ? { licensePlan: user.license_plan } : {}),
     ...(access ? { access, licenseExpiresAt: access.licenseExpiresAt } : {}),
+  }, { headers });
+}
+
+async function maybeRefreshAccessToken(request, env, user) {
+  const authHeader = request.headers.get('Authorization');
+  if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
+  const token = authHeader.slice('Bearer '.length);
+  let payload;
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+    payload = JSON.parse(atob(parts[1]));
+  } catch {
+    return null;
+  }
+  if (!payload.exp || payload.exp - Date.now() > 6 * 60 * 60 * 1000) return null;
+  const access = await getAccessState(env, user, true);
+  if (access.status === 'expired' || access.status === 'unauthorized') return null;
+  if (!user.hwid || payload.hwid !== user.hwid) return null;
+  if (Number(payload.sessionVersion) !== Number(user.session_version || 1)) return null;
+  return createJWT({
+    userId: user.id,
+    licenseKey: payload.licenseKey,
+    hwid: user.hwid,
+    sessionVersion: Number(user.session_version || 1),
+    exp: Date.now() + 86400000
+  }, env);
+}
+
+async function handleAppSessionRefresh(request, env, headers) {
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return Response.json({ valid: false, error: 'Invalid request' }, { status: 400, headers });
+  }
+  const verification = await verifyRefreshJWT(body?.refreshToken, env);
+  if (!verification.valid) {
+    return Response.json({ valid: false, error: 'Refresh revoked' }, { status: 401, headers });
+  }
+  const user = await env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(verification.payload.userId).first();
+  if (!user || !user.is_active || user.is_blocked || !user.hwid || user.hwid !== verification.payload.hwid ||
+      Number(user.session_version || 1) !== Number(verification.payload.sessionVersion)) {
+    return Response.json({ valid: false, error: 'Refresh revoked' }, { status: 401, headers });
+  }
+  const access = await getAccessState(env, user, true);
+  if (access.status === 'expired' || access.status === 'unauthorized') {
+    return Response.json({ valid: false, error: 'Access unavailable', access }, { status: 403, headers });
+  }
+  const exp = Date.now() + 86400000;
+  const token = await createJWT({
+    userId: user.id,
+    licenseKey: user.license_key,
+    hwid: user.hwid,
+    sessionVersion: Number(user.session_version || 1),
+    exp
+  }, env);
+  return Response.json({
+    valid: true,
+    token,
+    expiresAt: new Date(exp).toISOString(),
+    licenseExpiresAt: user.license_expires_at || null,
+    ...(isPlanContractEnabled(request, user) ? { licensePlan: user.license_plan } : {}),
+    access
   }, { headers });
 }
 
@@ -1846,6 +1925,44 @@ async function handleLogin(request, env, headers) {
 
 async function createJWT(payload, env) {
   const secret = env.JWT_SECRET || 'vini-jwt-secret-change-me';
+  const header = btoa(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
+  const body = btoa(JSON.stringify(payload));
+  const signature = await hmacSign(`${header}.${body}`, secret);
+  return `${header}.${body}.${signature}`;
+}
+
+async function createRefreshJWT(payload, env) {
+  return createSignedJWT({
+    ...payload,
+    typ: 'refresh',
+    iss: 'vini-v2-api',
+    aud: 'vini-ios-refresh'
+  }, await refreshSecret(env));
+}
+
+async function verifyRefreshJWT(token, env) {
+  if (!token || typeof token !== 'string') return { valid: false };
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return { valid: false };
+    const payload = JSON.parse(atob(parts[1]));
+    if (payload.typ !== 'refresh' || payload.iss !== 'vini-v2-api' || payload.aud !== 'vini-ios-refresh') return { valid: false };
+    if (!payload.exp || payload.exp <= Date.now()) return { valid: false };
+    const expectedSig = await hmacSign(`${parts[0]}.${parts[1]}`, await refreshSecret(env));
+    if (expectedSig !== parts[2]) return { valid: false };
+    return { valid: true, payload };
+  } catch {
+    return { valid: false };
+  }
+}
+
+async function refreshSecret(env) {
+  // Production must define JWT_REFRESH_SECRET. The labelled fallback keeps
+  // local environments separated from access JWTs without adding D1 state.
+  return env.JWT_REFRESH_SECRET || `${env.JWT_SECRET || 'vini-jwt-secret-change-me'}:refresh:v1`;
+}
+
+async function createSignedJWT(payload, secret) {
   const header = btoa(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
   const body = btoa(JSON.stringify(payload));
   const signature = await hmacSign(`${header}.${body}`, secret);

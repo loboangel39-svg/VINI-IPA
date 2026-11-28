@@ -103,7 +103,10 @@ final class LoginManager {
                 print("[AUTH] license validation accepted")
                 // Guardar token de sesión en Keychain (sobrevive reinstalaciones)
                 if let token = json["token"] as? String {
-                    KeychainManager.shared.saveAuthToken(token)
+                    print("[AUTH] access token persisted=\(KeychainManager.shared.saveAuthToken(token))")
+                }
+                if let refreshToken = json["refreshToken"] as? String {
+                    print("[AUTH] refresh token persisted=\(KeychainManager.shared.saveRefreshToken(refreshToken))")
                 }
                 
                 // Guardar username en Keychain
@@ -187,6 +190,48 @@ final class LoginManager {
                 completion(false, nil, nil, nil, nil, nil)
             }
         }
+    }
+
+    static func refreshStoredSession(completion: @escaping (StoredSessionResult) -> Void) {
+        guard let refreshToken = KeychainManager.shared.loadRefreshToken(),
+              let url = URL(string: "\(workerURL)/api/app/session/refresh") else {
+            completion(.revoked)
+            return
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 10
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("license-plan-v1,access-state-v1", forHTTPHeaderField: "X-VINI-Capabilities")
+        request.httpBody = try? JSONSerialization.data(withJSONObject: ["refreshToken": refreshToken])
+        URLSession.shared.dataTask(with: request) { data, response, error in
+            guard error == nil, let data,
+                  let status = (response as? HTTPURLResponse)?.statusCode,
+                  status == 200,
+                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  json["valid"] as? Bool == true,
+                  let token = json["token"] as? String,
+                  KeychainManager.shared.saveAuthToken(token) else {
+                DispatchQueue.main.async { completion(.revoked) }
+                return
+            }
+            let expiration = parseISO8601Date(json["licenseExpiresAt"] as? String)
+            let plan = resolvedLicensePlan(from: json)
+            let access = parseAccessState(from: json)
+            DispatchQueue.main.async {
+                completion(.valid(licenseExpiresAt: expiration, licensePlan: plan, accessState: access))
+            }
+        }.resume()
+    }
+
+    static func storedAccessTokenExpirationDate() -> Date? {
+        guard let token = KeychainManager.shared.loadAuthToken() else { return nil }
+        let parts = token.split(separator: ".")
+        guard parts.count == 3,
+              let data = Data(base64Encoded: String(parts[1])),
+              let payload = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let exp = payload["exp"] as? Double else { return nil }
+        return Date(timeIntervalSince1970: exp / 1000)
     }
 
     private static func parseISO8601Date(_ value: String?) -> Date? {
